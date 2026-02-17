@@ -5,7 +5,7 @@ import {Match2 } from "./prs.js"
 //-------------------------------------------------------------------------
 // 23andme data
 let users = await filterUrls()
-let userUrls = (users.slice(7,9)).map(x => x["genotype.download_url"])
+let userUrls = users.map(x => x["genotype.download_url"])
 console.log("userUrls",userUrls)
 
 //---------------------------------------------------------------

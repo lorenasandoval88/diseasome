@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Diseasome</title>
+    <title>Diseasome - Local 5 Users</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <!-- <link rel="stylesheet" href="lib/css/font-awesome.min.css">
@@ -74,7 +74,7 @@
     <!-- Tab content -->
     <div class="tab">
         <button class="tablinks" onclick="tabFunction(event, 'PGS catalog')">PGS catalog</button>
-        <button class="tablinks" onclick="tabFunction(event, 'OpenSNP')">OpenSNP</button>
+        <button class="tablinks" onclick="tabFunction(event, 'LocalData')">Local Data</button>
         <button id = "prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">PRS</button>
     </div>
 <div id = "selection"></div>
@@ -110,24 +110,17 @@
 
     <!-- 23 and me ------------------------------------------>
 
-    <div id="OpenSNP" class="tabcontent">
-        <h3>OpenSNP</h3>
-        <p>OpenSNP.org is a repository to which users can upload their SNP-sets (and exome-VCFs) from a variety of
-            direct-to-consumer genetic testing brands including 23andMe.</p>
-
-        <h6 style="color: rgb(6, 137, 231);">Select an openSNP datatype below:</h6>
-
-        <div id=snp></div>
-        <div id="snpButton"></div>
-        <br>
-
-        <div style="position:relative;left:100px;bottom:0px;text-align:left">
-            <span style="font-size: 13pt;">OpenSNP phenotypes</span>
-        </div>
-        <div id=snpPheno></div>
-        <div id="snpPhenoButton"></div>
-        <div id=snpPhenoPie></div>
-        <div id=snpPhenoPieButton></div>
+    <div id="LocalData" class="tabcontent">
+        <h3>Local Data</h3>
+        <p>This app now uses only five local 23andMe-compatible genome files from the <b>data/</b> folder.</p>
+        <h6 style="color: rgb(6, 137, 231);">Configured local users:</h6>
+        <ol>
+            <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
+            <li>PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt</li>
+            <li>PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt</li>
+            <li>PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt</li>
+            <li>PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt</li>
+        </ol>
     </div>
 
     <!-- pgs scoring counts bar plot ----------------------------->
@@ -206,13 +199,6 @@
     <!-- scripts----------------------------------------------->
 
   
-    <!-- Required JS Libraries -->
-    <script src="lib/js/d3.js"></script>
-    <script src="lib/js/jquery-1.11.2.min.js"></script>
-    <script src="lib/js/underscore-min.js"></script>
-    <script src="lib/js/bootstrap.min.js"></script>
-  
-
     <script type="module" src="main.js"></script>
     <script type="module" src="get23me.js"></script>
     <script type="module" src="getPgs.js"></script>
@@ -220,13 +206,6 @@
     <script src="tabs.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
-
-
-    <!-- Required JS Libraries -->
-<script src="lib/js/d3.js"></script>
-<script src="lib/js/jquery-1.11.2.min.js"></script>
-<script src="lib/js/underscore-min.js"></script>
-<script src="lib/js/bootstrap.min.js"></script>
 
     <!-- privacy section-->
     <section id="notices">

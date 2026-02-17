@@ -8,19 +8,33 @@ let userTexts = localforage.createInstance({
     storeName: "userTexts"
 })
 
+const LOCAL_USER_FILES = [
+    "data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt",
+    "data/PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt",
+    "data/PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt",
+    "data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt",
+    "data/PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt"
+]
 
-// get all users with genotype data (23andMe, illumina, ancestry etc)-------------------------------
-async function getUserUrls() { // opensnp user data includes ancestry, familtyTree, and 23and me genotype data
+
+// get all users with genotype data from local data folder-------------------------------
+async function getUserUrls() {
     const newLocal = 'usersFull';
-    let dt
-    dt = await userUrls.getItem(newLocal); // check for users in localstorage
+    let dt = await userUrls.getItem(newLocal); // check for users in localstorage
     if (dt == null) {
-        let url = 'https://corsproxy.io/?https://opensnp.org/users.json'
-        let users = (await (await fetch(url)).json())
-        let dt2 = users.sort((a, b) => a.id - b.id)
-        dt = userUrls.setItem('usersFull', dt2)
+        const localUsers = LOCAL_USER_FILES.map((file, index) => ({
+            id: index + 1,
+            name: file,
+            genotypes: [
+                {
+                    id: index + 1,
+                    filetype: "23andme",
+                    download_url: file
+                }
+            ]
+        }))
+        dt = await userUrls.setItem(newLocal, localUsers)
     }
-    // console.log("getUrls, dt:", dt)
     return dt
 }
 
@@ -87,7 +101,7 @@ async function get23(urls) {
         let user = await userTexts.getItem(urls[i]);
 
         if (user == null) {
-            let url2 = 'https://corsproxy.io/?' + urls[i]
+            let url2 = /^https?:\/\//.test(urls[i]) ? 'https://corsproxy.io/?' + urls[i] : urls[i]
             console.log('url2',url2)
 
             user = (await (await fetch(url2)).text())

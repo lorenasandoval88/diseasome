@@ -38,15 +38,14 @@
                     <a class="nav-link" target="_blank" href="https://github.com/episphere/diseasome">Github Code</a>
                 </li>
                 <li class="nav-item"><a class="nav-link" target="_blank"
-                        href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores_sdk"
-                        target="_blank">Notebook</a>
+                    href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores_sdk">Notebook</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" target="_blank" href="">
-                        <img style="vertical-align:top" src="youtube_img.png" width="20" height="20"></img> Tutorial</a>
+                        <img style="vertical-align:top" src="youtube_img.png" width="20" height="20" /> Tutorial</a>
                 </li>
             </ul>
         </div>
@@ -56,7 +55,7 @@
     <section class="bgimage" id="home">
         <div class="container-fluid">
             <div class="col-lg-10 col-md-10 col-sm-10 col-xs-10 hero-text">
-                <h4 class="hero_title">Diseasome</h3>
+                <h4 class="hero_title">Diseasome</h4>
                     <p class="hero_desc">Calculation of multiple <a class="link-unstyled"
                             href="https://www.nature.com/articles/nrg.2016.27" target="_blank"><u>risk profiles</u></a>
                         for
@@ -73,7 +72,7 @@
 
     <!-- Tab content -->
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'PGS catalog')">PGS catalog</button>
+        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">PGS catalog</button>
         <button class="tablinks" onclick="tabFunction(event, 'LocalData')">Local Data</button>
         <button id = "prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">PRS</button>
     </div>
@@ -97,7 +96,7 @@
             (compressed or not).</p>
 
             <div id=prsDiv>prsDiv</div>
-            <div id=prsButton></div>
+            <div id="prsAction"></div>
             <!-- heatmap -->
             <div id='container-id-1'>
                 <h1 class='wait_message'>Please wait ...</h1>
@@ -124,77 +123,26 @@
     </div>
 
     <!-- pgs scoring counts bar plot ----------------------------->
-    <div id="PGS catalog" class="tabcontent">
+    <div id="PGSCatalog" class="tabcontent">
 
         <h3>The Polygenic Score (PGS) Catalog</h3>
         <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant metadata;
             including scoring files (variants, effect alleles/weights).</p>
 
         <div class="tab">
-            <button class="tablinks" onclick="tabFunction(event, 'Categories', true)">Categories</button>
-            <button class="tablinks" onclick="tabFunction(event, 'Traits', true)">Traits</button>
-            <button class="tablinks" onclick="tabFunction(event, 'EFO_ids', true)">EFO_ids</button>
+            <button class="tablinks" onclick="tabFunction(event, 'scoresDiv', true)">small files (30-70 variants)</button>
+            <!-- <button class="tablinks" onclick="tabFunction(event, 'Traits', true)">Traits</button>
+            <button class="tablinks" onclick="tabFunction(event, 'EFO_ids', true)">EFO_ids</button> -->
 
         </div>
 
             <!--  --------------------->
 
-        <div id="Categories" class="tabcontent">
+        <div id="scoresDiv" class="tabcontent">
 
-            <h6 style="color: rgb(6, 137, 231);">Select a PGS category below:</h6>
-            <div id="topBarCategories"></div>
-            <p id="description1" style="font-size:10px;color:blue"></p>
-
-            <div id="secondBarCategories"></div>
-            <div id="secondBarCategoriesButton"></div>
-
-            <div id="betasBarCategoriesButton"></div>
-            <div id="betasBarCategories"></div>
-            <!--  --------------------->
-
-            <br>
-            <h6 id="pieHeader"></h6>
-            <div class="spinner-border m-5" style="display: none;" role="status" id="spinner2">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-
-            <div id="pgsPie"></div>
-            <div id="thirdBarCategories"></div>
-            <div id="thirdBarCategoriesButton"></div>
-
-            <div id="betasthirdBarCategoriesButton"></div>
-            <div id="betasthirdBarCategories"></div>
-
-            <div class="spinner-border m-5" role="status" id="spinner">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-
-        </div>
-        <!--  --------------------->
-        <div id="Traits" class="tabcontent">
-            <h6 style="color: rgb(6, 137, 231);">Select a PGS category below:</h6>
-        <div id="topBarTraits"></div>
-        <div class="spinner-border m-5" style="display: none;" role="status" id="spinner3">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        <div id="secondBarTraits"></div>
-        <div id="secondBarTraitsButton"></div>
-
-        <div id="betassecondBarTraitsButton"></div>
-        <div id="betassecondBarTraits"></div>
+   
     </div>
     </div>
-
-          <!--  --------------------->
-
-          <div id="EFO_ids" class="tabcontent">
-
-            <h6 style="color: rgb(6, 137, 231);">Select an EFO id below:</h6>
-            <div id="topBarEFO_ids"></div>
-            <p id="description1" style="font-size:10px;color:blue"></p>
-
-
-          </div>
 
     <!-- scripts----------------------------------------------->
 
@@ -204,6 +152,7 @@
     <script type="module" src="getPgs.js"></script>
     <script type="module" src="prs.js"></script>
     <script src="tabs.js"></script>
+    <script type="module" src="getScores.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
 

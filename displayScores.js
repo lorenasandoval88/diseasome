@@ -1,5 +1,5 @@
-import { loadTraits } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
-const data = await loadTraits();
+import { fetchTraits } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
+const data = await fetchTraits();
 
 const VARIANT_MIN = 30;
 const VARIANT_MAX = 60;

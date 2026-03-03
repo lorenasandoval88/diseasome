@@ -1,5 +1,5 @@
 
-
+// logic in tabs.js to show only the selected category panel 
 function tabFunction(evt, openTab, subTab) {
     var i, tabcontent, tablinks;
     tabcontent = document.getElementsByClassName("tabcontent");

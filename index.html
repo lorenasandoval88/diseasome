@@ -35,10 +35,11 @@
                     <a class="nav-link" href="#notices">Notices</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" target="_blank" href="https://github.com/lorenasandoval88/polygenic_risk_scores">Github Code</a>
+                    <a class="nav-link" target="_blank"
+                        href="https://github.com/lorenasandoval88/polygenic_risk_scores">Github Code</a>
                 </li>
                 <li class="nav-item"><a class="nav-link" target="_blank"
-                    href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
+                        href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
@@ -56,15 +57,15 @@
         <div class="container-fluid">
             <div class="col-lg-10 col-md-10 col-sm-10 col-xs-10 hero-text">
                 <h4 class="hero_title">Diseasome</h4>
-                    <p class="hero_desc">Calculation of multiple <a class="link-unstyled"
-                            href="https://www.nature.com/articles/nrg.2016.27" target="_blank"><u>risk profiles</u></a>
-                        for
-                        <br>23andme reports,using the <a class="link-unstyled" href='https://www.pgscatalog.org'
-                            target="_blank">PGS Catalog</a>.</p>
-                    <button class="glow-on-hover"
-                        onclick="location.href='https://observablehq.com/@lorenasandoval88/polygenic-risk-scores?collection=@lorenasandoval88/pgs'"
-                        type="button">
-                        Get Started</button>
+                <p class="hero_desc">Calculation of multiple <a class="link-unstyled"
+                        href="https://www.nature.com/articles/nrg.2016.27" target="_blank"><u>risk profiles</u></a>
+                    for
+                    <br>23andme reports,using the <a class="link-unstyled" href='https://www.pgscatalog.org'
+                        target="_blank">PGS Catalog</a>.</p>
+                <button class="glow-on-hover"
+                    onclick="location.href='https://observablehq.com/@lorenasandoval88/polygenic-risk-scores?collection=@lorenasandoval88/pgs'"
+                    type="button">
+                    Get Started</button>
             </div>
         </div>
 
@@ -72,11 +73,11 @@
 
     <!-- Tab content -->
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">PGS catalog</button>
-        <button class="tablinks" onclick="tabFunction(event, 'LocalData')">Local Data</button>
-        <button id = "prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">PRS</button>
+        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Polygenic Scores</button>
+        <button class="tablinks" onclick="tabFunction(event, 'LocalData')">23andMe Data</button>
+        <button id="prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
     </div>
-<div id = "selection"></div>
+    <div id="selection"></div>
 
 
     <!-- PRS ------------------------------------------>
@@ -95,12 +96,12 @@
             scores with up to a few thousand reference genetic variations and from the full 23andMe SNP data file
             (compressed or not).</p>
 
-            <div id=prsDiv>prsDiv</div>
-            <div id="prsAction"></div>
-            <!-- heatmap -->
-            <div id='container-id-1'>
-                <h1 class='wait_message'>Please wait ...</h1>
-            </div>
+        <div id=prsDiv>prsDiv</div>
+        <div id="prsAction"></div>
+        <!-- heatmap -->
+        <div id='container-id-1'>
+            <h1 class='wait_message'>Please wait ...</h1>
+        </div>
 
 
     </div>
@@ -122,44 +123,37 @@
         </ol>
     </div>
 
-    <!-- pgs scoring counts bar plot ----------------------------->
+    <!-- pgs scores drop down menu ----------------------------->
     <div id="PGSCatalog" class="tabcontent">
 
         <h3>The Polygenic Score (PGS) Catalog</h3>
         <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant metadata;
             including scoring files (variants, effect alleles/weights).</p>
 
-        <div class="tab">
-            <button class="tablinks" onclick="tabFunction(event, 'scoresDiv', true)">All Categories (30-40 variants)</button>
-            <button class="tablinks" onclick="tabFunction(event, 'scoresDiv2', true)">Breast Cancer: (30-315 variants)</button>
-
-            <!-- <button class="tablinks" onclick="tabFunction(event, 'Traits', true)">Traits</button>
-            <button class="tablinks" onclick="tabFunction(event, 'EFO_ids', true)">EFO_ids</button> -->
-
+        <div class="my-3">
+            <label for="pgsCategorySelect" class="form-label"><b>Trait</b></label>
+            <select id="pgsCategorySelect" class="form-select" style="max-width: 420px;"
+                onchange="onPgsTraitChange(this.value)">
+                <option value="">Loading traits...</option>
+            </select>
         </div>
 
-            <!--  --------------------->
+        <!--  --------------------->
 
-        <div id="scoresDiv" class="tabcontent">
+        <div id="scoresDiv">
 
-   
-    </div>
-
-        <div id="scoresDiv2" class="tabcontent">
-
-
-    </div>
+        </div>
     </div>
 
     <!-- scripts----------------------------------------------->
 
-  
+
     <script type="module" src="main.js"></script>
     <script type="module" src="get23me.js"></script>
     <script type="module" src="getPgs.js"></script>
     <script type="module" src="prs.js"></script>
     <script src="tabs.js"></script>
-    <script type="module" src="getScores.js"></script>
+    <script type="module" src="displayScores.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
 

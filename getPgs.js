@@ -129,6 +129,52 @@ async function loadScore(entry = 'PGS000004', build = 37, range) {
     }
     return txt
 }
+
+async function loadScore2(id = 'PGS000050', build = 37, range) {
+    console.log("loadScore")
+    let txt = ""
+    const MAX_ROWS = 1000000
+
+    // https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000004/ScoringFiles/Harmonized/PGS000004_hmPOS_GRCh37.txt.gz
+    const url = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${id}/ScoringFiles/${id}.txt.gz` //
+    console.log("loadng unharmonized pgs score from url",url)
+
+    if (range) {
+        if (typeof (range) == 'number') {
+            range = [0, range]
+        }
+        txt = pako.inflate(await (await fetch(url, {
+            headers: {
+                'content-type': 'multipart/byteranges',
+                'range': `bytes=${range.join('-')}`,
+            }
+        })).arrayBuffer(), {
+            to: 'string'
+        })
+    } else {
+        txt = pako.inflate(await (await fetch(url)).arrayBuffer(), {
+            to: 'string'
+        })
+    }
+
+    const rowCount = txt.split(/\r\n|\n|\r/g).length
+    if (rowCount > MAX_ROWS) {
+        return "failed to fetch. File freater than 1M rows!"
+    }
+
+    // Check if PGS catalog FTP site is down-----------------------
+    let response
+    response = await fetch(url) // testing url 'https://httpbin.org/status/429'
+    if (response?.ok) {
+        ////console.log('Use the response here!');
+    } else {
+        txt = `:( Error loading PGS file. HTTP Response Code: ${response?.status}`
+        document.getElementById('pgsTextArea').value = txt
+    }
+    return txt
+}
+
+
 async function loadScoreHm(entry = 'PGS000004', build = 37, range) {
     let txt = ""
     entry = "PGS000000".slice(0, -entry.length) + entry
@@ -242,6 +288,8 @@ async function getPGSidsForOneTraitId( trait, traitFiles, scoringFiles, varMin, 
 //-----------------------------------------------------------------------------------------
 // 3. 
 
+
+
 async function getPGSIds(traitType, trait, varMin, varMax){
     let res = ""
     let traitFiles = (await fetchAll2('https://www.pgscatalog.org/rest/trait/all')).flatMap(x => x)
@@ -284,16 +332,30 @@ async function getPGSTxts(ids) {
     return data
 }
 
+async function getPGSTxts2(ids) {
+    let data = await Promise.all(ids.map(async (id, i) => {
+        let score = await pgsTexts.getItem(id)
+        if (score == null) {
+            score = parsePGS(id, await loadScore(id))
+           pgsTexts.setItem(id, score);
+        }
+        return score
+    })
+    )
+    return data
+}
+
 export {
     searchTraits,
     getPGSTxts,
+    getPGSTxts2,
     getPGSTxtsHm,
     parsePGS,
     loadScore,
+    loadScore2,
     fetchAll2,
     getAllCategories,
     getPGSidsForOneTraitCategory,
     getPGSidsForOneTraitLabel,
-    getPGSIds
-
+    getPGSIds,
 }

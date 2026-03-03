@@ -1,14 +1,17 @@
 import localforage from 'https://cdn.skypack.dev/localforage';
-let userUrls = localforage.createInstance({
-    name: "userUrls",
-    storeName: "userUrls"
+
+
+// 5 built in 23andme files loaded to localforage, and used by get23meUrls() and get23().
+let all23meURLS = localforage.createInstance({
+    name: "all23meURLS",
+    storeName: "all23meURLS"
 })
-let userTexts = localforage.createInstance({
-    name: "userTexts",
-    storeName: "userTexts"
+let all23meFiles = localforage.createInstance({
+    name: "all23meFiles",
+    storeName: "all23meFiles"
 })
 
-const LOCAL_USER_FILES = [
+const LOCAL_23ME_FILES = [
     "data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt",
     "data/PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt",
     "data/PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt",
@@ -18,11 +21,11 @@ const LOCAL_USER_FILES = [
 
 
 // get all users with genotype data from local data folder-------------------------------
-async function getUserUrls() {
+async function get23meUrls() {
     const newLocal = 'usersFull';
-    let dt = await userUrls.getItem(newLocal); // check for users in localstorage
+    let dt = await all23meURLS.getItem(newLocal); // check for users in localstorage
     if (dt == null) {
-        const localUsers = LOCAL_USER_FILES.map((file, index) => ({
+        const localUsers = LOCAL_23ME_FILES.map((file, index) => ({
             id: index + 1,
             name: file,
             genotypes: [
@@ -33,41 +36,11 @@ async function getUserUrls() {
                 }
             ]
         }))
-        dt = await userUrls.setItem(newLocal, localUsers)
+        dt = await all23meURLS.setItem(newLocal, localUsers)
     }
     return dt
 }
 
-// filter users without 23andme/ancestry data---------------------------------------------------------
-async function filterUrls() {
-    let users = await getUserUrls()
-    let dt
-    let arr = []
-    dt = await userUrls.getItem('usersFiltered'); // check local storage for user data 
-
-    if (dt == null) {
-        users.filter(row => row.genotypes.length > 0).map(dt => {
-
-            // keep user with one or more 23andme files
-            dt.genotypes.map(i => {
-                if (dt.genotypes.length > 0 && i.filetype == "23andme") {
-                    let innerObj = {};
-                    innerObj["name"] = dt["name"];
-                    innerObj["id"] = dt["id"];
-                    innerObj["genotype.id"] = i.id;
-                    innerObj["genotype.filetype"] = i.filetype;
-                    innerObj["genotype.download_url"] = i.download_url.replace("http", "https")
-                    arr.push(innerObj)
-
-                }
-            })
-        })
-        dt = arr //.filter(x=> x.genotypes.length != 0)
-        userUrls.setItem('usersFiltered', dt)
-    }
-    //console.log("fiter, dt:", dt)
-    return dt
-}
 // get 23andme text file from user url--------------------------------------------------------
 // create 23andme obj and data --------------------------
 async function parse23(txt, url) {
@@ -96,9 +69,9 @@ async function get23(urls) {
     let data = {}
     let arrUrls = []
     let arr23Txts = []
-    //console.log("getting genomic data from", urls.length, "23andMe urls:", urls)
+    //console.log("getting all23me data from", urls.length, "23andMe urls:", urls)
     for (let i = 0; i < urls.length; i++) {
-        let user = await userTexts.getItem(urls[i]);
+        let user = await all23meFiles.getItem(urls[i]);
 
         if (user == null) {
             let url2 = /^https?:\/\//.test(urls[i]) ? 'https://corsproxy.io/?' + urls[i] : urls[i]
@@ -107,7 +80,7 @@ async function get23(urls) {
             user = (await (await fetch(url2)).text())
             // console.log('user',user)
 
-            userTexts.setItem(urls[i], user);
+            all23meFiles.setItem(urls[i], user);
         }
         //console.log('checking 23andMe file #', i, " ...  ", urls[i], )
 
@@ -130,8 +103,7 @@ async function get23(urls) {
 
 
 export {
-    getUserUrls,
+    get23meUrls,
     get23,
-    parse23,
-    filterUrls
+    parse23
 }

@@ -1,6 +1,5 @@
 
 import {getUserUrls,
-    filterUrls,
     parse23,
     get23
 } from "./get23me.js"
@@ -28,7 +27,6 @@ export {
     //PRS_fun,
     //23andMe
     getUserUrls,
-    filterUrls,
     parse23,
     get23,
     //pgs

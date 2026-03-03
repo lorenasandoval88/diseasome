@@ -1,11 +1,14 @@
-import {get23,filterUrls} from "./get23me.js"
-import { getPGSTxtsHm, getPGSIds} from "./getPgs.js"
+import {get23,get23meUrls} from "./get23me.js"
+import { getPGSTxtsHm,getPGSTxts2, getPGSIds} from "./getPgs.js"
 import {Match2 } from "./prs.js"
 
 //-------------------------------------------------------------------------
 // 23andme data
-let users = await filterUrls()
-let userUrls = users.map(x => x["genotype.download_url"])
+let users = await get23meUrls()
+let userUrls = users
+    .flatMap(user => (user.genotypes ?? []).filter(genotype => genotype.filetype == "23andme"))
+    .map(genotype => (genotype.download_url ?? "").replace("http", "https"))
+    .filter(Boolean)
 console.log("userUrls",userUrls)
 
 //---------------------------------------------------------------
@@ -14,6 +17,7 @@ let varMin = 5
 let varMax = 7
 let results = await getPGSIds("traitCategories", "Cancer",  varMin, varMax)
 let PGStextsHm = await getPGSTxtsHm(results.map(x=>x.id))
+
 console.log("results",results)
 console.log("PGStextsHm",PGStextsHm)
 

@@ -9,7 +9,7 @@ let userUrls = users
     .flatMap(user => (user.genotypes ?? []).filter(genotype => genotype.filetype == "23andme"))
     .map(genotype => (genotype.download_url ?? "").replace("http", "https"))
     .filter(Boolean)
-console.log("userUrls",userUrls)
+    //console.log("userUrls",userUrls)
 
 //---------------------------------------------------------------
 // pgs catalog data

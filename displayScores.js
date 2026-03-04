@@ -1,4 +1,4 @@
-import { loadAllScores } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
+import { loadAllScores } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 const data = await loadAllScores();
 
 const VARIANT_MIN = 3;

@@ -1,5 +1,5 @@
 import { loadScores } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
-const data = await loadScores();
+const data = await loadAllScores();
 
 const VARIANT_MIN = 3;
 const VARIANT_MAX = 1000;

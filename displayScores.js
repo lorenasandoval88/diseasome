@@ -1,8 +1,8 @@
-import { fetchTraits } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
-const data = await fetchTraits();
+import { loadScores } from "https://lorenasandoval88.github.io/get-pgscatalog-polygenic-scores/dist/sdk.mjs";
+const data = await loadScores();
 
-const VARIANT_MIN = 30;
-const VARIANT_MAX = 60;
+const VARIANT_MIN = 3;
+const VARIANT_MAX = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
 
@@ -202,7 +202,7 @@ if (categorySelect) {
 	if (!traits.length) {
 		categorySelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
 	} else {
-		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Traits (${filteredScores.length})</option>`;
+		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Traits (${filteredScores.length}) of 5,296</option>`;
 		const traitOptions = traits
 			.map((trait) => {
 				const count = traitScoresMap.get(trait)?.length ?? 0;

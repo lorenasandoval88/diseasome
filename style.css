@@ -4,7 +4,7 @@
 }
 /* hero background image */
 .bgimage {
-    height:32vh;
+  height:14vh;
     background: url('dna2.jpg');
     background-size:cover;
     position:relative;

@@ -1,6 +1,13 @@
+import { nodeResolve } from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
+
 export default {
   input: "./sdk.js",
-  external: (id) => id === "localforage" || /^https?:\/\//.test(id),
+  external: (id) => /^https?:\/\//.test(id),
+  plugins: [
+    nodeResolve({ browser: true }),
+    commonjs()
+  ],
   output: {
     file: "./dist/sdk.mjs",
     format: "es",

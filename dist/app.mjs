@@ -1,4 +1,5 @@
 import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
+import { loadAllScores } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -2944,7 +2945,7 @@ let pgsCatalogDb = localforage.createInstance({
     name: "pgsCatalogDb",
     storeName: "allTraitAndScoreFiles"
 });
-let pgsTexts = localforage.createInstance({
+localforage.createInstance({
     name: "pgsTexts",
     storeName: "pgsTexts"
 });
@@ -2952,16 +2953,6 @@ let pgsTextsHm = localforage.createInstance({
     name: "pgsTextsHm",
     storeName: "pgsTextsHm"
 });
-
-//---------------------------------------
-// search for traits by different parameters
-function searchTraits(traitFiles){
-    let obj = {};
-    obj["traitIds"] = traitFiles.map( x => x.id);
-    obj["traitLabels"] = traitFiles.map( x => x.label);
-    obj["traitCategories"] = Array.from(new Set(traitFiles.flatMap(x => x["trait_categories"]).sort().filter(e => e.length).map(JSON.stringify)), JSON.parse);
-    return obj
-}
 
 //---------------------------------------------------------------
 // fetch all score and trait files and cache to local storage
@@ -3030,83 +3021,6 @@ async function parsePGS(id, txt) {
         obj.meta[aa[0]] = aa[1];
     });
     return obj
-}
-
-async function loadScore(entry = 'PGS000004', build = 37, range) {
-    console.log("loadScore");
-    let txt = "";
-    entry = "PGS000000".slice(0, -entry.length) + entry;
-    // https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000004/ScoringFiles/Harmonized/PGS000004_hmPOS_GRCh37.txt.gz
-    const url = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${entry}/ScoringFiles/${entry}.txt.gz`; //
-    console.log("loadng unharmonized pgs score from url",url);
-
-    if (range) {
-        if (typeof (range) == 'number') {
-            range = [0, range];
-        }
-        txt = pako.inflate(await (await fetch(url, {
-            headers: {
-                'content-type': 'multipart/byteranges',
-                'range': `bytes=${range.join('-')}`,
-            }
-        })).arrayBuffer(), {
-            to: 'string'
-        });
-    } else {
-        txt = pako.inflate(await (await fetch(url)).arrayBuffer(), {
-            to: 'string'
-        });
-    }
-    // Check if PGS catalog FTP site is down-----------------------
-    let response;
-    response = await fetch(url); // testing url 'https://httpbin.org/status/429'
-    if (response?.ok) ; else {
-        txt = `:( Error loading PGS file. HTTP Response Code: ${response?.status}`;
-        document.getElementById('pgsTextArea').value = txt;
-    }
-    return txt
-}
-
-async function loadScore2(id = 'PGS000050', build = 37, range) {
-    console.log("loadScore");
-    let txt = "";
-    const MAX_ROWS = 1000000;
-
-    // https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000004/ScoringFiles/Harmonized/PGS000004_hmPOS_GRCh37.txt.gz
-    const url = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${id}/ScoringFiles/${id}.txt.gz`; //
-    console.log("loadng unharmonized pgs score from url",url);
-
-    if (range) {
-        if (typeof (range) == 'number') {
-            range = [0, range];
-        }
-        txt = pako.inflate(await (await fetch(url, {
-            headers: {
-                'content-type': 'multipart/byteranges',
-                'range': `bytes=${range.join('-')}`,
-            }
-        })).arrayBuffer(), {
-            to: 'string'
-        });
-    } else {
-        txt = pako.inflate(await (await fetch(url)).arrayBuffer(), {
-            to: 'string'
-        });
-    }
-
-    const rowCount = txt.split(/\r\n|\n|\r/g).length;
-    if (rowCount > MAX_ROWS) {
-        return "failed to fetch. File freater than 1M rows!"
-    }
-
-    // Check if PGS catalog FTP site is down-----------------------
-    let response;
-    response = await fetch(url); // testing url 'https://httpbin.org/status/429'
-    if (response?.ok) ; else {
-        txt = `:( Error loading PGS file. HTTP Response Code: ${response?.status}`;
-        document.getElementById('pgsTextArea').value = txt;
-    }
-    return txt
 }
 
 
@@ -3180,33 +3094,6 @@ async function getPGSidsForOneTraitCategory( category,traitFiles, scoringFiles, 
     return traitCategories2
 }
 //-----------------------------------------------------------------------------------------
-// 2. label
-
-async function getPGSidsForOneTraitLabel( trait, traitFiles, scoringFiles, varMin, varMax) {
-    console.log("getPGSidsForOneTraitLabel:", trait, ", var min and max: ", varMin, varMax);
-    let ids = traitFiles
-        .filter(x => x.label == trait)
-        .map(x => x.associated_pgs_ids)[0];
-    let ids2 = scoringFiles
-        .filter(x => ids.includes(x.id))
-        .filter(x => x != undefined)
-        .filter(x => x.variants_number < varMax & x.variants_number > varMin);
-    return ids2
-}
-// 2. ids (EFO)
-
-async function getPGSidsForOneTraitId( trait, traitFiles, scoringFiles, varMin, varMax) {
-    console.log("getPGSidsForOneTraiId:", trait, ", var min and max: ", varMin, varMax);
-    let ids = traitFiles
-        .filter(x => x.id == trait)
-        .map(x => x.associated_pgs_ids)[0];
-    let ids2 = scoringFiles
-        .filter(x => ids.includes(x.id))
-        .filter(x => x != undefined)
-        .filter(x => x.variants_number < varMax & x.variants_number > varMin);
-    return ids2
-}
-//-----------------------------------------------------------------------------------------
 // 3. 
 
 
@@ -3216,15 +3103,8 @@ async function getPGSIds(traitType, trait, varMin, varMax){
     let traitFiles = (await fetchAll2('https://www.pgscatalog.org/rest/trait/all')).flatMap(x => x);
     let scoringFiles = (await fetchAll2('https://www.pgscatalog.org/rest/score/all')).flatMap(x => x);
 
-        if (traitType == "traitLabels") {
-            res = await getPGSidsForOneTraitLabel(trait,traitFiles, scoringFiles, varMin, varMax); 
-        } else if(traitType == "traitCategories") {
+        {
             res = await  getPGSidsForOneTraitCategory( trait,traitFiles, scoringFiles, varMin, varMax,);
-        } else if(traitType == "traitIds") {
-            res = await  getPGSidsForOneTraitId( trait, traitFiles, scoringFiles, varMin, varMax);
-        } else {
-            res = "no trait type";
-            console.log("invalid trait type given!");
         }
         return res
     }
@@ -3238,31 +3118,6 @@ async function getPGSTxtsHm(ids) {
         }
         return score
     }));
-    return data
-}
-async function getPGSTxts(ids) {
-    let data = await Promise.all(ids.map(async (id, i) => {
-        let score = await pgsTexts.getItem(id);
-        if (score == null) {
-            score = parsePGS(id, await loadScore(id));
-           pgsTexts.setItem(id, score);
-        }
-        return score
-    })
-    );
-    return data
-}
-
-async function getPGSTxts2(ids) {
-    let data = await Promise.all(ids.map(async (id, i) => {
-        let score = await pgsTexts.getItem(id);
-        if (score == null) {
-            score = parsePGS(id, await loadScore(id));
-           pgsTexts.setItem(id, score);
-        }
-        return score
-    })
-    );
     return data
 }
 
@@ -3353,5 +3208,298 @@ function Match2(data){
   return data2
   }
 
-export { Match2, fetchAll2, get23, get23meUrls, getAllCategories, getPGSIds, getPGSTxts, getPGSTxts2, getPGSTxtsHm, getPGSidsForOneTraitCategory, getPGSidsForOneTraitLabel, loadScore, loadScore2, parse23, parsePGS, searchTraits };
-//# sourceMappingURL=sdk.mjs.map
+//-------------------------------------------------------------------------
+// 23andme data
+let users = await get23meUrls();
+let userUrls = users
+    .flatMap(user => (user.genotypes ?? []).filter(genotype => genotype.filetype == "23andme"))
+    .map(genotype => (genotype.download_url ?? "").replace("http", "https"))
+    .filter(Boolean);
+    //console.log("userUrls",userUrls)
+
+//---------------------------------------------------------------
+// pgs catalog data
+let varMin = 5;
+let varMax = 7;
+let results = await getPGSIds("traitCategories", "Cancer",  varMin, varMax);
+let PGStextsHm = await getPGSTxtsHm(results.map(x=>x.id));
+
+console.log("results",results);
+console.log("PGStextsHm",PGStextsHm);
+
+let PGS = PGStextsHm.slice(2,4);
+let my23Txts = await get23(userUrls);
+console.log("my23Txts",my23Txts);
+
+// //----------------------------------------------------------------------
+// // testing one trait, "type 2 diabetes mellitus"
+
+function PRS_fun(matrix){
+    let PRS =[];
+    for (let i=0; i<matrix.my23.length; i++){
+        console.log("---------------------------");
+        console.log("processing user #...",i);
+
+        for(let j=0; j<matrix.PGS.length; j++){
+            let input = { "pgs":matrix.PGS[j], "my23":matrix.my23[i]};
+            let res = Match2(input);
+                PRS.push(res);
+                console.log("processing PGS model: ",matrix.PGS[j].id);
+        }
+    }
+
+    return PRS
+}
+// data object defined here ----------------------------
+let data$1 = {};
+
+data$1["PGS"] = PGS;
+data$1["my23"] = my23Txts;
+let PRS = PRS_fun(data$1);
+data$1["PRS"] = PRS;
+
+console.log("data",data$1 );
+
+// export{PRS_fun}
+
+// logic in tabs.js to show only the selected category panel 
+function tabFunction(evt, openTab, subTab) {
+    var i, tabcontent, tablinks;
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+    tablinks = document.getElementsByClassName("tablinks");
+
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+    if(subTab) {
+      var parent = evt.currentTarget.closest('.tabcontent');
+      parent.style.display = "block";
+      parent.className += " active";
+    }
+    document.getElementById(openTab).style.display = "block";
+    evt.currentTarget.className += " active";
+
+}
+
+window.tabFunction = tabFunction;
+
+const data = await loadAllScores();
+
+const VARIANT_MIN = 3;
+const VARIANT_MAX = 1000;
+const ALL_TRAITS_VALUE = "__all_traits__";
+const ROWS_PER_PAGE = 50;
+
+function compareScores(a, b) {
+	const traitA = (a?.trait_reported ?? "").toString();
+	const traitB = (b?.trait_reported ?? "").toString();
+	const traitCompare = traitA.localeCompare(traitB);
+	if (traitCompare !== 0) return traitCompare;
+	const idA = (a?.id ?? "").toString();
+	const idB = (b?.id ?? "").toString();
+	return idA.localeCompare(idB);
+}
+
+function getTraitName(score) {
+	const trait = (score?.trait_reported ?? "").toString().trim();
+	return trait || "Unspecified Trait";
+}
+
+const filteredScores = (data.scores ?? []).filter((score) => {
+	const variants = Number(score?.variants_number);
+	return Number.isFinite(variants) && variants >= VARIANT_MIN && variants <= VARIANT_MAX;
+}).sort(compareScores);
+
+const traitScoresMap = new Map();
+filteredScores.forEach((score) => {
+	const trait = getTraitName(score);
+	if (!traitScoresMap.has(trait)) {
+		traitScoresMap.set(trait, []);
+	}
+	traitScoresMap.get(trait).push(score);
+});
+
+const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
+// console.log(`Traits (${traits.length}) with variants ${VARIANT_MIN}-${VARIANT_MAX}:`, traits);
+
+function escapeHtml(value) {
+	return String(value ?? "")
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function renderPgsTable(scores, targetId, title, key) {
+	const scoresDiv = document.getElementById(targetId);
+	if (!scoresDiv) return;
+	scoresDiv.style.display = "block";
+
+	let currentPage = 1;
+	const selectedIds = new Set();
+
+	const renderPage = () => {
+		const totalPages = Math.max(1, Math.ceil(scores.length / ROWS_PER_PAGE));
+		currentPage = Math.min(Math.max(1, currentPage), totalPages);
+		const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+		const pageScores = scores.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+		const rowsHtml = pageScores
+			.map((score, index) => {
+				const rawPgsId = (score?.id ?? "").toString();
+				const pgsId = escapeHtml(rawPgsId);
+				const pgsName = escapeHtml(score?.name ?? "");
+				const trait = escapeHtml(score?.trait_reported ?? "");
+				const variants = escapeHtml(score?.variants_number ?? "");
+				const date = escapeHtml(score?.date_release ?? "");
+				const checked = selectedIds.has(rawPgsId) ? "checked" : "";
+
+				return `
+					<tr>
+						<td>${startIndex + index + 1}</td>
+						<td><input class="pgs-select" type="checkbox" value="${pgsId}" ${checked} /></td>
+						<td>${pgsId}</td>
+						<td>${pgsName}</td>
+						<td>${trait}</td>
+						<td>${variants}</td>
+						<td>${date}</td>
+					</tr>
+				`;
+			})
+			.join("");
+
+		scoresDiv.innerHTML = `
+			<div class="d-flex justify-content-between align-items-center my-2">
+				<h5 class="mb-0">${escapeHtml(title)}</h5>
+				<div>
+					<label class="form-check-label me-2" for="selectAllPgs_${key}">Select all</label>
+					<input class="form-check-input" id="selectAllPgs_${key}" type="checkbox" ${scores.length > 0 && selectedIds.size === scores.length ? "checked" : ""} />
+				</div>
+			</div>
+			<div class="table-responsive">
+				<table class="table table-sm table-striped table-bordered align-middle">
+					<thead>
+						<tr>
+							<th>#</th>
+							<th>Select</th>
+							<th>PGS ID</th>
+							<th>Name</th>
+							<th>Trait</th>
+							<th>Variants #</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						${rowsHtml}
+					</tbody>
+				</table>
+			</div>
+			<div class="d-flex justify-content-between align-items-center mt-2">
+				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+				<div class="d-flex align-items-center gap-2">
+					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
+					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
+					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? "disabled" : ""}>Next</button>
+				</div>
+			</div>
+		`;
+
+		const selectAll = document.getElementById(`selectAllPgs_${key}`);
+		const rowCheckboxes = Array.from(scoresDiv.querySelectorAll(".pgs-select"));
+		const prevPageBtn = document.getElementById(`prevPage_${key}`);
+		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+
+		if (selectAll) {
+			selectAll.addEventListener("change", () => {
+				if (selectAll.checked) {
+					scores.forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+				} else {
+					selectedIds.clear();
+				}
+				renderPage();
+			});
+		}
+
+		rowCheckboxes.forEach((cb) => {
+			cb.addEventListener("change", () => {
+				if (cb.checked) {
+					selectedIds.add(cb.value);
+				} else {
+					selectedIds.delete(cb.value);
+				}
+				if (selectAll) {
+					selectAll.checked = scores.length > 0 && selectedIds.size === scores.length;
+				}
+				const selectedPgsSummary = document.getElementById(`selectedPgsSummary_${key}`);
+				if (selectedPgsSummary) {
+					selectedPgsSummary.textContent = `Selected: ${selectedIds.size}`;
+				}
+			});
+		});
+
+		if (prevPageBtn) {
+			prevPageBtn.addEventListener("click", () => {
+				currentPage -= 1;
+				renderPage();
+			});
+		}
+
+		if (nextPageBtn) {
+			nextPageBtn.addEventListener("click", () => {
+				currentPage += 1;
+				renderPage();
+			});
+		}
+	};
+
+	renderPage();
+}
+
+function sanitizeKey(value) {
+	return String(value ?? "")
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, "_")
+		.replaceAll(/^_+|_+$/g, "");
+}
+
+const categorySelect = document.getElementById("pgsCategorySelect");
+
+function renderTrait(trait) {
+	const isAllTraits = trait === ALL_TRAITS_VALUE;
+	const scoresForTrait = isAllTraits ? filteredScores : (traitScoresMap.get(trait) ?? []);
+	const key = isAllTraits ? "all_traits" : (sanitizeKey(trait) || "trait");
+	const title = isAllTraits
+		? `All Traits PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`
+		: `${trait} PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`;
+
+	renderPgsTable(scoresForTrait, "scoresDiv", title, key);
+}
+
+window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
+	if (!selectedTrait) return;
+	if (selectedTrait !== ALL_TRAITS_VALUE && !traitScoresMap.has(selectedTrait)) return;
+	renderTrait(selectedTrait);
+};
+
+if (categorySelect) {
+	if (!traits.length) {
+		categorySelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
+	} else {
+		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Traits (${filteredScores.length}) of 5,296</option>`;
+		const traitOptions = traits
+			.map((trait) => {
+				const count = traitScoresMap.get(trait)?.length ?? 0;
+				return `<option value="${escapeHtml(trait)}">${escapeHtml(trait)} (${count})</option>`;
+			})
+			.join("");
+
+		categorySelect.innerHTML = `${allTraitsOption}${traitOptions}`;
+		categorySelect.value = ALL_TRAITS_VALUE;
+		renderTrait(ALL_TRAITS_VALUE);
+	}
+}
+//# sourceMappingURL=app.mjs.map

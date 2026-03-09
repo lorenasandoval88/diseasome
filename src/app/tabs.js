@@ -1,4 +1,3 @@
-
 // logic in tabs.js to show only the selected category panel 
 function tabFunction(evt, openTab, subTab) {
     var i, tabcontent, tablinks;
@@ -20,3 +19,12 @@ function tabFunction(evt, openTab, subTab) {
     evt.currentTarget.className += " active";
 
 }
+
+window.tabFunction = tabFunction;
+
+export {
+    tabFunction
+}
+
+
+

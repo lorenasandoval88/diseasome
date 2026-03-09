@@ -1,16 +1,32 @@
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 
-export default {
-  input: "./sdk.js",
-  external: (id) => /^https?:\/\//.test(id),
-  plugins: [
-    nodeResolve({ browser: true }),
-    commonjs()
-  ],
-  output: {
-    file: "./dist/sdk.mjs",
-    format: "es",
-    sourcemap: true
+const basePlugins = [
+  nodeResolve({ browser: true }),
+  commonjs()
+];
+
+const baseExternal = (id) => /^https?:\/\//.test(id);
+
+export default [
+  {
+    input: "./sdk.js",
+    external: baseExternal,
+    plugins: basePlugins,
+    output: {
+      file: "./dist/sdk.mjs",
+      format: "es",
+      sourcemap: true
+    }
+  },
+  {
+    input: "./src/app/index.js",
+    external: baseExternal,
+    plugins: basePlugins,
+    output: {
+      file: "./dist/app.mjs",
+      format: "es",
+      sourcemap: true
+    }
   }
-};
+];

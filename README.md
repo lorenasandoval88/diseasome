@@ -9,7 +9,8 @@ live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
 ## Architecture
 
 - `src/app/`: browser app entry and UI wiring (`main.js`, `tabs.js`, `displayScores.js`, `index.js`).
-- `src/sdk/`: reusable SDK modules for 23andMe parsing/loading, PGS fetching/parsing, and PRS matching.
+- `src/sdk/`: reusable SDK modules (`get23me.js`, `getPgs.js`, `prs.js`).
+- `sdk.js`: public SDK entrypoint (exports the SDK API used for `dist/sdk.mjs`).
 - `src/css/`: app styles.
 - `data/`: local 23andMe-compatible genome files (currently 5 users).
 - `dist/`: Rollup build outputs:
@@ -19,3 +20,31 @@ live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
 ## Build
 
 - Run `npm run build` to generate `dist/app.mjs` and `dist/sdk.mjs`.
+
+## Run
+
+- Open `index.html` with a local static server (for example VS Code Live Server).
+
+## SDK API
+
+Public exports from `sdk.js`:
+
+- 23andMe
+	- `get23meUrls`
+	- `parse23`
+	- `get23`
+- PGS
+	- `searchTraits`
+	- `getPGSTxts`
+	- `getPGSTxts2`
+	- `getPGSTxtsHm`
+	- `parsePGS`
+	- `loadScore`
+	- `loadScore2`
+	- `fetchAll2`
+	- `getAllCategories`
+	- `getPGSidsForOneTraitCategory`
+	- `getPGSidsForOneTraitLabel`
+	- `getPGSIds`
+- PRS
+	- `Match2`

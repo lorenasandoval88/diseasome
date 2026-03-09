@@ -10,6 +10,7 @@
   },
   "files": [
     "dist/sdk.mjs",
+    "dist/sdk.mjs.map",
     "README.md"
   ],
   "keywords": [

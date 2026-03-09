@@ -1,0 +1,29 @@
+{
+  "name": "polygenic-risk-scores",
+  "version": "0.1.1",
+  "description": "Utilities for fetching/parsing PGS Catalog scores and 23andMe data for PRS workflows.",
+  "type": "module",
+  "main": "./sdk.js",
+  "module": "./sdk.js",
+  "exports": {
+    ".": "./sdk.js"
+  },
+  "files": [
+    "sdk.js",
+    "get23me.js",
+    "getPgs.js",
+    "prs.js",
+    "README.md"
+  ],
+  "keywords": [
+    "pgs",
+    "prs",
+    "genomics",
+    "23andme",
+    "polygenic-risk-score"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "pack:check": "npm pack --dry-run"
+  }
+}

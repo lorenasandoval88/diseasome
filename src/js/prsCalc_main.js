@@ -1,6 +1,6 @@
-import {get23,get23meUrls} from "./get23me.js"
-import { getPGSTxtsHm,getPGSTxts2, getPGSIds} from "./getPgs.js"
-import {Match2 } from "./prs.js"
+import {get23,get23meUrls} from "./prsCalc_get23me.js"
+import { getPGSTxtsHm,getPGSTxts2, getPGSIds} from "./prsCalc_getPgs.js"
+import {Match2 } from "./prsCalc_prs.js"
 
 //-------------------------------------------------------------------------
 // 23andme data

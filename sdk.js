@@ -1,8 +1,7 @@
-
-import {getUserUrls,
+import {get23meUrls,
     parse23,
     get23
-} from "./get23me.js"
+} from "./src/js/prsCalc_get23me.js"
 
 import {
     searchTraits,
@@ -14,19 +13,17 @@ import {
     getPGSidsForOneTraitCategory,
     getPGSidsForOneTraitLabel,
     getPGSIds
-} from "./getPgs.js"
+} from "./src/js/prsCalc_getPgs.js"
 
 import {
     Match2
-} from "./prs.js"
-import {
-  //  PRS_fun
-} from "./main.js"
+} from "./src/js/prsCalc_prs.js"
+
 export {
     //PRS
     //PRS_fun,
     //23andMe
-    getUserUrls,
+    get23meUrls,
     parse23,
     get23,
     //pgs

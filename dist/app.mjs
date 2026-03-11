@@ -3567,13 +3567,12 @@ function renderParticipantsTable(list, targetId, title, key) {
 			}
 
 			function getDownloadUrl(item) {
-                console.log("getDownloadUrl item", item.download_url);
-				return item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? null;
+				return item.downloadUrl ?? item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? item.profileUrl ?? null;
 			}
 
 			const published = escapeHtml(String(getPublishedDate(p)));
 			const downloadUrl = getDownloadUrl(p);
-			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
 
 			return `

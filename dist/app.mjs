@@ -1,5 +1,6 @@
 import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
 import { loadAllScores } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -3251,14 +3252,14 @@ function PRS_fun(matrix){
     return PRS
 }
 // data object defined here ----------------------------
-let data$1 = {};
+let data$2 = {};
 
-data$1["PGS"] = PGS;
-data$1["my23"] = my23Txts;
-let PRS = PRS_fun(data$1);
-data$1["PRS"] = PRS;
+data$2["PGS"] = PGS;
+data$2["my23"] = my23Txts;
+let PRS = PRS_fun(data$2);
+data$2["PRS"] = PRS;
 
-console.log("data",data$1 );
+console.log("data",data$2 );
 
 // export{PRS_fun}
 
@@ -3281,12 +3282,15 @@ function tabFunction(evt, openTab, subTab) {
     }
     document.getElementById(openTab).style.display = "block";
     evt.currentTarget.className += " active";
+        if (openTab === 'LocalData' && typeof window.renderLocalUsers === 'function') {
+            try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
+        }
 
 }
 
 window.tabFunction = tabFunction;
 
-const data = await loadAllScores();
+const data$1 = await loadAllScores();
 
 const VARIANT_MIN = 3;
 const VARIANT_MAX = 1000;
@@ -3308,7 +3312,7 @@ function getTraitName(score) {
 	return trait || "Unspecified Trait";
 }
 
-const filteredScores = (data.scores ?? []).filter((score) => {
+const filteredScores = (data$1.scores ?? []).filter((score) => {
 	const variants = Number(score?.variants_number);
 	return Number.isFinite(variants) && variants >= VARIANT_MIN && variants <= VARIANT_MAX;
 }).sort(compareScores);
@@ -3325,7 +3329,7 @@ filteredScores.forEach((score) => {
 const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
 // console.log(`Traits (${traits.length}) with variants ${VARIANT_MIN}-${VARIANT_MAX}:`, traits);
 
-function escapeHtml(value) {
+function escapeHtml$1(value) {
 	return String(value ?? "")
 		.replaceAll("&", "&amp;")
 		.replaceAll("<", "&lt;")
@@ -3351,11 +3355,11 @@ function renderPgsTable(scores, targetId, title, key) {
 		const rowsHtml = pageScores
 			.map((score, index) => {
 				const rawPgsId = (score?.id ?? "").toString();
-				const pgsId = escapeHtml(rawPgsId);
-				const pgsName = escapeHtml(score?.name ?? "");
-				const trait = escapeHtml(score?.trait_reported ?? "");
-				const variants = escapeHtml(score?.variants_number ?? "");
-				const date = escapeHtml(score?.date_release ?? "");
+				const pgsId = escapeHtml$1(rawPgsId);
+				const pgsName = escapeHtml$1(score?.name ?? "");
+				const trait = escapeHtml$1(score?.trait_reported ?? "");
+				const variants = escapeHtml$1(score?.variants_number ?? "");
+				const date = escapeHtml$1(score?.date_release ?? "");
 				const checked = selectedIds.has(rawPgsId) ? "checked" : "";
 
 				return `
@@ -3374,7 +3378,7 @@ function renderPgsTable(scores, targetId, title, key) {
 
 		scoresDiv.innerHTML = `
 			<div class="d-flex justify-content-between align-items-center my-2">
-				<h5 class="mb-0">${escapeHtml(title)}</h5>
+				<h5 class="mb-0">${escapeHtml$1(title)}</h5>
 				<div>
 					<label class="form-check-label me-2" for="selectAllPgs_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllPgs_${key}" type="checkbox" ${scores.length > 0 && selectedIds.size === scores.length ? "checked" : ""} />
@@ -3493,7 +3497,7 @@ if (categorySelect) {
 		const traitOptions = traits
 			.map((trait) => {
 				const count = traitScoresMap.get(trait)?.length ?? 0;
-				return `<option value="${escapeHtml(trait)}">${escapeHtml(trait)} (${count})</option>`;
+				return `<option value="${escapeHtml$1(trait)}">${escapeHtml$1(trait)} (${count})</option>`;
 			})
 			.join("");
 
@@ -3501,5 +3505,84 @@ if (categorySelect) {
 		categorySelect.value = ALL_TRAITS_VALUE;
 		renderTrait(ALL_TRAITS_VALUE);
 	}
+}
+
+const data = await fetch23andMeParticipants();
+console.log("Fetched 23andMe participants:", data);
+const participants = data ?? [];
+
+function escapeHtml(value) {
+	return String(value ?? "")
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function formatGenotypes(genotypes) {
+	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
+	return genotypes
+		.map((g) => {
+			const name = g.filename ?? g.file ?? g.download_url ?? g.filetype ?? "(file)";
+			const type = g.filetype ?? "";
+			return `${escapeHtml(name)} ${type ? `(${escapeHtml(type)})` : ""}`;
+		})
+		.join("<br>");
+}
+
+function renderLocalUsers(list) {
+	const container = document.getElementById("localUsersDiv");
+	if (!container) return;
+
+	if (!Array.isArray(list) || !list.length) {
+		container.innerHTML = "<p>No local users found.</p>";
+		return;
+	}
+
+	const rows = list
+		.map((p, i) => {
+			const id = escapeHtml(p.id ?? p.participant_id ?? p.name ?? `user_${i + 1}`);
+			const name = escapeHtml(p.name ?? "");
+			const genos = p.genotypes ?? [];
+			const genoCount = genos.length;
+			const genoList = formatGenotypes(genos);
+			return `
+				<tr>
+					<td>${i + 1}</td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${genoCount}</td>
+					<td>${genoList}</td>
+				</tr>
+			`;
+		})
+		.join("");
+
+	container.innerHTML = `
+		<div class="table-responsive">
+			<table class="table table-sm table-striped table-bordered align-middle">
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Participant ID</th>
+						<th>Name</th>
+						<th># Genotypes</th>
+						<th>Genotype files</th>
+					</tr>
+				</thead>
+				<tbody>
+					${rows}
+				</tbody>
+			</table>
+		</div>
+	`;
+}
+
+window.renderLocalUsers = () => renderLocalUsers(participants);
+
+// If the LocalData tab is already visible on load, render immediately
+if (document.getElementById("LocalData")?.style.display === "block") {
+	window.renderLocalUsers();
 }
 //# sourceMappingURL=app.mjs.map

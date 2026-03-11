@@ -17,6 +17,9 @@ function tabFunction(evt, openTab, subTab) {
     }
     document.getElementById(openTab).style.display = "block";
     evt.currentTarget.className += " active";
+        if (openTab === 'LocalData' && typeof window.renderLocalUsers === 'function') {
+            try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
+        }
 
 }
 

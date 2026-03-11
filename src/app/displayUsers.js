@@ -6,6 +6,12 @@ const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
 
+/**
+ * escapeHtml(value)
+ * Escape HTML special characters to prevent injection when inserting text into the DOM.
+ * @param {any} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
 	return String(value ?? "")
 		.replaceAll("&", "&amp;")
@@ -15,6 +21,12 @@ function escapeHtml(value) {
 		.replaceAll("'", "&#39;");
 }
 
+/**
+ * formatGenotypes(genotypes)
+ * Format an array of genotype/file objects into an HTML string for display.
+ * @param {Array} genotypes
+ * @returns {string}
+ */
 function formatGenotypes(genotypes) {
 	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
 	return genotypes
@@ -26,6 +38,12 @@ function formatGenotypes(genotypes) {
 		.join("<br>");
 }
 
+/**
+ * sanitizeKey(value)
+ * Produce a lowercase alphanumeric underscore-only key suitable for element IDs.
+ * @param {string} value
+ * @returns {string}
+ */
 function sanitizeKey(value) {
 	return String(value ?? "")
 		.toLowerCase()
@@ -33,6 +51,64 @@ function sanitizeKey(value) {
 		.replaceAll(/^_+|_+$/g, "");
 }
 
+/**
+ * extractYear(item)
+ * Extract a 4-digit year from common published/date fields on a participant.
+ * @param {Object} item
+ * @returns {string|null}
+ */
+function extractYear(item) {
+	const pub = item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "";
+	const s = String(pub ?? "");
+	const m = s.match(/^(\d{4})/);
+	if (m) return m[1];
+	const d = new Date(s);
+	if (!Number.isNaN(d.getFullYear()) && d.getFullYear() > 0) return String(d.getFullYear());
+	return null;
+}
+
+/**
+ * populateYearSelect()
+ * Populate the `participantsYearSelect` dropdown with available years.
+ */
+function populateYearSelect() {
+	const sel = document.getElementById('participantsYearSelect');
+	if (!sel) return;
+	const counts = new Map();
+	participants.forEach((p) => {
+		const y = extractYear(p);
+		const key = y ?? 'Unknown';
+		counts.set(key, (counts.get(key) || 0) + 1);
+	});
+	const years = Array.from(counts.keys()).filter(k => k !== 'Unknown').sort((a, b) => Number(b) - Number(a));
+	const opts = [`<option value="">All Years (${participants.length} rows)</option>`].concat(years.map(y => `<option value="${y}">${y} (${counts.get(y)} rows)</option>`));
+	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')} rows)</option>`);
+	sel.innerHTML = opts.join('');
+}
+
+/**
+ * onParticipantsYearChange(selectedYear)
+ * Handler invoked when the year dropdown changes; filters participants and re-renders the table.
+ * @param {string} selectedYear
+ */
+window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear) {
+	const sel = document.getElementById('participantsYearSelect');
+	const year = selectedYear ?? (sel && sel.value) ?? '';
+	const list = year && year !== ''
+		? participants.filter(p => (extractYear(p) ?? 'Unknown') === year)
+		: participants;
+	const key = sanitizeKey('participants') || 'participants';
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length})`, key);
+};
+
+/**
+ * renderParticipantsTable(list, targetId, title, key)
+ * Render a paginated participants table with selection and pagination controls.
+ * @param {Array} list
+ * @param {string} targetId
+ * @param {string} title
+ * @param {string} key
+ */
 function renderParticipantsTable(list, targetId, title, key) {
 	const container = document.getElementById(targetId);
 	if (!container) return;
@@ -55,10 +131,23 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const genoCount = genos.length;
 			const genoList = formatGenotypes(genos);
 
+			/**
+			 * getPublishedDate(item)
+			 * Return a published/date string from an item using common property names.
+			 * @param {Object} item
+			 * @returns {string}
+			 */
 			function getPublishedDate(item) {
 				return item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "-";
 			}
 
+			/**
+			 * getDownloadUrl(item)
+			 * Prefer known download URL fields (downloadUrl, download_url, url, profileUrl)
+			 * and fall back to genotype file locations.
+			 * @param {Object} item
+			 * @returns {string|null}
+			 */
 			function getDownloadUrl(item) {
 				return item.downloadUrl ?? item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? item.profileUrl ?? null;
 			}
@@ -148,12 +237,22 @@ function renderParticipantsTable(list, targetId, title, key) {
 	renderPage();
 }
 
+/**
+ * renderLocalUsers()
+ * Public entry point that renders the participants table (honoring any active year filter).
+ */
 window.renderLocalUsers = () => {
 	const key = sanitizeKey('participants') || 'participants';
-	renderParticipantsTable(participants, 'localUsersDiv', `Local 23andMe Participants (${participants.length})`, key);
+	const sel = document.getElementById('participantsYearSelect');
+	const year = sel?.value ?? '';
+	const list = year && year !== '' ? participants.filter(p => (extractYear(p) ?? 'Unknown') === year) : participants;
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length})`, key);
 };
 
 // If the LocalData tab is already visible on load, render immediately
 if (document.getElementById("LocalData")?.style.display === "block") {
 	window.renderLocalUsers();
 }
+
+// populate year select after definitions
+populateYearSelect();

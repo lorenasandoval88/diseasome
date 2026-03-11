@@ -3295,7 +3295,7 @@ const data$1 = await loadAllScores();
 const VARIANT_MIN = 3;
 const VARIANT_MAX = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
-const ROWS_PER_PAGE = 50;
+const ROWS_PER_PAGE$1 = 50;
 
 function compareScores(a, b) {
 	const traitA = (a?.trait_reported ?? "").toString();
@@ -3347,10 +3347,10 @@ function renderPgsTable(scores, targetId, title, key) {
 	const selectedIds = new Set();
 
 	const renderPage = () => {
-		const totalPages = Math.max(1, Math.ceil(scores.length / ROWS_PER_PAGE));
+		const totalPages = Math.max(1, Math.ceil(scores.length / ROWS_PER_PAGE$1));
 		currentPage = Math.min(Math.max(1, currentPage), totalPages);
-		const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
-		const pageScores = scores.slice(startIndex, startIndex + ROWS_PER_PAGE);
+		const startIndex = (currentPage - 1) * ROWS_PER_PAGE$1;
+		const pageScores = scores.slice(startIndex, startIndex + ROWS_PER_PAGE$1);
 
 		const rowsHtml = pageScores
 			.map((score, index) => {
@@ -3463,7 +3463,7 @@ function renderPgsTable(scores, targetId, title, key) {
 	renderPage();
 }
 
-function sanitizeKey(value) {
+function sanitizeKey$1(value) {
 	return String(value ?? "")
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
@@ -3475,7 +3475,7 @@ const categorySelect = document.getElementById("pgsCategorySelect");
 function renderTrait(trait) {
 	const isAllTraits = trait === ALL_TRAITS_VALUE;
 	const scoresForTrait = isAllTraits ? filteredScores : (traitScoresMap.get(trait) ?? []);
-	const key = isAllTraits ? "all_traits" : (sanitizeKey(trait) || "trait");
+	const key = isAllTraits ? "all_traits" : (sanitizeKey$1(trait) || "trait");
 	const title = isAllTraits
 		? `All Traits PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`
 		: `${trait} PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`;
@@ -3511,6 +3511,8 @@ const data = await fetch23andMeParticipants();
 console.log("Fetched 23andMe participants:", data);
 const participants = data ?? [];
 
+const ROWS_PER_PAGE = 50;
+
 function escapeHtml(value) {
 	return String(value ?? "")
 		.replaceAll("&", "&amp;")
@@ -3531,55 +3533,120 @@ function formatGenotypes(genotypes) {
 		.join("<br>");
 }
 
-function renderLocalUsers(list) {
-	const container = document.getElementById("localUsersDiv");
+function sanitizeKey(value) {
+	return String(value)
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, "_")
+		.replaceAll(/^_+|_+$/g, "");
+}
+
+function renderParticipantsTable(list, targetId, title, key) {
+	const container = document.getElementById(targetId);
 	if (!container) return;
+	container.style.display = 'block';
 
-	if (!Array.isArray(list) || !list.length) {
-		container.innerHTML = "<p>No local users found.</p>";
-		return;
-	}
+	let currentPage = 1;
+	const selectedIds = new Set();
 
-	const rows = list
-		.map((p, i) => {
-			const id = escapeHtml(p.id ?? p.participant_id ?? p.name ?? `user_${i + 1}`);
+	const renderPage = () => {
+		const totalPages = Math.max(1, Math.ceil(list.length / ROWS_PER_PAGE));
+		currentPage = Math.min(Math.max(1, currentPage), totalPages);
+		const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+		const pageItems = list.slice(startIndex, startIndex + ROWS_PER_PAGE);
+
+		const rowsHtml = pageItems.map((p, i) => {
+			const rawId = p.id ?? p.participant_id ?? p.name ?? `user_${startIndex + i + 1}`;
+			const pid = escapeHtml(String(rawId));
 			const name = escapeHtml(p.name ?? "");
 			const genos = p.genotypes ?? [];
 			const genoCount = genos.length;
 			const genoList = formatGenotypes(genos);
+			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
+
 			return `
 				<tr>
-					<td>${i + 1}</td>
-					<td>${id}</td>
+					<td>${startIndex + i + 1}</td>
+					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
+					<td>${pid}</td>
 					<td>${name}</td>
 					<td>${genoCount}</td>
 					<td>${genoList}</td>
 				</tr>
 			`;
-		})
-		.join("");
+		}).join('');
 
-	container.innerHTML = `
-		<div class="table-responsive">
-			<table class="table table-sm table-striped table-bordered align-middle">
-				<thead>
-					<tr>
-						<th>#</th>
-						<th>Participant ID</th>
-						<th>Name</th>
-						<th># Genotypes</th>
-						<th>Genotype files</th>
-					</tr>
-				</thead>
-				<tbody>
-					${rows}
-				</tbody>
-			</table>
-		</div>
-	`;
+		container.innerHTML = `
+			<div class="d-flex justify-content-between align-items-center my-2">
+				<h5 class="mb-0">${escapeHtml(title)}</h5>
+				<div>
+					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
+					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
+				</div>
+			</div>
+			<div class="table-responsive">
+				<table class="table table-sm table-striped table-bordered align-middle">
+					<thead>
+						<tr>
+							<th>#</th>
+							<th>Select</th>
+							<th>Participant ID</th>
+							<th>Name</th>
+							<th># Genotypes</th>
+							<th>Genotype files</th>
+						</tr>
+					</thead>
+					<tbody>
+						${rowsHtml}
+					</tbody>
+				</table>
+			</div>
+			<div class="d-flex justify-content-between align-items-center mt-2">
+				<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+				<div class="d-flex align-items-center gap-2">
+					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
+					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
+				</div>
+			</div>
+		`;
+
+		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
+		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
+		const prevPageBtn = document.getElementById(`prevPage_${key}`);
+		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+
+		if (selectAll) {
+			selectAll.addEventListener('change', () => {
+				if (selectAll.checked) {
+					list.forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+				} else {
+					selectedIds.clear();
+				}
+				renderPage();
+			});
+		}
+
+		rowCheckboxes.forEach((cb) => {
+			cb.addEventListener('change', () => {
+				if (cb.checked) selectedIds.add(cb.value);
+				else selectedIds.delete(cb.value);
+				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === list.length;
+				const summary = document.getElementById(`selectedParticipantsSummary_${key}`);
+				if (summary) summary.textContent = `Selected: ${selectedIds.size}`;
+			});
+		});
+
+		if (prevPageBtn) prevPageBtn.addEventListener('click', () => { currentPage -= 1; renderPage(); });
+		if (nextPageBtn) nextPageBtn.addEventListener('click', () => { currentPage += 1; renderPage(); });
+	};
+
+	renderPage();
 }
 
-window.renderLocalUsers = () => renderLocalUsers(participants);
+window.renderLocalUsers = () => {
+	const key = sanitizeKey('participants') || 'participants';
+	renderParticipantsTable(participants, 'localUsersDiv', `Local 23andMe Participants (${participants.length})`, key);
+};
 
 // If the LocalData tab is already visible on load, render immediately
 if (document.getElementById("LocalData")?.style.display === "block") {

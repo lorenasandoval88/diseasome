@@ -3353,5 +3353,5 @@ function Match2(data){
   return data2
   }
 
-export { Match2, fetchAll2, get23, get23meUrls, getAllCategories, getPGSIds, getPGSTxts, getPGSTxts2, getPGSTxtsHm, getPGSidsForOneTraitCategory, getPGSidsForOneTraitLabel, loadScore, loadScore2, parse23, parsePGS, searchTraits };
+export { Match2, fetchAll2, get23, get23meUrls, getAllCategories, getPGSIds, getPGSTxts, getPGSTxts2, getPGSTxtsHm, getPGSidsForOneTraitCategory, getPGSidsForOneTraitLabel, loadScore, loadScore2, localforage, parse23, parsePGS, searchTraits };
 //# sourceMappingURL=sdk.mjs.map

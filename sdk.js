@@ -1,3 +1,5 @@
+import localforage from "localforage";
+
 export {
 	get23meUrls,
 	parse23,
@@ -20,3 +22,5 @@ export {
 } from "./src/sdk/getPgs.js";
 
 export { Match2 } from "./src/sdk/prs.js";
+
+export { localforage };

@@ -3508,7 +3508,7 @@ if (categorySelect) {
 }
 
 const data = await fetch23andMeParticipants();
-console.log("Fetched 23andMe participants:", data);
+// console.log("Fetched 23andMe participants:", data);
 const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
@@ -3559,8 +3559,21 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const pid = escapeHtml(String(rawId));
 			const name = escapeHtml(p.name ?? "");
 			const genos = p.genotypes ?? [];
-			const genoCount = genos.length;
-			const genoList = formatGenotypes(genos);
+			genos.length;
+			formatGenotypes(genos);
+
+			function getPublishedDate(item) {
+				return item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "-";
+			}
+
+			function getDownloadUrl(item) {
+                console.log("getDownloadUrl item", item.download_url);
+				return item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? null;
+			}
+
+			const published = escapeHtml(String(getPublishedDate(p)));
+			const downloadUrl = getDownloadUrl(p);
+			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
 
 			return `
@@ -3569,8 +3582,8 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td>${name}</td>
-					<td>${genoCount}</td>
-					<td>${genoList}</td>
+					<td>${published}</td>
+					<td>${downloadHtml}</td>
 				</tr>
 			`;
 		}).join('');
@@ -3591,8 +3604,8 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
-							<th># Genotypes</th>
-							<th>Genotype files</th>
+							<th>Published Date</th>
+							<th>Download URL</th>
 						</tr>
 					</thead>
 					<tbody>

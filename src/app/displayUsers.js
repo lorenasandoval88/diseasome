@@ -1,7 +1,7 @@
 import { fetch23andMeParticipants } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
 
 const data = await fetch23andMeParticipants();
-console.log("Fetched 23andMe participants:", data);
+// console.log("Fetched 23andMe participants:", data);
 const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
@@ -54,6 +54,19 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const genos = p.genotypes ?? [];
 			const genoCount = genos.length;
 			const genoList = formatGenotypes(genos);
+
+			function getPublishedDate(item) {
+				return item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "-";
+			}
+
+			function getDownloadUrl(item) {
+			function getDownloadUrl(item) {
+				return item.downloadUrl ?? item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? item.profileUrl ?? null;
+			}
+
+			const published = escapeHtml(String(getPublishedDate(p)));
+			const downloadUrl = getDownloadUrl(p);
+			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
 
 			return `
@@ -62,8 +75,8 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td>${name}</td>
-					<td>${genoCount}</td>
-					<td>${genoList}</td>
+					<td>${published}</td>
+					<td>${downloadHtml}</td>
 				</tr>
 			`;
 		}).join('');
@@ -84,8 +97,8 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
-							<th># Genotypes</th>
-							<th>Genotype files</th>
+							<th>Published Date</th>
+							<th>Download URL</th>
 						</tr>
 					</thead>
 					<tbody>

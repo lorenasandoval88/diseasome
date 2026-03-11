@@ -60,7 +60,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 			}
 
 			function getDownloadUrl(item) {
-			function getDownloadUrl(item) {
 				return item.downloadUrl ?? item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? item.profileUrl ?? null;
 			}
 

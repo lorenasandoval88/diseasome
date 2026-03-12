@@ -171,7 +171,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		container.innerHTML = `
 			<div class="d-flex justify-content-between align-items-center my-2">
-				<h5 class="mb-0">${escapeHtml(title)}</h5>
+				<div></div>
 				<div>
 					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
@@ -205,6 +205,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 		`;
 
 		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
+		// update external title element (placed above the dropdown)
+		const titleEl = document.getElementById('participantsTitle');
+		if (titleEl) titleEl.textContent = title;
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);

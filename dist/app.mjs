@@ -1,5 +1,5 @@
 import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
-import { loadAllScores } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { getScoresPerTrait } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
@@ -3290,13 +3290,25 @@ function tabFunction(evt, openTab, subTab) {
 
 window.tabFunction = tabFunction;
 
-const data$1 = await loadAllScores();
+// Prefer per-trait fetch when available; normalize to an array named `allScores`.
 
+const data$1 = await getScoresPerTrait();
+const scoresPerTrait = (data$1 && data$1.scoresPerTrait) ? data$1.scoresPerTrait : {};
+
+// `scoresPerTrait` may be an object-of-objects from the SDK; we'll
+// normalize its values below.
 const VARIANT_MIN = 3;
 const VARIANT_MAX = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
 const ROWS_PER_PAGE$1 = 50;
 
+/**
+ * Compare two score objects for stable sorting.
+ * First compares the `trait_reported` string, then falls back to `id`.
+ * @param {Object} a - First score object.
+ * @param {Object} b - Second score object.
+ * @returns {number} Negative if a < b, positive if a > b, zero if equal.
+ */
 function compareScores(a, b) {
 	const traitA = (a?.trait_reported ?? "").toString();
 	const traitB = (b?.trait_reported ?? "").toString();
@@ -3307,28 +3319,37 @@ function compareScores(a, b) {
 	return idA.localeCompare(idB);
 }
 
-function getTraitName(score) {
-	const trait = (score?.trait_reported ?? "").toString().trim();
-	return trait || "Unspecified Trait";
-}
 
-const filteredScores = (data$1.scores ?? []).filter((score) => {
-	const variants = Number(score?.variants_number);
-	return Number.isFinite(variants) && variants >= VARIANT_MIN && variants <= VARIANT_MAX;
-}).sort(compareScores);
 
-const traitScoresMap = new Map();
-filteredScores.forEach((score) => {
-	const trait = getTraitName(score);
-	if (!traitScoresMap.has(trait)) {
-		traitScoresMap.set(trait, []);
-	}
-	traitScoresMap.get(trait).push(score);
-});
+const traitScoresMap = new Map(Object.entries(data$1.scoresPerTrait ?? {}).map(([trait, entry]) => {
+	const scores = Array.isArray(entry?.scores)
+		? entry.scores
+		: Array.isArray(entry?.items)
+		? entry.items
+		: Array.isArray(entry)
+		? entry
+		: (entry?.score ? (Array.isArray(entry.score) ? entry.score : [entry.score]) : []);
+	return [trait, scores];
+}));
+
+// Flatten values, filter by variant count, sort, and expose trait keys.
+const allTraitScores = Array.from(traitScoresMap.values()).flat();
+const filteredScores = allTraitScores
+	.filter((score) => {
+		const variantCount = Number(score?.variants_number ?? score?.score?.variants_number ?? 0);
+		return Number.isFinite(variantCount) && variantCount >= VARIANT_MIN && variantCount <= VARIANT_MAX;
+	})
+	.sort(compareScores);
 
 const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
-// console.log(`Traits (${traits.length}) with variants ${VARIANT_MIN}-${VARIANT_MAX}:`, traits);
+console.log(`displayScores.js: Loaded ${filteredScores.length} PGS entries across ${traits.length} traits`);
 
+/**
+ * Escape a string for safe insertion into HTML.
+ * Replaces special characters with their HTML entities.
+ * @param {any} value - Value to escape; will be coerced to string.
+ * @returns {string} Escaped string safe for HTML contexts.
+ */
 function escapeHtml$1(value) {
 	return String(value ?? "")
 		.replaceAll("&", "&amp;")
@@ -3338,6 +3359,16 @@ function escapeHtml$1(value) {
 		.replaceAll("'", "&#39;");
 }
 
+/**
+ * Render a paginated PGS table into the DOM.
+ * Shows `ROWS_PER_PAGE` rows per page, supports select-all and per-row selection,
+ * and renders pagination controls. The function mutates the `innerHTML` of
+ * the element identified by `targetId`.
+ * @param {Array<Object>} scores - Array of PGS score objects to display.
+ * @param {string} targetId - ID of the container element for the table.
+ * @param {string} title - Title text displayed above the table.
+ * @param {string} key - Unique key used to build element IDs for controls.
+ */
 function renderPgsTable(scores, targetId, title, key) {
 	const scoresDiv = document.getElementById(targetId);
 	if (!scoresDiv) return;
@@ -3356,8 +3387,14 @@ function renderPgsTable(scores, targetId, title, key) {
 			.map((score, index) => {
 				const rawPgsId = (score?.id ?? "").toString();
 				const pgsId = escapeHtml$1(rawPgsId);
-				const pgsName = escapeHtml$1(score?.name ?? "");
-				const trait = escapeHtml$1(score?.trait_reported ?? "");
+				const rawName = (score?.name ?? "").toString();
+				const displayNameRaw = rawName.length > 15 ? rawName.slice(0, 15) + "..." : rawName;
+				const pgsName = escapeHtml$1(displayNameRaw);
+				const pgsNameTitle = escapeHtml$1(rawName);
+				const rawTrait = (score?.trait_reported ?? "").toString();
+				const displayTraitRaw = rawTrait.length > 20 ? rawTrait.slice(0, 20) + "..." : rawTrait;
+				const trait = escapeHtml$1(displayTraitRaw);
+				const traitTitle = escapeHtml$1(rawTrait);
 				const variants = escapeHtml$1(score?.variants_number ?? "");
 				const date = escapeHtml$1(score?.date_release ?? "");
 				const checked = selectedIds.has(rawPgsId) ? "checked" : "";
@@ -3367,8 +3404,8 @@ function renderPgsTable(scores, targetId, title, key) {
 						<td>${startIndex + index + 1}</td>
 						<td><input class="pgs-select" type="checkbox" value="${pgsId}" ${checked} /></td>
 						<td>${pgsId}</td>
-						<td>${pgsName}</td>
-						<td>${trait}</td>
+						<td title="${pgsNameTitle}">${pgsName}</td>
+						<td title="${traitTitle}">${trait}</td>
 						<td>${variants}</td>
 						<td>${date}</td>
 					</tr>
@@ -3463,6 +3500,13 @@ function renderPgsTable(scores, targetId, title, key) {
 	renderPage();
 }
 
+/**
+ * Sanitize an arbitrary string into a safe key suitable for IDs or storage.
+ * Lowercases the string, replaces non-alphanumeric sequences with underscores,
+ * and trims leading/trailing underscores.
+ * @param {any} value - The value to sanitize.
+ * @returns {string} Sanitized key string.
+ */
 function sanitizeKey$1(value) {
 	return String(value ?? "")
 		.toLowerCase()
@@ -3470,19 +3514,32 @@ function sanitizeKey$1(value) {
 		.replaceAll(/^_+|_+$/g, "");
 }
 
-const categorySelect = document.getElementById("pgsCategorySelect");
+// Support both `pgsCategorySelect` and legacy `pgsDropDown` id values in index.html
+const categorySelect = document.getElementById("pgsCategorySelect") || document.getElementById("pgsDropDown");
 
+/**
+ * Render the table for a specific trait category.
+ * If `trait` equals the special ALL_TRAITS_VALUE, all scores are shown.
+ * @param {string} trait - Trait name or special value to indicate all traits.
+ */
 function renderTrait(trait) {
+	//console.log(`Rendering trait: ${trait}`);
 	const isAllTraits = trait === ALL_TRAITS_VALUE;
+	//console.log(`Is "All Traits" selected? ${isAllTraits}`);
 	const scoresForTrait = isAllTraits ? filteredScores : (traitScoresMap.get(trait) ?? []);
 	const key = isAllTraits ? "all_traits" : (sanitizeKey$1(trait) || "trait");
 	const title = isAllTraits
-		? `All Traits PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`
-		: `${trait} PGS files (${VARIANT_MIN}-${VARIANT_MAX} variants)`;
+		? `All Scoring files (${VARIANT_MIN}-${VARIANT_MAX} variants)`
+		: `${trait} Scoring files (${VARIANT_MIN}-${VARIANT_MAX} variants)`;
 
 	renderPgsTable(scoresForTrait, "scoresDiv", title, key);
 }
 
+/**
+ * Global handler wired to the trait select control.
+ * Validates the selection and triggers rendering for the chosen trait.
+ * @param {string} selectedTrait - Value of the selected trait option.
+ */
 window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	if (!selectedTrait) return;
 	if (selectedTrait !== ALL_TRAITS_VALUE && !traitScoresMap.has(selectedTrait)) return;
@@ -3490,10 +3547,25 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 };
 
 if (categorySelect) {
-	if (!traits.length) {
+	// Prefer populating the dropdown from `scoresPerTrait` when available.
+	if (Array.isArray(scoresPerTrait) && scoresPerTrait.length) {
+		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Scoring Files (${filteredScores.length}) of ${traitScoresMap.size}</option>`;
+		const traitOptions = scoresPerTrait
+			.map((entry) => {
+				// support multiple entry shapes: string, { trait, count, scores }
+				const traitName = typeof entry === 'string' ? entry : (entry.trait ?? entry.name ?? entry.category ?? '');
+				const count = entry.count ?? (Array.isArray(entry.scores) ? entry.scores.length : (traitScoresMap.get(traitName)?.length ?? 0));
+				return `<option value="${escapeHtml$1(traitName)}">${escapeHtml$1(traitName)} (${count})</option>`;
+			})
+			.join("");
+
+		categorySelect.innerHTML = `${allTraitsOption}${traitOptions}`;
+		categorySelect.value = ALL_TRAITS_VALUE;
+		renderTrait(ALL_TRAITS_VALUE);
+	} else if (!traits.length) {
 		categorySelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
 	} else {
-		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Traits (${filteredScores.length}) of 5,296</option>`;
+		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">Scoring Files (${filteredScores.length}) for all ${traitScoresMap.size} Traits</option>`;
 		const traitOptions = traits
 			.map((trait) => {
 				const count = traitScoresMap.get(trait)?.length ?? 0;
@@ -3575,8 +3647,8 @@ function extractYear(item) {
 }
 
 /**
- * populateYearSelect()
  * Populate the `participantsYearSelect` dropdown with available years.
+ * @returns {void}
  */
 function populateYearSelect() {
 	const sel = document.getElementById('participantsYearSelect');
@@ -3594,9 +3666,9 @@ function populateYearSelect() {
 }
 
 /**
- * onParticipantsYearChange(selectedYear)
  * Handler invoked when the year dropdown changes; filters participants and re-renders the table.
  * @param {string} selectedYear
+ * @returns {void}
  */
 window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear) {
 	const sel = document.getElementById('participantsYearSelect');
@@ -3609,12 +3681,12 @@ window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear
 };
 
 /**
- * renderParticipantsTable(list, targetId, title, key)
  * Render a paginated participants table with selection and pagination controls.
- * @param {Array} list
- * @param {string} targetId
- * @param {string} title
- * @param {string} key
+ * @param {Array<Object>} list - Array of participant objects to display.
+ * @param {string} targetId - DOM element ID to render the table into.
+ * @param {string} title - Title text to display above the table.
+ * @param {string} key - Unique key used to construct control IDs.
+ * @returns {void}
  */
 function renderParticipantsTable(list, targetId, title, key) {
 	const container = document.getElementById(targetId);
@@ -3633,7 +3705,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowsHtml = pageItems.map((p, i) => {
 			const rawId = p.id ?? p.participant_id ?? p.name ?? `user_${startIndex + i + 1}`;
 			const pid = escapeHtml(String(rawId));
-			const name = escapeHtml(p.name ?? "");
+			const rawName = String(p.name ?? "");
+			const name = escapeHtml(rawName);
+			const displayName = escapeHtml(rawName.length > 14 ? rawName.slice(0, 14) + '...' : rawName);
 			const genos = p.genotypes ?? [];
 			genos.length;
 			formatGenotypes(genos);
@@ -3660,6 +3734,20 @@ function renderParticipantsTable(list, targetId, title, key) {
 			}
 
 			const published = escapeHtml(String(getPublishedDate(p)));
+
+			/**
+			 * getProfileUrl(item)
+			 * Extract a profile URL from common candidate properties.
+			 * @param {Object} item
+			 * @returns {string|null}
+			 */
+			function getProfileUrl(item) {
+				return item.profileUrl ?? item.profile_url ?? null;
+			}
+
+			const profileUrl = getProfileUrl(p);
+			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
+
 			const downloadUrl = getDownloadUrl(p);
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
@@ -3669,8 +3757,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td>${startIndex + i + 1}</td>
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
-					<td>${name}</td>
+					<td title="${name}">${displayName}</td>
 					<td>${published}</td>
+					<td>${profileHtml}</td>
 					<td>${downloadHtml}</td>
 				</tr>
 			`;
@@ -3693,6 +3782,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Participant ID</th>
 							<th>Name</th>
 							<th>Published Date</th>
+							<th>Profile</th>
 							<th>Download URL</th>
 						</tr>
 					</thead>

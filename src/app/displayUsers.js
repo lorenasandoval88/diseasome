@@ -68,8 +68,8 @@ function extractYear(item) {
 }
 
 /**
- * populateYearSelect()
  * Populate the `participantsYearSelect` dropdown with available years.
+ * @returns {void}
  */
 function populateYearSelect() {
 	const sel = document.getElementById('participantsYearSelect');
@@ -87,9 +87,9 @@ function populateYearSelect() {
 }
 
 /**
- * onParticipantsYearChange(selectedYear)
  * Handler invoked when the year dropdown changes; filters participants and re-renders the table.
  * @param {string} selectedYear
+ * @returns {void}
  */
 window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear) {
 	const sel = document.getElementById('participantsYearSelect');
@@ -102,12 +102,12 @@ window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear
 };
 
 /**
- * renderParticipantsTable(list, targetId, title, key)
  * Render a paginated participants table with selection and pagination controls.
- * @param {Array} list
- * @param {string} targetId
- * @param {string} title
- * @param {string} key
+ * @param {Array<Object>} list - Array of participant objects to display.
+ * @param {string} targetId - DOM element ID to render the table into.
+ * @param {string} title - Title text to display above the table.
+ * @param {string} key - Unique key used to construct control IDs.
+ * @returns {void}
  */
 function renderParticipantsTable(list, targetId, title, key) {
 	const container = document.getElementById(targetId);
@@ -126,7 +126,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowsHtml = pageItems.map((p, i) => {
 			const rawId = p.id ?? p.participant_id ?? p.name ?? `user_${startIndex + i + 1}`;
 			const pid = escapeHtml(String(rawId));
-			const name = escapeHtml(p.name ?? "");
+			const rawName = String(p.name ?? "");
+			const name = escapeHtml(rawName);
+			const displayName = escapeHtml(rawName.length > 14 ? rawName.slice(0, 14) + '...' : rawName);
 			const genos = p.genotypes ?? [];
 			const genoCount = genos.length;
 			const genoList = formatGenotypes(genos);
@@ -153,6 +155,20 @@ function renderParticipantsTable(list, targetId, title, key) {
 			}
 
 			const published = escapeHtml(String(getPublishedDate(p)));
+
+			/**
+			 * getProfileUrl(item)
+			 * Extract a profile URL from common candidate properties.
+			 * @param {Object} item
+			 * @returns {string|null}
+			 */
+			function getProfileUrl(item) {
+				return item.profileUrl ?? item.profile_url ?? null;
+			}
+
+			const profileUrl = getProfileUrl(p);
+			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
+
 			const downloadUrl = getDownloadUrl(p);
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
@@ -162,8 +178,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td>${startIndex + i + 1}</td>
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
-					<td>${name}</td>
+					<td title="${name}">${displayName}</td>
 					<td>${published}</td>
+					<td>${profileHtml}</td>
 					<td>${downloadHtml}</td>
 				</tr>
 			`;
@@ -186,6 +203,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Participant ID</th>
 							<th>Name</th>
 							<th>Published Date</th>
+							<th>Profile</th>
 							<th>Download URL</th>
 						</tr>
 					</thead>

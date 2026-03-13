@@ -2,6 +2,13 @@
 <html lang="en">
 
 <head>
+    <!--
+        Page: index.html
+        Purpose: Simple single-page UI for browsing PGS Catalog entries,
+                 loading local 23andMe/PGP genomes, and running PRS/cluster tools.
+        Notes: Buttons for Load Traits / Load Categories were intentionally
+               left in the DOM but their inline forwarders were removed.
+    -->
     <meta charset="UTF-8">
     <title>Diseasome - Local 5 Users</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,7 +28,7 @@
 </head>
 
 <body>
-    <!-- top banner -->
+    <!-- Top banner / navigation -->
     <nav class="navbar navbar-expand-sm bg-dark navbar-dark ">
         <!-- <div id="mySidepanel" class="sidepanel">
             <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">×</a>
@@ -29,33 +36,25 @@
         </div> -->
 
 
-        <div>
-            <ul class="navbar-nav">
-                <li class="nav-item">
-        <!-- Cluster tab (placeholder) -->
-        <div id="Cluster" class="tabcontent">
-            <h3>Cluster</h3>
-            <p>Clustering tools and visualizations will appear here.</p>
-            <div id="clusterDiv"></div>
-        </div>
+
 
         <!-- 23 and me ------------------------------------------>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" target="_blank"
-                        href="https://github.com/lorenasandoval88/polygenic_risk_scores">Github Code</a>
-                </li>
-                <li class="nav-item"><a class="nav-link" target="_blank"
-                        href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" target="_blank" href="">
-                        <img style="vertical-align:top" src="youtube_img.png" width="20" height="20" /> Tutorial</a>
-                </li>
-            </ul>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" target="_blank" href="https://github.com/lorenasandoval88/polygenic_risk_scores">Github
+                Code</a>
+        </li>
+        <li class="nav-item"><a class="nav-link" target="_blank"
+                href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" target="_blank" href="">
+                <img style="vertical-align:top" src="youtube_img.png" width="20" height="20" /> Tutorial</a>
+        </li>
+        </ul>
         </div>
     </nav>
 
@@ -78,7 +77,7 @@
 
     </section>
 
-    <!-- Tab content -->
+    <!-- Tabs: quick switcher for major app sections -->
     <script>
         // Proxy tabFunction to the module-exported handler when available.
         // Prevents "tabFunction is not defined" if the module hasn't loaded yet.
@@ -98,113 +97,140 @@
     </div>
     <div id="selection"></div>
 
+    <!-- Cluster tab (placeholder) -->
 
-    <!-- PRS ------------------------------------------>
+    <div>
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <!-- NOTE: Cluster UI is a placeholder; implement handlers in JS when ready -->
+                <div id="Cluster" class="tabcontent">
+                    <h3>Cluster</h3>
+                    <p>Clustering tools and visualizations will appear here.</p>
+                    <div id="clusterDiv"></div>
+                </div>
 
+                <!-- PRS ------------------------------------------>
 
-    <div id="PRS" class="tabcontent">
-        <h3>PRS</h3>
-        <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
-                target="_blank"> <u>calculator</u></a> , created for research purposes, was developed to demonstrate how
-            the PGS Catalog can be privately and readily applied to readily available direct-to-consumer genetic testing
-            services, such as 23andMe. No software download, installation, or configuration is needed. The PRS web
-            calculator matches individual PGS catalog entries with an individual's 23andMe genome data composed of 600k
-            to 1.4 M single-nucleotide polymorphisms (SNPs). Beta coefficients provide researchers with a convenient
-            assessment of risk associated with matched SNPs. This in-browser application was tested in a variety of
-            personal devices, including smartphones, establishing the feasibility of privately calculating personal risk
-            scores with up to a few thousand reference genetic variations and from the full 23andMe SNP data file
-            (compressed or not).</p>
+                <div id="PRS" class="tabcontent">
+                    <h3>PRS</h3>
+                    <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
+                            target="_blank"> <u>calculator</u></a> , created for research purposes, was developed to
+                        demonstrate how
+                        the PGS Catalog can be privately and readily applied to readily available direct-to-consumer
+                        genetic testing
+                        services, such as 23andMe. No software download, installation, or configuration is needed. The
+                        PRS web
+                        calculator matches individual PGS catalog entries with an individual's 23andMe genome data
+                        composed of 600k
+                        to 1.4 M single-nucleotide polymorphisms (SNPs). Beta coefficients provide researchers with a
+                        convenient
+                        assessment of risk associated with matched SNPs. This in-browser application was tested in a
+                        variety of
+                        personal devices, including smartphones, establishing the feasibility of privately calculating
+                        personal risk
+                        scores with up to a few thousand reference genetic variations and from the full 23andMe SNP data
+                        file
+                        (compressed or not).</p>
 
-        <div id=prsDiv>prsDiv</div>
-        <div id="prsAction"></div>
-        <!-- heatmap -->
-        <div id='container-id-1'>
-            <h1 class='wait_message'>Please wait ...</h1>
-        </div>
-
-
-    </div>
-
-
-
-    <!-- 23 and me ------------------------------------------>
-
-    <div id="LocalData" class="tabcontent">
-        <h3>Local Data</h3>
-        <p>This app uses five local 23andMe-compatible genome files from the <b>data/</b> folder and all participants in
-            the PGP.</p>
-        <h6 style="color: rgb(6, 137, 231);">Configured local users:</h6>
-        <ol>
-            <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
-            <li>PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt</li>
-            <li>PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt</li>
-            <li>PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt</li>
-            <li>PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt</li>
-        </ol>
-        <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
-        <div class="my-3">
-            <label for="participantsYearSelect" class="form-label"><b>Year</b></label>
-            <select id="participantsYearSelect" class="form-select" style="max-width: 220px;"
-                onchange="onParticipantsYearChange(this.value)">
-                <option value="">All Years</option>
-            </select>
-        </div>
-        <div id="localUsersDiv"></div>
-    </div>
-
-    <!-- pgs scores drop down menu ----------------------------->
-    <div id="PGSCatalog" class="tabcontent">
-
-        <h3>The Polygenic Score (PGS) Catalog</h3>
-        <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant metadata;
-            including scoring files (variants, effect alleles/weights).</p>
-
-        <div class="my-3">
-            <button id="pgsLoadBtn" class="btn btn-sm btn-primary ms-2">Load Traits</button>
-            <button id="pgsCategoryBtn" class="btn btn-sm btn-secondary ms-2">Load Categories</button>
+                    <div id=prsDiv>prsDiv</div>
+                    <div id="prsAction"></div>
+                    <!-- heatmap -->
+                    <div id='container-id-1'>
+                        <h1 class='wait_message'>Please wait ...</h1>
+                    </div>
 
 
-            <label for="pgsDropDown" class="form-label"><b>Trait</b></label>
-            <select id="pgsDropDown" class="form-select" style="max-width: 420px;"
-                onchange="onPgsTraitChange(this.value)">
-                <option value="">Loading traits...</option>
-            </select>
-        </div>
+                </div>
 
-        <!--  --------------------->
 
-        <div id="scoresDiv">
-        </div>
-    </div>
 
-    <!-- scripts----------------------------------------------->
+                <!-- 23 and me ------------------------------------------>
 
-    <!-- Buttons kept but their forwarding handlers removed -->
+                <div id="LocalData" class="tabcontent">
+                    <h3>Local Data</h3>
+                    <p>This app uses five local 23andMe-compatible genome files from the <b>data/</b> folder and all
+                        participants in
+                        the PGP.</p>
+                    <h6 style="color: rgb(6, 137, 231);">Configured local users:</h6>
+                    <ol>
+                        <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
+                        <li>PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt</li>
+                        <li>PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt</li>
+                        <li>PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt</li>
+                        <li>PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt</li>
+                    </ol>
+                    <hr id="participantsSeparator" class="my-3" />
+                    <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
+                    <div class="my-3">
+                        <label for="participantsYearSelect" class="form-label"><b>Year</b></label>
+                        <select id="participantsYearSelect" class="form-select" style="max-width: 220px;"
+                            onchange="onParticipantsYearChange(this.value)">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                    <div id="localUsersDiv"></div>
+                </div>
 
-    <script type="module" src="dist/app.mjs"></script>
+                <!-- PGS Catalog: trait selector and actions -->
+                <div id="PGSCatalog" class="tabcontent">
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
+                    <h3>The Polygenic Score (PGS) Catalog</h3>
+                    <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant
+                        metadata;
+                        including scoring files (variants, effect alleles/weights).</p>
 
-    <!-- privacy section-->
-    <section id="notices">
-        <span style="font-size:large;">Privacy:</span><br>
-        <span style="font-size:small;color:black;font-weight:normal">
-            All data and calculations take place in the browser. No data or calculations circulate by a server. This
-            application is, foremost, an exercise in privacy-preserving biomedical informatics for consumer genomics
-            data.
-        </span><br>
-        <span style="font-size:large;">Scope/Limitations:</span><br>
-        <span style="font-size:small;color:black;font-weight:normal">
-            This calculator was devised as an implementation proof of concept. It has a number of important
-            limitations
-            for epidemiology research and it does not meet criteria for clinical use. The current tool uses
-            pre-imputation genotype data and thus results in a low number of SNP matches. Most important, only the
-            relative risk model <a href='https://www.nature.com/articles/nrg.2016.27#Sec5' target="_blank">(Box 1,
-                eq
-                2)</a> is calculated, with no effort to determine absolute risk of disease. Finally, the risk
-            calculation will only be attempted for PGS catalog entries reporting effects as beta values under
-            "effect_weight".</span>
-    </section>
+                    <div class="my-3">
+                        <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
+                        <button id="pgsLoadBtn" class="btn btn-sm btn-primary ms-2">Load Traits</button>
+                        <button id="pgsCategoryBtn" class="btn btn-sm btn-secondary ms-2">Load Categories</button>
+
+
+                        <label for="pgsDropDown" class="form-label"><b>Trait</b></label>
+                        <select id="pgsDropDown" class="form-select" style="max-width: 420px;"
+                            onchange="onPgsTraitChange(this.value)">
+                            <option value="">Loading traits...</option>
+                        </select>
+                    </div>
+
+                    <!--target element where renderPgsTable(...) writes the paginated PGS table  ---->
+
+                    <div id="scoresDiv">
+                    </div>
+                </div>
+
+                <!-- Scripts: app module and third-party libs -->
+
+                <!-- App bundle (module) - contains app logic that wires UI behaviors -->
+                <script type="module" src="dist/app.mjs"></script>
+
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
+
+                <!-- privacy section-->
+                <section id="notices">
+                    <span style="font-size:large;">Privacy:</span><br>
+                    <span style="font-size:small;color:black;font-weight:normal">
+                        All data and calculations take place in the browser. No data or calculations circulate by a
+                        server. This
+                        application is, foremost, an exercise in privacy-preserving biomedical informatics for consumer
+                        genomics
+                        data.
+                    </span><br>
+                    <span style="font-size:large;">Scope/Limitations:</span><br>
+                    <span style="font-size:small;color:black;font-weight:normal">
+                        This calculator was devised as an implementation proof of concept. It has a number of important
+                        limitations
+                        for epidemiology research and it does not meet criteria for clinical use. The current tool uses
+                        pre-imputation genotype data and thus results in a low number of SNP matches. Most important,
+                        only the
+                        relative risk model <a href='https://www.nature.com/articles/nrg.2016.27#Sec5'
+                            target="_blank">(Box 1,
+                            eq
+                            2)</a> is calculated, with no effort to determine absolute risk of disease. Finally, the
+                        risk
+                        calculation will only be attempted for PGS catalog entries reporting effects as beta values
+                        under
+                        "effect_weight".</span>
+                </section>
 
 
 </body>

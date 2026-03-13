@@ -3290,13 +3290,24 @@ function tabFunction(evt, openTab, subTab) {
 
 window.tabFunction = tabFunction;
 
-// Prefer per-trait fetch when available; normalize to an array named `allScores`.
+/*
+ Module: displayScores.js
+ Purpose: fetch PGS Catalog scores (prefer per-trait), normalize common
+					SDK shapes, and render a paginated table of score entries.
+
+ Data shapes handled:
+ - `data.scoresPerTrait` may be an object-of-objects whose values are:
+	 - arrays (direct lists),
+	 - objects with `.scores` or `.items` arrays,
+	 - wrapper objects with `.score` containing a single score or array.
+
+ The code below builds a `traitScoresMap` keyed by trait name where each
+ value is an array of plain score objects, then flattens and filters by
+ `variants_number` before rendering.
+*/
 
 const data$1 = await getScoresPerTrait();
 const scoresPerTrait = (data$1 && data$1.scoresPerTrait) ? data$1.scoresPerTrait : {};
-
-// `scoresPerTrait` may be an object-of-objects from the SDK; we'll
-// normalize its values below.
 const VARIANT_MIN = 3;
 const VARIANT_MAX = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
@@ -3514,8 +3525,6 @@ function sanitizeKey$1(value) {
 		.replaceAll(/^_+|_+$/g, "");
 }
 
-// Support both `pgsCategorySelect` and legacy `pgsDropDown` id values in index.html
-const categorySelect = document.getElementById("pgsCategorySelect") || document.getElementById("pgsDropDown");
 
 /**
  * Render the table for a specific trait category.
@@ -3546,7 +3555,11 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	renderTrait(selectedTrait);
 };
 
-if (categorySelect) {
+
+// The DOM select element used for the trait/category dropdown.
+const pgsSelect = document.getElementById("pgsDropDown");
+
+if (pgsSelect) {
 	// Prefer populating the dropdown from `scoresPerTrait` when available.
 	if (Array.isArray(scoresPerTrait) && scoresPerTrait.length) {
 		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Scoring Files (${filteredScores.length}) of ${traitScoresMap.size}</option>`;
@@ -3559,11 +3572,11 @@ if (categorySelect) {
 			})
 			.join("");
 
-		categorySelect.innerHTML = `${allTraitsOption}${traitOptions}`;
-		categorySelect.value = ALL_TRAITS_VALUE;
+		pgsSelect.innerHTML = `${allTraitsOption}${traitOptions}`;
+		pgsSelect.value = ALL_TRAITS_VALUE;
 		renderTrait(ALL_TRAITS_VALUE);
 	} else if (!traits.length) {
-		categorySelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
+		pgsSelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
 	} else {
 		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">Scoring Files (${filteredScores.length}) for all ${traitScoresMap.size} Traits</option>`;
 		const traitOptions = traits
@@ -3573,8 +3586,8 @@ if (categorySelect) {
 			})
 			.join("");
 
-		categorySelect.innerHTML = `${allTraitsOption}${traitOptions}`;
-		categorySelect.value = ALL_TRAITS_VALUE;
+		pgsSelect.innerHTML = `${allTraitsOption}${traitOptions}`;
+		pgsSelect.value = ALL_TRAITS_VALUE;
 		renderTrait(ALL_TRAITS_VALUE);
 	}
 }

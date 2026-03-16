@@ -3741,13 +3741,22 @@ function refreshCurrentView() {
 	}
 }
 
+/** Debounce timer for slider input. */
+let sliderDebounce = null;
+
+/** Debounced refresh to avoid too many updates while dragging. */
+function debouncedRefresh() {
+	clearTimeout(sliderDebounce);
+	sliderDebounce = setTimeout(refreshCurrentView, 150);
+}
+
 if (variantMinSlider) {
 	variantMinSlider.addEventListener("input", () => {
 		variantMin = Math.min(parseInt(variantMinSlider.value, 10), variantMax - 1);
 		variantMinSlider.value = variantMin;
 		updateSliderLabels();
+		debouncedRefresh();
 	});
-	variantMinSlider.addEventListener("change", refreshCurrentView);
 }
 
 if (variantMaxSlider) {
@@ -3755,8 +3764,8 @@ if (variantMaxSlider) {
 		variantMax = Math.max(parseInt(variantMaxSlider.value, 10), variantMin + 1);
 		variantMaxSlider.value = variantMax;
 		updateSliderLabels();
+		debouncedRefresh();
 	});
-	variantMaxSlider.addEventListener("change", refreshCurrentView);
 }
 
 // Update mode tracking when buttons are clicked

@@ -5,6 +5,7 @@ const data = await fetch23andMeParticipants();
 const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
+const MAX_SELECTION = 6;
 
 /**
  * escapeHtml(value)
@@ -213,7 +214,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</table>
 			</div>
 			<div class="d-flex justify-content-between align-items-center mt-2">
-				<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -233,7 +234,11 @@ function renderParticipantsTable(list, targetId, title, key) {
 		if (selectAll) {
 			selectAll.addEventListener('change', () => {
 				if (selectAll.checked) {
-					list.forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+					// Limit to first MAX_SELECTION items
+					list.slice(0, MAX_SELECTION).forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+					if (list.length > MAX_SELECTION) {
+						alert(`Selection limited to ${MAX_SELECTION} items.`);
+					}
 				} else {
 					selectedIds.clear();
 				}
@@ -243,11 +248,19 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		rowCheckboxes.forEach((cb) => {
 			cb.addEventListener('change', () => {
-				if (cb.checked) selectedIds.add(cb.value);
-				else selectedIds.delete(cb.value);
-				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === list.length;
+				if (cb.checked) {
+					if (selectedIds.size >= MAX_SELECTION) {
+						cb.checked = false;
+						alert(`Maximum ${MAX_SELECTION} selections allowed.`);
+						return;
+					}
+					selectedIds.add(cb.value);
+				} else {
+					selectedIds.delete(cb.value);
+				}
+				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === Math.min(list.length, MAX_SELECTION);
 				const summary = document.getElementById(`selectedParticipantsSummary_${key}`);
-				if (summary) summary.textContent = `Selected: ${selectedIds.size}`;
+				if (summary) summary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
 			});
 		});
 

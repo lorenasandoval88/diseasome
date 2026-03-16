@@ -1,5 +1,5 @@
 import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
-import { getScoresPerTrait, getScoresPerCategory } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
@@ -3310,10 +3310,17 @@ const data$1 = await getScoresPerTrait();
 const data2 = await getScoresPerCategory();
 
 // Dynamic variant filter state
-let variantMin = 3;
+let variantMin = 1;
 let variantMax = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
 const ROWS_PER_PAGE$1 = 50;
+const MAX_SELECTION$1 = 6;
+
+// Module-level selected PGS IDs (shared across renders)
+const selectedPgsIds = new Set(["PGS001778", "PGS003396"]);
+
+/** Get the currently selected PGS IDs. */
+window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
 
 /** Check if a score passes the current variant filter. */
 function passesVariantFilter(score) {
@@ -3417,7 +3424,7 @@ function renderPgsTable(scores, targetId, title, key) {
 	scoresDiv.style.display = "block";
 
 	let currentPage = 1;
-	const selectedIds = new Set();
+	const selectedIds = selectedPgsIds; // Use module-level set
 
 	const renderPage = () => {
 		const totalPages = Math.max(1, Math.ceil(scores.length / ROWS_PER_PAGE$1));
@@ -3482,7 +3489,7 @@ function renderPgsTable(scores, targetId, title, key) {
 				</table>
 			</div>
 			<div class="d-flex justify-content-between align-items-center mt-2">
-				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION$1}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -3499,7 +3506,11 @@ function renderPgsTable(scores, targetId, title, key) {
 		if (selectAll) {
 			selectAll.addEventListener("change", () => {
 				if (selectAll.checked) {
-					scores.forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+					// Limit to first MAX_SELECTION items
+					scores.slice(0, MAX_SELECTION$1).forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+					if (scores.length > MAX_SELECTION$1) {
+						alert(`Selection limited to ${MAX_SELECTION$1} items.`);
+					}
 				} else {
 					selectedIds.clear();
 				}
@@ -3510,16 +3521,21 @@ function renderPgsTable(scores, targetId, title, key) {
 		rowCheckboxes.forEach((cb) => {
 			cb.addEventListener("change", () => {
 				if (cb.checked) {
+					if (selectedIds.size >= MAX_SELECTION$1) {
+						cb.checked = false;
+						alert(`Maximum ${MAX_SELECTION$1} selections allowed.`);
+						return;
+					}
 					selectedIds.add(cb.value);
 				} else {
 					selectedIds.delete(cb.value);
 				}
 				if (selectAll) {
-					selectAll.checked = scores.length > 0 && selectedIds.size === scores.length;
+					selectAll.checked = scores.length > 0 && selectedIds.size === Math.min(scores.length, MAX_SELECTION$1);
 				}
 				const selectedPgsSummary = document.getElementById(`selectedPgsSummary_${key}`);
 				if (selectedPgsSummary) {
-					selectedPgsSummary.textContent = `Selected: ${selectedIds.size}`;
+					selectedPgsSummary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION$1}`;
 				}
 			});
 		});
@@ -3781,6 +3797,7 @@ const data = await fetch23andMeParticipants();
 const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
+const MAX_SELECTION = 6;
 
 /**
  * escapeHtml(value)
@@ -3989,7 +4006,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</table>
 			</div>
 			<div class="d-flex justify-content-between align-items-center mt-2">
-				<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -4009,7 +4026,11 @@ function renderParticipantsTable(list, targetId, title, key) {
 		if (selectAll) {
 			selectAll.addEventListener('change', () => {
 				if (selectAll.checked) {
-					list.forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+					// Limit to first MAX_SELECTION items
+					list.slice(0, MAX_SELECTION).forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+					if (list.length > MAX_SELECTION) {
+						alert(`Selection limited to ${MAX_SELECTION} items.`);
+					}
 				} else {
 					selectedIds.clear();
 				}
@@ -4019,11 +4040,19 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		rowCheckboxes.forEach((cb) => {
 			cb.addEventListener('change', () => {
-				if (cb.checked) selectedIds.add(cb.value);
-				else selectedIds.delete(cb.value);
-				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === list.length;
+				if (cb.checked) {
+					if (selectedIds.size >= MAX_SELECTION) {
+						cb.checked = false;
+						alert(`Maximum ${MAX_SELECTION} selections allowed.`);
+						return;
+					}
+					selectedIds.add(cb.value);
+				} else {
+					selectedIds.delete(cb.value);
+				}
+				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === Math.min(list.length, MAX_SELECTION);
 				const summary = document.getElementById(`selectedParticipantsSummary_${key}`);
-				if (summary) summary.textContent = `Selected: ${selectedIds.size}`;
+				if (summary) summary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
 			});
 		});
 
@@ -4053,4 +4082,16 @@ if (document.getElementById("LocalData")?.style.display === "block") {
 
 // populate year select after definitions
 populateYearSelect();
+
+// Get scoring files filtered by selected PGS IDs from displayScores
+const selectedIds = window.getSelectedPgsIds?.() ?? [];
+    console.log("Selected PGS IDs:", selectedIds);
+
+const allTxts = await getTxts();
+const pgsTxts = selectedIds.length > 0
+	? allTxts.filter((txt) => selectedIds.includes(txt.id ?? txt.pgs_id))
+	: allTxts;
+
+    console.log("All PGS txts:", allTxts);
+    console.log("Filtered PGS txts:", pgsTxts);
 //# sourceMappingURL=app.mjs.map

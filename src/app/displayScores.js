@@ -20,10 +20,17 @@ const data = await getScoresPerTrait();
 const data2 = await getScoresPerCategory()
 
 // Dynamic variant filter state
-let variantMin = 3;
+let variantMin = 1;
 let variantMax = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
+const MAX_SELECTION = 6;
+
+// Module-level selected PGS IDs (shared across renders)
+const selectedPgsIds = new Set(["PGS001778", "PGS003396"]);
+
+/** Get the currently selected PGS IDs. */
+window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
 
 /** Check if a score passes the current variant filter. */
 function passesVariantFilter(score) {
@@ -127,7 +134,7 @@ function renderPgsTable(scores, targetId, title, key) {
 	scoresDiv.style.display = "block";
 
 	let currentPage = 1;
-	const selectedIds = new Set();
+	const selectedIds = selectedPgsIds; // Use module-level set
 
 	const renderPage = () => {
 		const totalPages = Math.max(1, Math.ceil(scores.length / ROWS_PER_PAGE));
@@ -192,7 +199,7 @@ function renderPgsTable(scores, targetId, title, key) {
 				</table>
 			</div>
 			<div class="d-flex justify-content-between align-items-center mt-2">
-				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size}</div>
+				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -209,7 +216,11 @@ function renderPgsTable(scores, targetId, title, key) {
 		if (selectAll) {
 			selectAll.addEventListener("change", () => {
 				if (selectAll.checked) {
-					scores.forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+					// Limit to first MAX_SELECTION items
+					scores.slice(0, MAX_SELECTION).forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+					if (scores.length > MAX_SELECTION) {
+						alert(`Selection limited to ${MAX_SELECTION} items.`);
+					}
 				} else {
 					selectedIds.clear();
 				}
@@ -220,16 +231,21 @@ function renderPgsTable(scores, targetId, title, key) {
 		rowCheckboxes.forEach((cb) => {
 			cb.addEventListener("change", () => {
 				if (cb.checked) {
+					if (selectedIds.size >= MAX_SELECTION) {
+						cb.checked = false;
+						alert(`Maximum ${MAX_SELECTION} selections allowed.`);
+						return;
+					}
 					selectedIds.add(cb.value);
 				} else {
 					selectedIds.delete(cb.value);
 				}
 				if (selectAll) {
-					selectAll.checked = scores.length > 0 && selectedIds.size === scores.length;
+					selectAll.checked = scores.length > 0 && selectedIds.size === Math.min(scores.length, MAX_SELECTION);
 				}
 				const selectedPgsSummary = document.getElementById(`selectedPgsSummary_${key}`);
 				if (selectedPgsSummary) {
-					selectedPgsSummary.textContent = `Selected: ${selectedIds.size}`;
+					selectedPgsSummary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
 				}
 			});
 		});

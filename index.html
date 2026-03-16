@@ -179,11 +179,25 @@
 
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
-                        <button id="pgsLoadBtn" class="btn btn-sm btn-primary ms-2">Load Traits</button>
-                        <button id="pgsCategoryBtn" class="btn btn-sm btn-secondary ms-2">Load Categories</button>
+                        <label for="pgsDropDown" class="form-label"><b>Select PGS scoring files</b></label>
+                        <div class="mb-2">
+                            <button id="traitBtn" class="btn btn-sm btn-primary">Load Traits</button>
+                            <button id="categoryBtn" class="btn btn-sm btn-outline-primary ms-2">Load Categories</button>
+                        </div>
 
+                        <!-- Variant range slider -->
+                        <div class="mb-3" style="max-width: 420px;">
+                            <label class="form-label"><b>Variant count range:</b> <span id="variantRangeLabel">1 - 1000</span></label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="range" id="variantMinSlider" class="form-range" min="1" max="1000" value="1" style="flex: 1;">
+                                <input type="range" id="variantMaxSlider" class="form-range" min="1" max="1000" value="1000" style="flex: 1;">
+                            </div>
+                            <div class="d-flex justify-content-between small text-muted">
+                                <span>Min: <span id="variantMinValue">1</span></span>
+                                <span>Max: <span id="variantMaxValue">1000</span></span>
+                            </div>
+                        </div>
 
-                        <label for="pgsDropDown" class="form-label"><b>Trait</b></label>
                         <select id="pgsDropDown" class="form-select" style="max-width: 420px;"
                             onchange="onPgsTraitChange(this.value)">
                             <option value="">Loading traits...</option>

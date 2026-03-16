@@ -1,4 +1,4 @@
-import {  getScoresPerTrait } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+import {  getScoresPerTrait,getScoresPerCategory} from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
 /*
  Module: displayScores.js
@@ -17,11 +17,19 @@ import {  getScoresPerTrait } from "https://lorenasandoval88.github.io/get-pgsca
 */
 
 const data = await getScoresPerTrait();
-const scoresPerTrait = (data && data.scoresPerTrait) ? data.scoresPerTrait : {};
-const VARIANT_MIN = 3;
-const VARIANT_MAX = 1000;
+const data2 = await getScoresPerCategory()
+
+// Dynamic variant filter state
+let variantMin = 3;
+let variantMax = 1000;
 const ALL_TRAITS_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
+
+/** Check if a score passes the current variant filter. */
+function passesVariantFilter(score) {
+	const v = Number(score?.variants_number ?? score?.score?.variants_number ?? 0);
+	return Number.isFinite(v) && v >= variantMin && v <= variantMax;
+}
 
 /**
  * Compare two score objects for stable sorting.
@@ -40,8 +48,31 @@ function compareScores(a, b) {
 	return idA.localeCompare(idB);
 }
 
+// CATEGORY SCORES
+const categoryScoresMap = new Map(Object.entries(data2.scoresPerCategory ?? {}).map(([category, entry]) => {
+	const scores = Array.isArray(entry?.scores)
+		? entry.scores
+		: Array.isArray(entry?.items)
+		? entry.items
+		: Array.isArray(entry)
+		? entry
+		: (entry?.score ? (Array.isArray(entry.score) ? entry.score : [entry.score]) : []);
+	return [category, scores];
+}));
+
+// Flatten values and expose category keys.
+const allCategoryScores = Array.from(categoryScoresMap.values()).flat();
+
+/** Get category scores filtered by current variant range. */
+function getFilteredCategoryScores() {
+	return allCategoryScores.filter(passesVariantFilter).sort(compareScores);
+}
+
+const categories = Array.from(categoryScoresMap.keys()).sort((a, b) => a.localeCompare(b));
+console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categories.length} categories`,categoryScoresMap);
 
 
+// TRAIT SCORES
 const traitScoresMap = new Map(Object.entries(data.scoresPerTrait ?? {}).map(([trait, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores
@@ -53,17 +84,17 @@ const traitScoresMap = new Map(Object.entries(data.scoresPerTrait ?? {}).map(([t
 	return [trait, scores];
 }));
 
-// Flatten values, filter by variant count, sort, and expose trait keys.
+// Flatten values and expose trait keys.
 const allTraitScores = Array.from(traitScoresMap.values()).flat();
-const filteredScores = allTraitScores
-	.filter((score) => {
-		const variantCount = Number(score?.variants_number ?? score?.score?.variants_number ?? 0);
-		return Number.isFinite(variantCount) && variantCount >= VARIANT_MIN && variantCount <= VARIANT_MAX;
-	})
-	.sort(compareScores);
+
+/** Get trait scores filtered by current variant range. */
+function getFilteredTraitScores() {
+	return allTraitScores.filter(passesVariantFilter).sort(compareScores);
+}
 
 const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
-console.log(`displayScores.js: Loaded ${filteredScores.length} PGS entries across ${traits.length} traits`);
+console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,traitScoresMap);
+
 
 /**
  * Escape a string for safe insertion into HTML.
@@ -237,22 +268,34 @@ function sanitizeKey(value) {
 
 
 /**
- * Render the table for a specific trait category.
- * If `trait` equals the special ALL_TRAITS_VALUE, all scores are shown.
- * @param {string} trait - Trait name or special value to indicate all traits.
+ * Render the table for a specific trait or category.
+ * If `value` equals ALL_TRAITS_VALUE, all scores for that type are shown.
+ * @param {string} value - Trait/category name or special value for all.
+ * @param {"Trait"|"Category"} [type="Trait"] - Whether rendering traits or categories.
  */
-function renderTrait(trait) {
-	//console.log(`Rendering trait: ${trait}`);
-	const isAllTraits = trait === ALL_TRAITS_VALUE;
-	//console.log(`Is "All Traits" selected? ${isAllTraits}`);
-	const scoresForTrait = isAllTraits ? filteredScores : (traitScoresMap.get(trait) ?? []);
-	const key = isAllTraits ? "all_traits" : (sanitizeKey(trait) || "trait");
-	const title = isAllTraits
-		? `All Scoring files (${VARIANT_MIN}-${VARIANT_MAX} variants)`
-		: `${trait} Scoring files (${VARIANT_MIN}-${VARIANT_MAX} variants)`;
+function renderScores(value, type = "Trait") {
+	const isCategory = type === "Category";
+	const map = isCategory ? categoryScoresMap : traitScoresMap;
+	const getFiltered = isCategory ? getFilteredCategoryScores : getFilteredTraitScores;
 
-	renderPgsTable(scoresForTrait, "scoresDiv", title, key);
+	//console.log(`Rendering ${type}: ${value}`);
+	const isAll = value === ALL_TRAITS_VALUE;
+
+	// Use filtered getter for "all", otherwise filter individual entry
+	const scores = isAll
+		? getFiltered()
+		: (map.get(value) ?? []).filter(passesVariantFilter).sort(compareScores);
+
+	const key = isAll ? `all_${type}s` : (sanitizeKey(value) || type);
+	//console.log(key,`Found ${scores.length} scores for ${type} "${value}" after filtering by variant count`, scores);
+	const typeLabel = type === "Category" ? "categories" : "traits";
+	const title = isAll
+		? `All Scoring files (${scores.length} entries across ${map.size} ${typeLabel})`
+		: `${type}: ${value} (${scores.length} scoring files)`;
+
+	renderPgsTable(scores, "scoresDiv", title, key);
 }
+
 
 /**
  * Global handler wired to the trait select control.
@@ -261,43 +304,184 @@ function renderTrait(trait) {
  */
 window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	if (!selectedTrait) return;
-	if (selectedTrait !== ALL_TRAITS_VALUE && !traitScoresMap.has(selectedTrait)) return;
-	renderTrait(selectedTrait);
+
+	// Special: show all scoring files
+	if (selectedTrait === ALL_TRAITS_VALUE) {
+		renderScores(ALL_TRAITS_VALUE, "Trait");
+		return;
+	}
+
+	// If a trait name was selected, render that trait
+	if (traitScoresMap.has(selectedTrait)) {
+		renderScores(selectedTrait, "Trait");
+		return;
+	}
+
+	// Otherwise assume the selection is a PGS id and render that single file
+	const pgsId = selectedTrait;
+	const match = getFilteredTraitScores().find((s) => String(s?.id ?? "") === String(pgsId));
+	if (!match) return;
+	const title = `${match.id} - ${match.name ?? match.trait_reported ?? "PGS"}`;
+	renderPgsTable([match], "scoresDiv", title, sanitizeKey(pgsId));
 };
 
 
-// The DOM select element used for the trait/category dropdown.
+// --- Helpers for dropdown management ---
+
+/** Default onchange handler for trait selection. */
+function setDefaultTraitOnChange(select) {
+	select.onchange = (e) => {
+		try { window.onPgsTraitChange(e.target.value); } catch (err) { console.error('onPgsTraitChange error', err); }
+	};
+}
+
+/** Build options HTML from a Map of name → scores[]. */
+function buildOptionsHtml(map, keys, allLabel, filteredCount) {
+	const allOption = `<option value="${ALL_TRAITS_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
+	const itemOptions = keys
+		.map((key) => {
+			const filtered = (map.get(key) ?? []).filter(passesVariantFilter);
+			return `<option value="${escapeHtml(key)}">${escapeHtml(key)} (${filtered.length})</option>`;
+		})
+		.join("");
+	return allOption + itemOptions;
+}
+
+/** Populate dropdown with traits and wire default handler. */
+function populateTraitDropdown(select) {
+	select.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
+	select.value = ALL_TRAITS_VALUE;
+	renderScores(ALL_TRAITS_VALUE, "Trait");
+	setDefaultTraitOnChange(select);
+}
+
+/** Populate dropdown with categories and wire category handler. */
+function populateCategoryDropdown(select) {
+	select.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
+	select.value = ALL_TRAITS_VALUE;
+	renderScores(ALL_TRAITS_VALUE, "Category");
+
+	select.onchange = (e) => {
+		const val = e.target.value;
+		if (!val) return;
+		if (val === ALL_TRAITS_VALUE) {
+			setDefaultTraitOnChange(select);
+			renderScores(ALL_TRAITS_VALUE, "Category");
+			return;
+		}
+		renderScores(val, "Category");
+	};
+}
+
+// --- Initialize dropdown and wire buttons ---
+
 const pgsSelect = document.getElementById("pgsDropDown");
 
 if (pgsSelect) {
-	// Prefer populating the dropdown from `scoresPerTrait` when available.
-	if (Array.isArray(scoresPerTrait) && scoresPerTrait.length) {
-		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">All Scoring Files (${filteredScores.length}) of ${traitScoresMap.size}</option>`;
-		const traitOptions = scoresPerTrait
-			.map((entry) => {
-				// support multiple entry shapes: string, { trait, count, scores }
-				const traitName = typeof entry === 'string' ? entry : (entry.trait ?? entry.name ?? entry.category ?? '');
-				const count = entry.count ?? (Array.isArray(entry.scores) ? entry.scores.length : (traitScoresMap.get(traitName)?.length ?? 0));
-				return `<option value="${escapeHtml(traitName)}">${escapeHtml(traitName)} (${count})</option>`;
-			})
-			.join("");
-
-		pgsSelect.innerHTML = `${allTraitsOption}${traitOptions}`;
-		pgsSelect.value = ALL_TRAITS_VALUE;
-		renderTrait(ALL_TRAITS_VALUE);
-	} else if (!traits.length) {
-		pgsSelect.innerHTML = `<option value="">No traits found (${VARIANT_MIN}-${VARIANT_MAX} variants)</option>`;
+	if (!traits.length) {
+		pgsSelect.innerHTML = `<option value="">No traits found (${variantMin}-${variantMax} variants)</option>`;
 	} else {
-		const allTraitsOption = `<option value="${ALL_TRAITS_VALUE}">Scoring Files (${filteredScores.length}) for all ${traitScoresMap.size} Traits</option>`;
-		const traitOptions = traits
-			.map((trait) => {
-				const count = traitScoresMap.get(trait)?.length ?? 0;
-				return `<option value="${escapeHtml(trait)}">${escapeHtml(trait)} (${count})</option>`;
-			})
-			.join("");
-
-		pgsSelect.innerHTML = `${allTraitsOption}${traitOptions}`;
-		pgsSelect.value = ALL_TRAITS_VALUE;
-		renderTrait(ALL_TRAITS_VALUE);
+		populateTraitDropdown(pgsSelect);
 	}
+}
+
+const traitBtn = document.getElementById("traitBtn");
+const categoryBtn = document.getElementById("categoryBtn");
+
+/** Set the active button styling (blue) and reset the other. */
+function setActiveButton(activeBtn) {
+	[traitBtn, categoryBtn].forEach((btn) => {
+		if (!btn) return;
+		if (btn === activeBtn) {
+			btn.classList.remove("btn-outline-primary");
+			btn.classList.add("btn-primary");
+		} else {
+			btn.classList.remove("btn-primary");
+			btn.classList.add("btn-outline-primary");
+		}
+	});
+}
+
+if (traitBtn && pgsSelect) {
+	setActiveButton(traitBtn); // default active on load
+	traitBtn.addEventListener("click", () => {
+		console.log("Load Traits button clicked");
+		try {
+			populateTraitDropdown(pgsSelect);
+			setActiveButton(traitBtn);
+		} catch (err) { console.error('traitBtn click error', err); }
+	});
+}
+
+if (categoryBtn && pgsSelect) {
+	categoryBtn.addEventListener("click", () => {
+		console.log("Load Categories button clicked");
+		try {
+			populateCategoryDropdown(pgsSelect);
+			setActiveButton(categoryBtn);
+		} catch (err) { console.error('categoryBtn click error', err); }
+	});
+}
+
+// --- Variant range slider ---
+
+const variantMinSlider = document.getElementById("variantMinSlider");
+const variantMaxSlider = document.getElementById("variantMaxSlider");
+const variantRangeLabel = document.getElementById("variantRangeLabel");
+const variantMinValue = document.getElementById("variantMinValue");
+const variantMaxValue = document.getElementById("variantMaxValue");
+
+/** Track current mode to know which dropdown to refresh on slider change. */
+let currentMode = "Trait";
+
+/** Update the slider UI labels. */
+function updateSliderLabels() {
+	if (variantRangeLabel) variantRangeLabel.textContent = `${variantMin} - ${variantMax}`;
+	if (variantMinValue) variantMinValue.textContent = variantMin;
+	if (variantMaxValue) variantMaxValue.textContent = variantMax;
+}
+
+/** Refresh the current view after slider change. */
+function refreshCurrentView() {
+	if (!pgsSelect) return;
+	if (currentMode === "Category") {
+		populateCategoryDropdown(pgsSelect);
+	} else {
+		populateTraitDropdown(pgsSelect);
+	}
+}
+
+/** Debounce timer for slider input. */
+let sliderDebounce = null;
+
+/** Debounced refresh to avoid too many updates while dragging. */
+function debouncedRefresh() {
+	clearTimeout(sliderDebounce);
+	sliderDebounce = setTimeout(refreshCurrentView, 150);
+}
+
+if (variantMinSlider) {
+	variantMinSlider.addEventListener("input", () => {
+		variantMin = Math.min(parseInt(variantMinSlider.value, 10), variantMax - 1);
+		variantMinSlider.value = variantMin;
+		updateSliderLabels();
+		debouncedRefresh();
+	});
+}
+
+if (variantMaxSlider) {
+	variantMaxSlider.addEventListener("input", () => {
+		variantMax = Math.max(parseInt(variantMaxSlider.value, 10), variantMin + 1);
+		variantMaxSlider.value = variantMax;
+		updateSliderLabels();
+		debouncedRefresh();
+	});
+}
+
+// Update mode tracking when buttons are clicked
+if (traitBtn) {
+	traitBtn.addEventListener("click", () => { currentMode = "Trait"; });
+}
+if (categoryBtn) {
+	categoryBtn.addEventListener("click", () => { currentMode = "Category"; });
 }

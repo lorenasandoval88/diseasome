@@ -27,10 +27,16 @@ const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 6;
 
 // Module-level selected PGS IDs (shared across renders)
-const selectedPgsIds = new Set(["PGS001778", "PGS003396"]);
+const selectedPgsIds = new Set([]);//new Set(["PGS001778", "PGS003396"]);
 
 /** Get the currently selected PGS IDs. */
 window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
+
+/** Update the global selection count display. */
+function updateGlobalSelectionCount() {
+	const el = document.getElementById("globalSelectionCount");
+	if (el) el.textContent = `Selected: ${selectedPgsIds.size} / ${MAX_SELECTION}`;
+}
 
 /** Check if a score passes the current variant filter. */
 function passesVariantFilter(score) {
@@ -225,6 +231,7 @@ function renderPgsTable(scores, targetId, title, key) {
 					selectedIds.clear();
 				}
 				renderPage();
+				updateGlobalSelectionCount();
 			});
 		}
 
@@ -247,6 +254,7 @@ function renderPgsTable(scores, targetId, title, key) {
 				if (selectedPgsSummary) {
 					selectedPgsSummary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
 				}
+				updateGlobalSelectionCount();
 			});
 		});
 
@@ -266,6 +274,7 @@ function renderPgsTable(scores, targetId, title, key) {
 	};
 
 	renderPage();
+	updateGlobalSelectionCount();
 }
 
 /**

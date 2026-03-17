@@ -152,10 +152,15 @@
                 <!-- 23 and me ------------------------------------------>
 
                 <div id="LocalData" class="tabcontent">
-                    <h3>Local Data</h3>
-                    <p>This app uses five local 23andMe-compatible genome files from the <b>data/</b> folder and all
-                        participants in
-                        the PGP.</p>
+
+                    <h3>The Personal Genome Project (PGP)</h3>
+                    <p>The Personal Genome Project (PGP) is an open-access repository of human genomic data contributed
+                        by volunteer
+                        participants. The project provides publicly available genotype and sequencing datasets that can
+                        be used for research, education, and the development of genomic analysis tools.</p>
+                    <h3>Data Selection</h3>
+                    <h6 style="color: rgb(6, 137, 231);">Local 23andMe files automatically configured. You can also
+                        choose files below:</h6>
                     <h6 style="color: rgb(6, 137, 231);">Configured local users:</h6>
                     <ol>
                         <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
@@ -179,14 +184,20 @@
                     <div id="localUsersDiv"></div>
                 </div>
 
-                <!-- PGS Catalog: trait selector and actions -->
+                <!-- PGS Catalog: trait selector and actions ---------------------------->
                 <div id="PGSCatalog" class="tabcontent">
 
                     <h3>The Polygenic Score (PGS) Catalog</h3>
                     <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant
-                        metadata;
-                        including scoring files (variants, effect alleles/weights).</p>
+                        metadata;including scoring files (variants, effect alleles/weights).</p>
+                    <h3>Data Selection</h3>
 
+                    <h6 style="color: rgb(6, 137, 231);">Local PGS files automatically configured. You can also choose
+                        files below:</h6>
+                    <ol>
+                        <li>PGS000001.txt (Breast cancer - 77 variants)</li>
+                        <li>PGS000004.txt (Breast carcinoma - 313 variants)</li>
+                    </ol>
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
                         <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b></label>

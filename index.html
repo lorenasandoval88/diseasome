@@ -185,6 +185,11 @@
                             <button id="categoryBtn" class="btn btn-sm btn-outline-primary ms-2">By Category</button>
                         </div>
 
+                        <select id="pgsDropDown" class="form-select mb-3" style="max-width: 420px;"
+                            onchange="onPgsTraitChange(this.value)">
+                            <option value="">Loading traits...</option>
+                        </select>
+
                         <!-- Variant range slider -->
                         <div class="variant-filter mb-3" style="max-width: 420px;">
                             <label class="form-label">
@@ -223,11 +228,6 @@
                         <div id="scoreTxtsDiv" style="display: none;">
                             <div class="my-3"></div>
                         </div>
-
-                        <select id="pgsDropDown" class="form-select" style="max-width: 420px;"
-                            onchange="onPgsTraitChange(this.value)">
-                            <option value="">Loading traits...</option>
-                        </select>
                     </div>
 
                     <!--target element where renderPgsTable(...) writes the paginated PGS table  ---->

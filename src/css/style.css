@@ -2,9 +2,19 @@
 .navbarScroll.navbarDark {
     background-color: black;
 }
+
+/* White text for navbar links */
+.navbar-dark .nav-link {
+    color: white !important;
+}
+
+.navbar-dark .nav-link:hover {
+    color: #ccc !important;
+}
+
 /* hero background image */
 .bgimage {
-  height:14vh;
+  height:26vh;
     background: url('../../dna2.jpg');
     background-size:cover;
     position:relative;
@@ -344,6 +354,7 @@ input[type=submit] {
   cursor: pointer;
   padding: 14px 16px;
   transition: 0.3s;
+  color: #333;
 }
 
 /* Change background color of buttons on hover */

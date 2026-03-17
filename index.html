@@ -110,7 +110,11 @@
 
                 <div id="PRS" class="tabcontent">
                     <h3>PRS</h3>
-
+                    <p>Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining
+                        the
+                        effects of many genetic variants across the genome. Each variant contributes a small effect, and
+                        these effects are weighted and summed to produce a single score that reflects relative genetic
+                        predisposition. </p>
                     <div id=prsDiv>Please select at least one scoring file.</div>
                     <button id="loadFallbackScoresBtn" class="btn btn-outline-secondary btn-sm mt-2">Load Fallback
                         Scores</button>
@@ -197,6 +201,7 @@
                         <li>PGS000001.txt (Breast cancer - 77 variants)</li>
                         <li>PGS000004.txt (Breast carcinoma - 313 variants)</li>
                     </ol>
+                    <hr class="my-3" />
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
                         <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b></label>

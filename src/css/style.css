@@ -3,8 +3,9 @@
     background-color: black;
 }
 
-/* White text for navbar links */
-.navbar-dark .nav-link {
+/* White text for navbar */
+.navbar-dark .nav-link,
+.navbar-dark .navbar-brand {
     color: white !important;
 }
 
@@ -129,7 +130,18 @@
     background: black;
     color: rgb(25, 20, 20);
     font-size: 0.7em !important;
-       }
+  }
+
+  nav.navbar {
+    min-height: 40px;
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+  }
+
+  nav.navbar .nav-link {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
   
 
 body {

@@ -22,15 +22,19 @@ const data2 = await getScoresPerCategory()
 // Dynamic variant filter state
 let variantMin = 1;
 let variantMax = 1000;
-const ALL_TRAITS_VALUE = "__all_traits__";
+const ALL_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 6;
 
-// Module-level selected PGS IDs (shared across renders)
-const selectedPgsIds = new Set([]);//new Set(["PGS001778", "PGS003396"]);
+// Module-level selected PGS IDs and scores (shared across renders)
+const selectedPgsIds = new Set([]);
+const selectedScoresMap = new Map(); // Map<id, scoreObject>
 
 /** Get the currently selected PGS IDs. */
 window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
+
+/** Get the currently selected scores with full metadata. */
+window.getSelectedScores = () => Array.from(selectedScoresMap.values());
 
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
@@ -244,12 +248,17 @@ function renderPgsTable(scores, targetId, title, key) {
 			selectAll.addEventListener("change", () => {
 				if (selectAll.checked) {
 					// Limit to first MAX_SELECTION items
-					scores.slice(0, MAX_SELECTION).forEach((score) => selectedIds.add((score?.id ?? "").toString()));
+					scores.slice(0, MAX_SELECTION).forEach((score) => {
+						const id = (score?.id ?? "").toString();
+						selectedIds.add(id);
+						selectedScoresMap.set(id, score);
+					});
 					if (scores.length > MAX_SELECTION) {
 						alert(`Selection limited to ${MAX_SELECTION} items.`);
 					}
 				} else {
 					selectedIds.clear();
+					selectedScoresMap.clear();
 				}
 				renderPage();
 				updateGlobalSelectionCount();
@@ -257,6 +266,7 @@ function renderPgsTable(scores, targetId, title, key) {
 		}
 
 		rowCheckboxes.forEach((cb) => {
+			const score = scores.find(s => (s?.id ?? "").toString() === cb.value);
 			cb.addEventListener("change", () => {
 				if (cb.checked) {
 					if (selectedIds.size >= MAX_SELECTION) {
@@ -265,8 +275,10 @@ function renderPgsTable(scores, targetId, title, key) {
 						return;
 					}
 					selectedIds.add(cb.value);
+					if (score) selectedScoresMap.set(cb.value, score);
 				} else {
 					selectedIds.delete(cb.value);
+					selectedScoresMap.delete(cb.value);
 				}
 				if (selectAll) {
 					selectAll.checked = scores.length > 0 && selectedIds.size === Math.min(scores.length, MAX_SELECTION);
@@ -315,7 +327,7 @@ function sanitizeKey(value) {
 
 /**
  * Render the table for a specific trait or category.
- * If `value` equals ALL_TRAITS_VALUE, all scores for that type are shown.
+ * If `value` equals ALL_VALUE, all scores for that type are shown.
  * @param {string} value - Trait/category name or special value for all.
  * @param {"Trait"|"Category"} [type="Trait"] - Whether rendering traits or categories.
  */
@@ -325,7 +337,7 @@ function renderScores(value, type = "Trait") {
 	const getFiltered = isCategory ? getFilteredCategoryScores : getFilteredTraitScores;
 
 	//console.log(`Rendering ${type}: ${value}`);
-	const isAll = value === ALL_TRAITS_VALUE;
+	const isAll = value === ALL_VALUE;
 
 	// Use filtered getter for "all", otherwise filter individual entry
 	const scores = isAll
@@ -352,8 +364,8 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	if (!selectedTrait) return;
 
 	// Special: show all scoring files
-	if (selectedTrait === ALL_TRAITS_VALUE) {
-		renderScores(ALL_TRAITS_VALUE, "Trait");
+	if (selectedTrait === ALL_VALUE) {
+		renderScores(ALL_VALUE, "Trait");
 		return;
 	}
 
@@ -383,7 +395,7 @@ function setDefaultTraitOnChange(select) {
 
 /** Build options HTML from a Map of name → scores[]. */
 function buildOptionsHtml(map, keys, allLabel, filteredCount) {
-	const allOption = `<option value="${ALL_TRAITS_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
+	const allOption = `<option value="${ALL_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
 	const itemOptions = keys
 		.map((key) => {
 			const filtered = (map.get(key) ?? []).filter(passesVariantFilter);
@@ -396,23 +408,23 @@ function buildOptionsHtml(map, keys, allLabel, filteredCount) {
 /** Populate dropdown with traits and wire default handler. */
 function populateTraitDropdown(select) {
 	select.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
-	select.value = ALL_TRAITS_VALUE;
-	renderScores(ALL_TRAITS_VALUE, "Trait");
+	select.value = ALL_VALUE;
+	renderScores(ALL_VALUE, "Trait");
 	setDefaultTraitOnChange(select);
 }
 
 /** Populate dropdown with categories and wire category handler. */
 function populateCategoryDropdown(select) {
 	select.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
-	select.value = ALL_TRAITS_VALUE;
-	renderScores(ALL_TRAITS_VALUE, "Category");
+	select.value = ALL_VALUE;
+	renderScores(ALL_VALUE, "Category");
 
 	select.onchange = (e) => {
 		const val = e.target.value;
 		if (!val) return;
-		if (val === ALL_TRAITS_VALUE) {
+		if (val === ALL_VALUE) {
 			setDefaultTraitOnChange(select);
-			renderScores(ALL_TRAITS_VALUE, "Category");
+			renderScores(ALL_VALUE, "Category");
 			return;
 		}
 		renderScores(val, "Category");
@@ -500,11 +512,29 @@ function updateSliderLabels() {
 /** Refresh the current view after slider change. */
 function refreshCurrentView() {
 	if (!pgsSelect) return;
+	const currentValue = pgsSelect.value; // Preserve current selection
 	if (currentMode === "Category") {
-		populateCategoryDropdown(pgsSelect);
+		// Rebuild dropdown but preserve selection
+		pgsSelect.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
+		// Restore selection if it still exists
+		if (currentValue && Array.from(pgsSelect.options).some(opt => opt.value === currentValue)) {
+			pgsSelect.value = currentValue;
+		} else {
+			pgsSelect.value = ALL_VALUE;
+		}
+		renderScores(pgsSelect.value, "Category");
 	} else {
-		populateTraitDropdown(pgsSelect);
+		// Rebuild dropdown but preserve selection
+		pgsSelect.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
+		// Restore selection if it still exists
+		if (currentValue && Array.from(pgsSelect.options).some(opt => opt.value === currentValue)) {
+			pgsSelect.value = currentValue;
+		} else {
+			pgsSelect.value = ALL_VALUE;
+		}
+		renderScores(pgsSelect.value, "Trait");
 	}
+	setDefaultTraitOnChange(pgsSelect);
 }
 
 /** Debounce timer for slider input. */

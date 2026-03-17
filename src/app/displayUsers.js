@@ -7,6 +7,22 @@ const participants = data ?? [];
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 6;
 
+// Module-level selected users (shared across renders)
+const selectedUserIds = new Set();
+const selectedUsersMap = new Map(); // Map<id, userObject>
+
+/** Get the currently selected user IDs. */
+window.getSelectedUserIds = () => Array.from(selectedUserIds);
+
+/** Get the currently selected users with full metadata. */
+window.getSelectedUsers = () => Array.from(selectedUsersMap.values());
+
+
+/** Update the global selection count display. */
+function updateGlobalSelectionCount() {
+	const el = document.getElementById("globalSelectionCount2");
+	if (el) el.textContent = `Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
+}
 /**
  * escapeHtml(value)
  * Escape HTML special characters to prevent injection when inserting text into the DOM.
@@ -99,7 +115,8 @@ window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear
 		? participants.filter(p => (extractYear(p) ?? 'Unknown') === year)
 		: participants;
 	const key = sanitizeKey('participants') || 'participants';
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length})`, key);
+	const yearLabel = year && year !== '' ? year : 'All Years';
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
 };
 
 /**
@@ -116,7 +133,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 	container.style.display = 'block';
 
 	let currentPage = 1;
-	const selectedIds = new Set();
+	const selectedIds = selectedUserIds; // Use module-level set
 
 	const renderPage = () => {
 		const totalPages = Math.max(1, Math.ceil(list.length / ROWS_PER_PAGE));
@@ -189,7 +206,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		container.innerHTML = `
 			<div class="d-flex justify-content-between align-items-center my-2">
-				<div></div>
+				<h5 class="mb-0">${escapeHtml(title)}</h5>
 				<div>
 					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
@@ -235,18 +252,25 @@ function renderParticipantsTable(list, targetId, title, key) {
 			selectAll.addEventListener('change', () => {
 				if (selectAll.checked) {
 					// Limit to first MAX_SELECTION items
-					list.slice(0, MAX_SELECTION).forEach((it) => selectedIds.add(String(it.id ?? it.participant_id ?? it.name)));
+					list.slice(0, MAX_SELECTION).forEach((it) => {
+						const id = String(it.id ?? it.participant_id ?? it.name);
+						selectedIds.add(id);
+						selectedUsersMap.set(id, it);
+					});
 					if (list.length > MAX_SELECTION) {
 						alert(`Selection limited to ${MAX_SELECTION} items.`);
 					}
 				} else {
 					selectedIds.clear();
+					selectedUsersMap.clear();
 				}
 				renderPage();
+				updateGlobalSelectionCount();
 			});
 		}
 
 		rowCheckboxes.forEach((cb) => {
+			const user = list.find(it => String(it.id ?? it.participant_id ?? it.name) === cb.value);
 			cb.addEventListener('change', () => {
 				if (cb.checked) {
 					if (selectedIds.size >= MAX_SELECTION) {
@@ -255,12 +279,16 @@ function renderParticipantsTable(list, targetId, title, key) {
 						return;
 					}
 					selectedIds.add(cb.value);
+					if (user) selectedUsersMap.set(cb.value, user);
 				} else {
 					selectedIds.delete(cb.value);
+					selectedUsersMap.delete(cb.value);
 				}
 				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === Math.min(list.length, MAX_SELECTION);
 				const summary = document.getElementById(`selectedParticipantsSummary_${key}`);
 				if (summary) summary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
+				updateGlobalSelectionCount();
+
 			});
 		});
 
@@ -280,7 +308,8 @@ window.renderLocalUsers = () => {
 	const sel = document.getElementById('participantsYearSelect');
 	const year = sel?.value ?? '';
 	const list = year && year !== '' ? participants.filter(p => (extractYear(p) ?? 'Unknown') === year) : participants;
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length})`, key);
+	const yearLabel = year && year !== '' ? year : 'All Years';
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
 };
 
 // If the LocalData tab is already visible on load, render immediately

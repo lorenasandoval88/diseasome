@@ -1,33 +1,139 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+console.log("calculatePrs.js loaded");
+
+/** Check if online */
+function isOnline() {
+	return navigator.onLine;
+}
+
+/** Fallback local users (first 2 from data folder) */
+const FALLBACK_USERS = [
+	{
+		id: "hu09B28E",
+		name: "Joshua Yoakem",
+		participant_id: "hu09B28E",
+		publishedDate: "2025-01-27",
+		genotypes: [{ 
+			filename: "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt",
+			filetype: "23andme",
+			download_url: "data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt"
+		}]
+	},
+	{
+		id: "hu0F2E0D",
+		name: "Cajun",
+		participant_id: "hu0F2E0D",
+		publishedDate: "2023-11-21",
+		genotypes: [{
+			filename: "PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt",
+			filetype: "23andme",
+			download_url: "data/PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt"
+		}]
+	}
+];
+
+/** Fallback PGS scores (sample entries) */
+const FALLBACK_SCORES = [
+	{
+		id: "PGS000001",
+		name: "PRS77_BC",
+		trait_reported: "Breast cancer",
+		variants_number: 77,
+		date_release: "2019-10-14"
+	},
+	{
+		id: "PGS000004",
+		name: "PRS313_BC",
+		trait_reported: "breast canrcinoma",
+		variants_number: 313,
+		date_release: "2019-10-14"
+	}
+];
+
+/** Escape HTML special characters */
+function escapeHtml(str) {
+	const div = document.createElement("div");
+	div.textContent = str ?? "";
+	return div.innerHTML;
+}
 
 /**
  * Calculate PRS using the currently selected PGS IDs.
  * Called when the user clicks the "Fetch Files" button.
+ * Uses fallback data when offline.
  */
 async function fetchScores() {
-	const statusEl = document.getElementById("prsStatus");
-	const resultsDiv = document.getElementById("scoreTxtsDiv");
+	const statusEl = document.getElementById("prsDiv");
+	const resultsDiv = document.getElementById("prsAction");
 
 	try {
-		const selectedIds = window.getSelectedPgsIds?.() ?? [];
-		console.log("Selected PGS IDs:", selectedIds);
-
-		if (selectedIds.length === 0) {
-			if (statusEl) statusEl.textContent = "Please select at least one scoring file.";
-			return;
+		let selectedIds = window.getSelectedPgsIds?.() ?? [];
+		let selectedScores = window.getSelectedScores?.() ?? [];
+		
+		// Use fallback if offline or no selection
+		const offline = !isOnline();
+		if (offline || selectedIds.length === 0) {
+			if (offline) {
+				console.log("Offline mode: using fallback scores");
+				selectedScores = FALLBACK_SCORES;
+				selectedIds = FALLBACK_SCORES.map(s => s.id);
+				if (statusEl) statusEl.textContent = "Offline mode: using fallback scores.";
+			} else {
+				if (statusEl) statusEl.textContent = "Please select at least one scoring file.";
+				if (resultsDiv) resultsDiv.innerHTML = "";
+				return;
+			}
+		} else {
+			if (statusEl) statusEl.textContent = "Loading scoring files...";
+			try {
+				const pgsTxts = await getTxts(selectedIds);
+				console.log("PGS txts:", pgsTxts);
+				if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} scoring file(s).`;
+			} catch (fetchErr) {
+				console.warn("Failed to fetch scores, using fallback:", fetchErr);
+				selectedScores = FALLBACK_SCORES;
+				selectedIds = FALLBACK_SCORES.map(s => s.id);
+				if (statusEl) statusEl.textContent = "Network error: using fallback scores.";
+			}
 		}
 
-		if (statusEl) statusEl.textContent = "Loading scoring files...";
+		console.log(`calculatePrs.js: ${selectedIds.length} Selected PGS IDs..`, selectedIds);
 
-		const pgsTxts = await getTxts(selectedIds);
-
-		console.log("PGS txts:", pgsTxts);
-
-		if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} scoring file(s).`;
-
+		// Render table of selected scores
 		if (resultsDiv) {
-			resultsDiv.style.display = "block";
-			resultsDiv.innerHTML = `<p class="text-success">Loaded ${pgsTxts.length} scoring file(s) for: ${selectedIds.join(", ")}</p>`;
+			const rows = selectedScores.map((score, idx) => {
+				const id = escapeHtml(score?.id ?? "");
+				const name = escapeHtml(score?.name ?? "");
+				const trait = escapeHtml(score?.trait_reported ?? "");
+				const variants = escapeHtml(score?.variants_number ?? "");
+				const date = escapeHtml(score?.date_release ?? "");
+				return `
+					<tr>
+						<td>${idx + 1}</td>
+						<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+						<td>${id}</td>
+						<td>${name}</td>
+						<td>${trait}</td>
+						<td>${variants}</td>
+						<td>${date}</td>
+					</tr>`;
+			}).join("");
+
+			resultsDiv.innerHTML = `
+				<table class="table table-striped table-sm mt-3">
+					<thead class="table-dark">
+						<tr>
+							<th>#</th>
+							<th>Select</th>
+							<th>PGS ID</th>
+							<th>Name</th>
+							<th>Trait</th>
+							<th>Variants #</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>`;
 		}
 
 		// TODO: Add actual PRS calculation logic here
@@ -38,10 +144,215 @@ async function fetchScores() {
 	}
 }
 
-// Wire up the button
-const calculateBtn = document.getElementById("fetchScoresBtn");
-if (calculateBtn) {
-	calculateBtn.addEventListener("click", fetchScores);
+// Wire up the fetch scores button
+const fetchScoresBtn = document.getElementById("fetchScoresBtn");
+if (fetchScoresBtn) {
+	fetchScoresBtn.addEventListener("click", fetchScores);
 }
 
 window.fetchScores = fetchScores;
+
+// Wire up the fetch users button
+const fetchUsersBtn = document.getElementById("fetchUsersBtn");
+if (fetchUsersBtn) {
+	fetchUsersBtn.addEventListener("click", fetchUsers);
+}
+
+
+/**
+ * Fetch selected users and display them in a table.
+ * Called when the user clicks a "Fetch Users" button.
+ * Uses fallback data when offline.
+ */
+async function fetchUsers() {
+	const statusEl = document.getElementById("prsDiv2");
+	const resultsDiv = document.getElementById("prsAction2");
+
+	try {
+		let selectedIds = window.getSelectedUserIds?.() ?? [];
+		let selectedUsers = window.getSelectedUsers?.() ?? [];
+		
+		// Use fallback if offline or no selection
+		const offline = !isOnline();
+		if (offline || selectedIds.length === 0) {
+			if (offline) {
+				console.log("Offline mode: using fallback users");
+				selectedUsers = FALLBACK_USERS;
+				selectedIds = FALLBACK_USERS.map(u => u.id);
+				if (statusEl) statusEl.textContent = "Offline mode: using fallback users.";
+			} else {
+				if (statusEl) statusEl.textContent = "Please select at least one participant.";
+				if (resultsDiv) resultsDiv.innerHTML = "";
+				return;
+			}
+		} else {
+			if (statusEl) statusEl.textContent = `Loaded ${selectedUsers.length} participant(s).`;
+		}
+
+		console.log(`calculatePrs.js: ${selectedIds.length} Selected User IDs..`, selectedIds);
+
+		// Render table of selected users
+		if (resultsDiv) {
+			const rows = selectedUsers.map((user, idx) => {
+				const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
+				const name = escapeHtml(user?.name ?? "");
+				const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
+				const genos = user?.genotypes ?? [];
+				const genoCount = genos.length;
+				const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
+				const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+				return `
+					<tr>
+						<td>${idx + 1}</td>
+						<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
+						<td>${id}</td>
+						<td>${name}</td>
+						<td>${published}</td>
+						<td>${genoCount}</td>
+						<td>${downloadHtml}</td>
+					</tr>`;
+			}).join("");
+
+			resultsDiv.innerHTML = `
+				<table class="table table-striped table-sm mt-3">
+					<thead class="table-dark">
+						<tr>
+							<th>#</th>
+							<th>Select</th>
+							<th>Participant ID</th>
+							<th>Name</th>
+							<th>Published Date</th>
+							<th>Genotypes #</th>
+							<th>Download</th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>`;
+		}
+
+	} catch (err) {
+		console.error("fetchUsers error:", err);
+		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+	}
+}
+
+window.fetchUsers = fetchUsers;
+
+/**
+ * Load fallback scores directly into the PRS table.
+ */
+function loadFallbackScores() {
+	const statusEl = document.getElementById("prsDiv");
+	const resultsDiv = document.getElementById("prsAction");
+	
+	const selectedScores = FALLBACK_SCORES;
+	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} fallback scoring file(s).`;
+	
+	if (resultsDiv) {
+		const rows = selectedScores.map((score, idx) => {
+			const id = escapeHtml(score?.id ?? "");
+			const name = escapeHtml(score?.name ?? "");
+			const trait = escapeHtml(score?.trait_reported ?? "");
+			const variants = escapeHtml(score?.variants_number ?? "");
+			const date = escapeHtml(score?.date_release ?? "");
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${trait}</td>
+					<td>${variants}</td>
+					<td>${date}</td>
+				</tr>`;
+		}).join("");
+
+		resultsDiv.innerHTML = `
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>PGS ID</th>
+						<th>Name</th>
+						<th>Trait</th>
+						<th>Variants #</th>
+						<th>Date</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
+	
+	console.log("Loaded fallback scores:", FALLBACK_SCORES);
+}
+
+/**
+ * Load fallback users directly into the users table.
+ */
+function loadFallbackUsers() {
+	const statusEl = document.getElementById("prsDiv2");
+	const resultsDiv = document.getElementById("prsAction2");
+	
+	const selectedUsers = FALLBACK_USERS;
+	if (statusEl) statusEl.textContent = `Loaded ${selectedUsers.length} fallback participant(s).`;
+	
+	if (resultsDiv) {
+		const rows = selectedUsers.map((user, idx) => {
+			const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
+			const name = escapeHtml(user?.name ?? "");
+			const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
+			const genos = user?.genotypes ?? [];
+			const genoCount = genos.length;
+			const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
+			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${published}</td>
+					<td>${genoCount}</td>
+					<td>${downloadHtml}</td>
+				</tr>`;
+		}).join("");
+
+		resultsDiv.innerHTML = `
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>Participant ID</th>
+						<th>Name</th>
+						<th>Published Date</th>
+						<th>Genotypes #</th>
+						<th>Download</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
+	
+	console.log("Loaded fallback users:", FALLBACK_USERS);
+}
+
+// Wire up fallback buttons
+const loadFallbackScoresBtn = document.getElementById("loadFallbackScoresBtn");
+if (loadFallbackScoresBtn) {
+	loadFallbackScoresBtn.addEventListener("click", loadFallbackScores);
+}
+
+const loadFallbackUsersBtn = document.getElementById("loadFallbackUsersBtn");
+if (loadFallbackUsersBtn) {
+	loadFallbackUsersBtn.addEventListener("click", loadFallbackUsers);
+}
+
+window.loadFallbackScores = loadFallbackScores;
+window.loadFallbackUsers = loadFallbackUsers;
+
+// Expose fallback data for manual use
+window.FALLBACK_USERS = FALLBACK_USERS;
+window.FALLBACK_SCORES = FALLBACK_SCORES;
+window.isOnline = isOnline;

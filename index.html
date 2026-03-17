@@ -110,6 +110,25 @@
 
                 <div id="PRS" class="tabcontent">
                     <h3>PRS</h3>
+
+                    <div id=prsDiv>Please select at least one scoring file.</div>
+                    <button id="loadFallbackScoresBtn" class="btn btn-outline-secondary btn-sm mt-2">Load Fallback
+                        Scores</button>
+                    <hr class="my-3" />
+                    <div id="prsAction"></div>
+
+
+                    <div id=prsDiv2>Please select at least one 23andMe file.</div>
+                    <button id="loadFallbackUsersBtn" class="btn btn-outline-secondary btn-sm mt-2">Load Fallback
+                        Users</button>
+                    <hr class="my-3" />
+                    <div id="prsAction2"></div>
+                    <!-- heatmap -->
+                    <div id='container-id-1'>
+                        <!-- <h1 class='wait_message'>Please wait ...</h1> -->
+                    </div>
+
+                    <hr class="my-3" />
                     <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
                             target="_blank"> <u>calculator</u></a> , created for research purposes, was developed to
                         demonstrate how
@@ -128,15 +147,6 @@
                         scores with up to a few thousand reference genetic variations and from the full 23andMe SNP data
                         file
                         (compressed or not).</p>
-
-                    <div id=prsDiv>prsDiv</div>
-                    <div id="prsAction"></div>
-                    <!-- heatmap -->
-                    <div id='container-id-1'>
-                        <h1 class='wait_message'>Please wait ...</h1>
-                    </div>
-
-
                 </div>
 
                 <!-- 23 and me ------------------------------------------>
@@ -163,6 +173,9 @@
                             <option value="">All Years</option>
                         </select>
                     </div>
+                    <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3">Fetch Users</button>
+                    <div id="globalSelectionCount2" class="small text-muted mt-1">Selected: 0 / 6</div>
+
                     <div id="localUsersDiv"></div>
                 </div>
 
@@ -176,7 +189,7 @@
 
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
-                        <label for="pgsDropDown" class="form-label"><b>Select PGS scoring files</b></label>
+                        <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b></label>
                         <div class="mb-2">
                             <button id="traitBtn" class="btn btn-sm btn-primary">By Trait</button>
                             <button id="categoryBtn" class="btn btn-sm btn-outline-primary ms-2">By Category</button>
@@ -189,8 +202,7 @@
 
                         <!-- Variant range slider -->
                         <div class="variant-filter mb-3" style="max-width: 420px;">
-                            <label class="form-label">
-                                <b>Variant count range:</b>
+                            <label class="form-label"><b>2.) Variant count range:</b>
                                 <span id="variantRangeLabel">1 - 1000</span>
                             </label>
 
@@ -198,11 +210,13 @@
                                 <div class="price-field d-flex gap-2 mb-2">
                                     <div class="d-flex align-items-center">
                                         <span>Min</span>
-                                        <input type="number" id="variantMinInput" class="min-input" value="1" min="1" max="1000">
+                                        <input type="number" id="variantMinInput" class="min-input" value="1" min="1"
+                                            max="1000">
                                     </div>
                                     <div class="d-flex align-items-center">
                                         <span>Max</span>
-                                        <input type="number" id="variantMaxInput" class="max-input" value="1000" min="1" max="1000">
+                                        <input type="number" id="variantMaxInput" class="max-input" value="1000" min="1"
+                                            max="1000">
                                     </div>
                                 </div>
                             </div>
@@ -212,12 +226,15 @@
                             </div>
 
                             <div class="range-input">
-                                <input type="range" id="variantMinSlider" class="min-range" min="1" max="1000" value="1">
-                                <input type="range" id="variantMaxSlider" class="max-range" min="1" max="1000" value="1000">
+                                <input type="range" id="variantMinSlider" class="min-range" min="1" max="1000"
+                                    value="1">
+                                <input type="range" id="variantMaxSlider" class="max-range" min="1" max="1000"
+                                    value="1000">
                             </div>
                         </div>
 
                         <div class="mb-3">
+                            <label class="form-label"><b>3.) Load PGS scoring files</b></label>
                             <button id="fetchScoresBtn" class="btn btn-success">Fetch Files</button>
                             <span id="fetchScoresStatus" class="ms-2 small text-muted"></span>
                             <div id="globalSelectionCount" class="small text-muted mt-1">Selected: 0 / 6</div>

@@ -61,7 +61,8 @@ function compareScores(a, b) {
 	return idA.localeCompare(idB);
 }
 
-// CATEGORY SCORES
+// CATEGORY SCORES -------------------------------------------
+console.log((" CATEGORY SCORES -------------------------------------------"));
 const categoryScoresMap = new Map(Object.entries(data2.scoresPerCategory ?? {}).map(([category, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores
@@ -72,20 +73,30 @@ const categoryScoresMap = new Map(Object.entries(data2.scoresPerCategory ?? {}).
 		: (entry?.score ? (Array.isArray(entry.score) ? entry.score : [entry.score]) : []);
 	return [category, scores];
 }));
+const categories = Array.from(categoryScoresMap.keys()).sort((a, b) => a.localeCompare(b));
 
 // Flatten values and expose category keys.
-const allCategoryScores = Array.from(categoryScoresMap.values()).flat();
+const allCategoryScoresRaw = Array.from(categoryScoresMap.values()).flat();
+
+console.log(`displayScores.js: Loaded ${allCategoryScoresRaw.length} raw category scores across ${categoryScoresMap.size} categories`,allCategoryScoresRaw);
+// Deduplicate by PGS ID (keep first occurrence)
+const seenCategoryIds = new Set();
+const allCategoryScores = allCategoryScoresRaw.filter((score) => {
+	const id = score?.id ?? "";
+	if (seenCategoryIds.has(id)) return false;
+	seenCategoryIds.add(id);
+	return true;
+});
+console.log(`displayScores.js: Deduplicated category scores from ${allCategoryScoresRaw.length} to ${allCategoryScores.length}`);
+console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categoryScoresMap.size} categories`,allCategoryScores);
 
 /** Get category scores filtered by current variant range. */
 function getFilteredCategoryScores() {
 	return allCategoryScores.filter(passesVariantFilter).sort(compareScores);
 }
 
-const categories = Array.from(categoryScoresMap.keys()).sort((a, b) => a.localeCompare(b));
-console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categories.length} categories`,categoryScoresMap);
-
-
-// TRAIT SCORES
+// TRAIT SCORES -------------------------------------------
+console.log((" TRAIT SCORES -------------------------------------------"));
 const traitScoresMap = new Map(Object.entries(data.scoresPerTrait ?? {}).map(([trait, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores
@@ -96,17 +107,27 @@ const traitScoresMap = new Map(Object.entries(data.scoresPerTrait ?? {}).map(([t
 		: (entry?.score ? (Array.isArray(entry.score) ? entry.score : [entry.score]) : []);
 	return [trait, scores];
 }));
+const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
 
 // Flatten values and expose trait keys.
-const allTraitScores = Array.from(traitScoresMap.values()).flat();
+const allTraitScoresRaw = Array.from(traitScoresMap.values()).flat();
+
+console.log(`displayScores.js: Loaded ${allTraitScoresRaw.length} raw trait scores across ${traitScoresMap.size} traits`,allTraitScoresRaw);
+// Deduplicate by PGS ID (keep first occurrence)
+const seenTraitIds = new Set();
+const allTraitScores = allTraitScoresRaw.filter((score) => {
+	const id = score?.id ?? "";
+	if (seenTraitIds.has(id)) return false;
+	seenTraitIds.add(id);
+	return true;
+});
+console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`);
+console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
 
 /** Get trait scores filtered by current variant range. */
 function getFilteredTraitScores() {
 	return allTraitScores.filter(passesVariantFilter).sort(compareScores);
 }
-
-const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(b));
-console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,traitScoresMap);
 
 
 /**
@@ -453,17 +474,27 @@ if (categoryBtn && pgsSelect) {
 const variantMinSlider = document.getElementById("variantMinSlider");
 const variantMaxSlider = document.getElementById("variantMaxSlider");
 const variantRangeLabel = document.getElementById("variantRangeLabel");
-const variantMinValue = document.getElementById("variantMinValue");
-const variantMaxValue = document.getElementById("variantMaxValue");
+const variantMinInput = document.getElementById("variantMinInput");
+const variantMaxInput = document.getElementById("variantMaxInput");
+const variantProgressBar = document.getElementById("variantProgressBar");
 
 /** Track current mode to know which dropdown to refresh on slider change. */
 let currentMode = "Trait";
 
-/** Update the slider UI labels. */
+/** Update the slider UI labels and progress bar. */
 function updateSliderLabels() {
 	if (variantRangeLabel) variantRangeLabel.textContent = `${variantMin} - ${variantMax}`;
-	if (variantMinValue) variantMinValue.textContent = variantMin;
-	if (variantMaxValue) variantMaxValue.textContent = variantMax;
+	if (variantMinInput) variantMinInput.value = variantMin;
+	if (variantMaxInput) variantMaxInput.value = variantMax;
+	if (variantMinSlider) variantMinSlider.value = variantMin;
+	if (variantMaxSlider) variantMaxSlider.value = variantMax;
+	// Update progress bar position
+	if (variantProgressBar) {
+		const minPercent = ((variantMin - 1) / 999) * 100;
+		const maxPercent = ((variantMax - 1) / 999) * 100;
+		variantProgressBar.style.left = minPercent + "%";
+		variantProgressBar.style.right = (100 - maxPercent) + "%";
+	}
 }
 
 /** Refresh the current view after slider change. */
@@ -488,7 +519,6 @@ function debouncedRefresh() {
 if (variantMinSlider) {
 	variantMinSlider.addEventListener("input", () => {
 		variantMin = Math.min(parseInt(variantMinSlider.value, 10), variantMax - 1);
-		variantMinSlider.value = variantMin;
 		updateSliderLabels();
 		debouncedRefresh();
 	});
@@ -497,11 +527,34 @@ if (variantMinSlider) {
 if (variantMaxSlider) {
 	variantMaxSlider.addEventListener("input", () => {
 		variantMax = Math.max(parseInt(variantMaxSlider.value, 10), variantMin + 1);
-		variantMaxSlider.value = variantMax;
 		updateSliderLabels();
 		debouncedRefresh();
 	});
 }
+
+// Number input event listeners
+if (variantMinInput) {
+	variantMinInput.addEventListener("input", () => {
+		let val = parseInt(variantMinInput.value, 10) || 1;
+		val = Math.max(1, Math.min(val, variantMax - 1));
+		variantMin = val;
+		updateSliderLabels();
+		debouncedRefresh();
+	});
+}
+
+if (variantMaxInput) {
+	variantMaxInput.addEventListener("input", () => {
+		let val = parseInt(variantMaxInput.value, 10) || 1000;
+		val = Math.max(variantMin + 1, Math.min(val, 1000));
+		variantMax = val;
+		updateSliderLabels();
+		debouncedRefresh();
+	});
+}
+
+// Initialize progress bar on load
+updateSliderLabels();
 
 // Update mode tracking when buttons are clicked
 if (traitBtn) {

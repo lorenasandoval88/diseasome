@@ -1,7 +1,7 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {Match2 } from "../sdk/prs.js"
-import { parsePGP23, load23andMeFile, localforage} from "../sdk/get23me.js";
-
+import { parsePGP23, load23andMeFile } from "../sdk/get23me.js";
+import localforage from "localforage";
 console.log("calculatePrs.js loaded");
 
 

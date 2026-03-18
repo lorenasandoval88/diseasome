@@ -38,6 +38,12 @@
     color: rgb(150, 145, 145);
 }
 
+/* PRS section step headers */
+.prs-step-header {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
 /* spacing on all sections */
 #notices, #calculator, #portfolio, #contact {
     margin-top: 1rem;

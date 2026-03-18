@@ -9,9 +9,9 @@ live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
 ## Architecture
 
 ### External helper sdks: 
-https://lorenasandoval88.github.io/get-23andme-data/
-https://lorenasandoval88.github.io/get-pgscatalog-scores/
-https://lorenasandoval88.github.io/clustjs/
+- https://lorenasandoval88.github.io/get-23andme-data/
+- https://lorenasandoval88.github.io/get-pgscatalog-scores/
+- https://lorenasandoval88.github.io/clustjs/
 
 
 ### Internal sdk:

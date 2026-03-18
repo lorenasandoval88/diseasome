@@ -1,6 +1,7 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {Match2 } from "../sdk/prs.js"
-import { parsePGP23, load23andMeFile} from "../sdk/get23me.js";
+import { parsePGP23, load23andMeFile, locaforage} from "../sdk/get23me.js";
+
 console.log("calculatePrs.js loaded");
 
 
@@ -11,7 +12,7 @@ let loadedScores = [];
 let loadedUserData = []; // Parsed 23andMe genome data
 
 // PRS Results Cache
-const PRS_CACHE_KEY = 'prs_results_cache';
+const PRS_CACHE_KEY = 'PRS: results';
 
 /**
  * Get cached PRS result for a user+PGS combination.
@@ -22,7 +23,7 @@ const PRS_CACHE_KEY = 'prs_results_cache';
 function getCachedPRS(userId, pgsId) {
     console.log(`Checking cache for user ${userId} and PGS ${pgsId}`);
 	try {
-		const cache = JSON.parse(localStorage.getItem(PRS_CACHE_KEY) || '{}');
+		const cache = JSON.parse(locaforage.getItem(PRS_CACHE_KEY) || '{}');
 		const key = `${userId}_${pgsId}`;
 		return cache[key] ?? null;
 	} catch (err) {
@@ -40,10 +41,10 @@ function getCachedPRS(userId, pgsId) {
 function setCachedPRS(userId, pgsId, result) {
     console.log(`Caching PRS result for user ${userId} and PGS ${pgsId}`);
 	try {
-		const cache = JSON.parse(localStorage.getItem(PRS_CACHE_KEY) || '{}');
+		const cache = JSON.parse(locaforage.getItem(PRS_CACHE_KEY) || '{}');
 		const key = `${userId}_${pgsId}`;
 		cache[key] = { ...result, cachedAt: new Date().toISOString() };
-		localStorage.setItem(PRS_CACHE_KEY, JSON.stringify(cache));
+		locaforage.setItem(PRS_CACHE_KEY, JSON.stringify(cache));
 	} catch (err) {
 		console.warn('Failed to write PRS cache:', err);
 	}
@@ -53,7 +54,7 @@ function setCachedPRS(userId, pgsId, result) {
  * Clear all cached PRS results.
  */
 function clearPRSCache() {
-	localStorage.removeItem(PRS_CACHE_KEY);
+	locaforage.removeItem(PRS_CACHE_KEY);
 	console.log('PRS cache cleared');
 }
 

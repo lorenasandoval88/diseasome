@@ -66,7 +66,7 @@ function compareScores(a, b) {
 }
 
 // CATEGORY SCORES -------------------------------------------
-console.log((" CATEGORY SCORES -------------------------------------------"));
+console.log((" CATEGORY SCORES --------------------------------"));
 const categoryScoresMap = new Map(Object.entries(data2.scoresPerCategory ?? {}).map(([category, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores
@@ -100,7 +100,7 @@ function getFilteredCategoryScores() {
 }
 
 // TRAIT SCORES -------------------------------------------
-console.log((" TRAIT SCORES -------------------------------------------"));
+console.log((" TRAIT SCORES --------------------------------"));
 const traitScoresMap = new Map(Object.entries(data.scoresPerTrait ?? {}).map(([trait, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores

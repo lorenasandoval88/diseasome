@@ -622,7 +622,7 @@ async function calculatePRS() {
         for (const userData of loadedUserData) {
             const my23 = userData.parsed;
             const userId = userData.user.id;
-            
+            console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
             for (const mypgs of pgsTxts) {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 

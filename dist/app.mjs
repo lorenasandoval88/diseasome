@@ -3976,7 +3976,7 @@ function isOnline() {
 	return navigator.onLine;
 }
 
-/** Fallback local users (first 2 from data folder) */
+/** Fallback local users (all 5 from data folder) */
 const FALLBACK_USERS = [
 	{
 		id: "hu09B28E",
@@ -3998,6 +3998,39 @@ const FALLBACK_USERS = [
 			filename: "PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt",
 			filetype: "23andme",
 			download_url: "data/PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt"
+		}]
+	},
+	{
+		id: "hu50801B",
+		name: "Melinda Chaperlo",
+		participant_id: "hu50801B",
+		publishedDate: "2024-07-28",
+		genotypes: [{
+			filename: "PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt",
+			filetype: "23andme",
+			download_url: "data/PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt"
+		}]
+	},
+	{
+		id: "huAE4518",
+		name: "Marika Forsythe",
+		participant_id: "huAE4518",
+		publishedDate: "2024-08-26",
+		genotypes: [{
+			filename: "PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt",
+			filetype: "23andme",
+			download_url: "data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt"
+		}]
+	},
+	{
+		id: "huBE0518",
+		name: "Christopher Smith",
+		participant_id: "huBE0518",
+		publishedDate: "2023-09-26",
+		genotypes: [{
+			filename: "PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt",
+			filetype: "23andme",
+			download_url: "data/PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt"
 		}]
 	}
 ];
@@ -4500,7 +4533,8 @@ async function calculatePRS() {
                 prsResults.push({
                     userId,
                     userName: userData.user.name,
-                    pgsId: mypgs.id ?? mypgs.url,
+                    pgsId: mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url,
+                    totalVariants: mypgs.dt.length,
                     ...result
                 });
             }
@@ -4519,9 +4553,10 @@ async function calculatePRS() {
                         <td>${escapeHtml(r.userId)}</td>
                         <td>${escapeHtml(r.userName ?? "")}</td>
                         <td>${escapeHtml(r.pgsId)}</td>
-                        <td>${r.prs?.toFixed(6) ?? r.score?.toFixed(6) ?? "-"}</td>
-                        <td>${r.matched ?? r.matchCount ?? "-"}</td>
-                        <td>${r.total ?? r.totalVariants ?? "-"}</td>
+                        <td>${r.PRS?.toFixed(6) ?? "-"}</td>
+                        <td>${r.alleles?.length ?? 0}</td>
+                        <td>${r.totalVariants ?? "-"}</td>
+                        <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
                     </tr>
                 `).join("");
                 
@@ -4536,6 +4571,7 @@ async function calculatePRS() {
                                 <th>PRS Score</th>
                                 <th>Matched</th>
                                 <th>Total</th>
+                                <th>QC</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>

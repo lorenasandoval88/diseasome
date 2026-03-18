@@ -200,5 +200,6 @@ export {
     get23,
     parse23,
     parsePgp23 as parsePGP23,
-    load23andMeFile
+    load23andMeFile,
+    localforage
 }

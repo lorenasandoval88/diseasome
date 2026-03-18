@@ -1,6 +1,6 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {Match2 } from "../sdk/prs.js"
-import { parsePGP23, load23andMeFile, locaforage} from "../sdk/get23me.js";
+import { parsePGP23, load23andMeFile, localforage} from "../sdk/get23me.js";
 
 console.log("calculatePrs.js loaded");
 
@@ -18,12 +18,12 @@ const PRS_CACHE_KEY = 'PRS: results';
  * Get cached PRS result for a user+PGS combination.
  * @param {string} userId - User ID
  * @param {string} pgsId - PGS ID
- * @returns {Object|null} Cached result or null if not found
+ * @returns {Promise<Object|null>} Cached result or null if not found
  */
-function getCachedPRS(userId, pgsId) {
+async function getCachedPRS(userId, pgsId) {
     console.log(`Checking cache for user ${userId} and PGS ${pgsId}`);
 	try {
-		const cache = JSON.parse(locaforage.getItem(PRS_CACHE_KEY) || '{}');
+		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
 		const key = `${userId}_${pgsId}`;
 		return cache[key] ?? null;
 	} catch (err) {
@@ -38,13 +38,13 @@ function getCachedPRS(userId, pgsId) {
  * @param {string} pgsId - PGS ID
  * @param {Object} result - PRS calculation result
  */
-function setCachedPRS(userId, pgsId, result) {
+async function setCachedPRS(userId, pgsId, result) {
     console.log(`Caching PRS result for user ${userId} and PGS ${pgsId}`);
 	try {
-		const cache = JSON.parse(locaforage.getItem(PRS_CACHE_KEY) || '{}');
+		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
 		const key = `${userId}_${pgsId}`;
 		cache[key] = { ...result, cachedAt: new Date().toISOString() };
-		locaforage.setItem(PRS_CACHE_KEY, JSON.stringify(cache));
+		await localforage.setItem(PRS_CACHE_KEY, cache);
 	} catch (err) {
 		console.warn('Failed to write PRS cache:', err);
 	}
@@ -53,8 +53,8 @@ function setCachedPRS(userId, pgsId, result) {
 /**
  * Clear all cached PRS results.
  */
-function clearPRSCache() {
-	locaforage.removeItem(PRS_CACHE_KEY);
+async function clearPRSCache() {
+	await localforage.removeItem(PRS_CACHE_KEY);
 	console.log('PRS cache cleared');
 }
 
@@ -628,7 +628,7 @@ async function calculatePRS() {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 
                 // Check cache first
-                const cached = getCachedPRS(userId, pgsId);
+                const cached = await getCachedPRS(userId, pgsId);
                 if (cached) {
                     console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
                     prsResults.push({
@@ -651,7 +651,7 @@ async function calculatePRS() {
                 };
                 
                 // Store in cache
-                setCachedPRS(userId, pgsId, prsResult);
+                await setCachedPRS(userId, pgsId, prsResult);
                 prsResults.push(prsResult);
                 calculatedCount++;
             }
@@ -697,7 +697,7 @@ async function calculatePRS() {
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="clearPRSCache(); location.reload();">Clear Cache</button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearPRSCache().then(() => location.reload());">Clear Cache</button>
                     <details class="mt-2">
                         <summary>Raw JSON</summary>
                         <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>

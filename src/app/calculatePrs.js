@@ -3,10 +3,61 @@ import {Match2 } from "../sdk/prs.js"
 import { parsePGP23, load23andMeFile} from "../sdk/get23me.js";
 console.log("calculatePrs.js loaded");
 
+
+
 // Track what has been loaded
 let loadedUsers = [];
 let loadedScores = [];
 let loadedUserData = []; // Parsed 23andMe genome data
+
+// PRS Results Cache
+const PRS_CACHE_KEY = 'prs_results_cache';
+
+/**
+ * Get cached PRS result for a user+PGS combination.
+ * @param {string} userId - User ID
+ * @param {string} pgsId - PGS ID
+ * @returns {Object|null} Cached result or null if not found
+ */
+function getCachedPRS(userId, pgsId) {
+    console.log(`Checking cache for user ${userId} and PGS ${pgsId}`);
+	try {
+		const cache = JSON.parse(localStorage.getItem(PRS_CACHE_KEY) || '{}');
+		const key = `${userId}_${pgsId}`;
+		return cache[key] ?? null;
+	} catch (err) {
+		console.warn('Failed to read PRS cache:', err);
+		return null;
+	}
+}
+
+/**
+ * Store PRS result in cache.
+ * @param {string} userId - User ID
+ * @param {string} pgsId - PGS ID
+ * @param {Object} result - PRS calculation result
+ */
+function setCachedPRS(userId, pgsId, result) {
+    console.log(`Caching PRS result for user ${userId} and PGS ${pgsId}`);
+	try {
+		const cache = JSON.parse(localStorage.getItem(PRS_CACHE_KEY) || '{}');
+		const key = `${userId}_${pgsId}`;
+		cache[key] = { ...result, cachedAt: new Date().toISOString() };
+		localStorage.setItem(PRS_CACHE_KEY, JSON.stringify(cache));
+	} catch (err) {
+		console.warn('Failed to write PRS cache:', err);
+	}
+}
+
+/**
+ * Clear all cached PRS results.
+ */
+function clearPRSCache() {
+	localStorage.removeItem(PRS_CACHE_KEY);
+	console.log('PRS cache cleared');
+}
+
+window.clearPRSCache = clearPRSCache;
 
 
 
@@ -565,31 +616,54 @@ async function calculatePRS() {
         if (statusEl) statusEl.textContent = `Calculating PRS for ${loadedUserData.length} user(s) x ${pgsTxts.length} model(s)...`;
         
         const prsResults = [];
+        let cachedCount = 0;
+        let calculatedCount = 0;
+        
         for (const userData of loadedUserData) {
             const my23 = userData.parsed;
             const userId = userData.user.id;
             
             for (const mypgs of pgsTxts) {
+                const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
+                
+                // Check cache first
+                const cached = getCachedPRS(userId, pgsId);
+                if (cached) {
+                    console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
+                    prsResults.push({
+                        ...cached,
+                        fromCache: true
+                    });
+                    cachedCount++;
+                    continue;
+                }
+                
+                // Calculate if not cached
                 const result = Match2(mypgs, my23);
-                prsResults.push({
+                const prsResult = {
                     userId,
                     userName: userData.user.name,
-                    pgsId: mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url,
+                    pgsId,
                     totalVariants: mypgs.dt.length,
                     ...result
-                });
+                };
+                
+                // Store in cache
+                setCachedPRS(userId, pgsId, prsResult);
+                prsResults.push(prsResult);
+                calculatedCount++;
             }
         }
         
         console.log("PRS results:", prsResults);
         
-        if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s).`;
+        if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
         
         // Display results
         if (resultsDiv) {
             if (prsResults.length > 0) {
                 const rows = prsResults.map((r, idx) => `
-                    <tr>
+                    <tr${r.fromCache ? ' class="table-secondary"' : ''}>
                         <td>${idx + 1}</td>
                         <td>${escapeHtml(r.userId)}</td>
                         <td>${escapeHtml(r.userName ?? "")}</td>
@@ -598,6 +672,7 @@ async function calculatePRS() {
                         <td>${r.alleles?.length ?? 0}</td>
                         <td>${r.totalVariants ?? "-"}</td>
                         <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
+                        <td>${r.fromCache ? "📦" : "🔄"}</td>
                     </tr>
                 `).join("");
                 
@@ -613,10 +688,12 @@ async function calculatePRS() {
                                 <th>Matched</th>
                                 <th>Total</th>
                                 <th>QC</th>
+                                <th title="📦 = cached, 🔄 = calculated">Src</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearPRSCache(); location.reload();">Clear Cache</button>
                     <details class="mt-2">
                         <summary>Raw JSON</summary>
                         <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>

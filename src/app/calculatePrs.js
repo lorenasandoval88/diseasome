@@ -49,7 +49,7 @@ const FALLBACK_SCORES = [
 		trait_reported: "Breast cancer",
 		variants_number: 77,
 		date_release: "2019-10-14",
-		local_file: "data/PGS000001.txt"
+		local_file: "data/PGS000001_hmPOS_GRCh37.txt"
 	},
 	{
 		id: "PGS000004",
@@ -497,6 +497,7 @@ async function calculatePRS() {
 
         // GET SCORES: first check loadedScores, then selected *****
         let selectedScoresList = loadedScores.length > 0 ? loadedScores : (window.getSelectedScores?.() ?? []);
+        console.log("Selected scores for PRS calculation:", selectedScoresList);
         const selectedIds = selectedScoresList.map(s => s.id);
 
         if (selectedIds.length === 0) {

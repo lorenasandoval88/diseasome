@@ -34,7 +34,7 @@ function Match2(mypgs, my23){
 			// calculate Risk
 			let logR = 0
 			// log(0)=1
-			let ind_effect_weight = data.pgs.cols.indexOf('effect_weight')
+			let ind_effect_weight = mypgs.cols.indexOf('effect_weight')
 			dtMatch.forEach((m, i) => {
 				calcRiskScore[i] = 0
 				// default no risk

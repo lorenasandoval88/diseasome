@@ -45,7 +45,7 @@ window.tabFunction = tabFunction;
  `variants_number` before rendering.
 */
 
-const data$2 = await getScoresPerTrait();
+const data$1 = await getScoresPerTrait();
 const data2 = await getScoresPerCategory();
 
 // Dynamic variant filter state
@@ -130,7 +130,7 @@ function getFilteredCategoryScores() {
 
 // TRAIT SCORES -------------------------------------------
 console.log((" TRAIT SCORES --------------------------------"));
-const traitScoresMap = new Map(Object.entries(data$2.scoresPerTrait ?? {}).map(([trait, entry]) => {
+const traitScoresMap = new Map(Object.entries(data$1.scoresPerTrait ?? {}).map(([trait, entry]) => {
 	const scores = Array.isArray(entry?.scores)
 		? entry.scores
 		: Array.isArray(entry?.items)
@@ -623,9 +623,9 @@ if (categoryBtn) {
 	categoryBtn.addEventListener("click", () => { currentMode = "Category"; });
 }
 
-const data$1 = await fetch23andMeParticipants();
+const data = await fetch23andMeParticipants();
 // console.log("Fetched 23andMe participants:", data);
-const participants = data$1 ?? [];
+const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 6;
@@ -976,7 +976,7 @@ function Match2(mypgs, my23){
 			let calcRiskScore = [];
 			let alleles = [];
 			// log(0)=1
-			let ind_effect_weight = data.pgs.cols.indexOf('effect_weight');
+			let ind_effect_weight = mypgs.cols.indexOf('effect_weight');
 			dtMatch.forEach((m, i) => {
 				calcRiskScore[i] = 0;
 				// default no risk
@@ -4009,16 +4009,66 @@ const FALLBACK_SCORES = [
 		name: "PRS77_BC",
 		trait_reported: "Breast cancer",
 		variants_number: 77,
-		date_release: "2019-10-14"
+		date_release: "2019-10-14",
+		local_file: "data/PGS000001_hmPOS_GRCh37.txt"
 	},
 	{
 		id: "PGS000004",
 		name: "PRS313_BC",
-		trait_reported: "breast canrcinoma",
+		trait_reported: "Breast carcinoma",
 		variants_number: 313,
-		date_release: "2019-10-14"
+		date_release: "2019-10-14",
+		local_file: "data/PGS000004_hmPOS_GRCh37.txt"
 	}
 ];
+
+/**
+ * Parse a PGS scoring file into structured data.
+ * @param {string} id - PGS ID
+ * @param {string} txt - Raw text content
+ * @returns {Object} Parsed PGS data with cols and dt arrays
+ */
+function parsePGS(id, txt) {
+	const obj = { id };
+	obj.txt = txt;
+	const rows = txt.split(/[\r\n]/g);
+	const metaL = rows.filter(r => r[0] === '#').length;
+	obj.meta = { txt: rows.slice(0, metaL) };
+	obj.cols = rows[metaL].split(/\t/g);
+	obj.dt = rows.slice(metaL + 1).map(r => r.split(/\t/g)).filter(r => r.length > 1);
+	
+	// Parse numerical types
+	const indInt = [obj.cols.indexOf('chr_position'), obj.cols.indexOf('hm_pos')];
+	const indFloat = [obj.cols.indexOf('effect_weight'), obj.cols.indexOf('allelefrequency_effect')];
+	
+	obj.dt = obj.dt.map(r => {
+		indFloat.forEach(ind => { if (ind >= 0) r[ind] = parseFloat(r[ind]); });
+		indInt.forEach(ind => { if (ind >= 0) r[ind] = parseInt(r[ind]); });
+		return r;
+	});
+	
+	// Parse metadata
+	obj.meta.txt.filter(r => r[1] !== '#').forEach(aa => {
+		aa = aa.slice(1).split('=');
+		obj.meta[aa[0]] = aa[1];
+	});
+	return obj;
+}
+
+/**
+ * Load and parse a local PGS scoring file.
+ * @param {string} id - PGS ID
+ * @param {string} path - Path to the file
+ * @returns {Promise<Object>} Parsed PGS data
+ */
+async function loadLocalPGSFile(id, path) {
+	const response = await fetch(path);
+	if (!response.ok) {
+		throw new Error(`Failed to load ${path}: ${response.status}`);
+	}
+	const txt = await response.text();
+	return parsePGS(id, txt);
+}
 
 /** Escape HTML special characters */
 function escapeHtml(str) {
@@ -4407,6 +4457,7 @@ async function calculatePRS() {
 
         // GET SCORES: first check loadedScores, then selected *****
         let selectedScoresList = loadedScores.length > 0 ? loadedScores : (window.getSelectedScores?.() ?? []);
+        console.log("Selected scores for PRS calculation:", selectedScoresList);
         const selectedIds = selectedScoresList.map(s => s.id);
 
         if (selectedIds.length === 0) {
@@ -4414,9 +4465,26 @@ async function calculatePRS() {
             return;
         }
         
-        // Fetch PGS txt files
+        // Load PGS txt files (try local first, then remote)
         if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
-        const pgsTxts = await getTxts(selectedIds);
+        
+        const pgsTxts = [];
+        for (const score of selectedScoresList) {
+            try {
+                if (score.local_file) {
+                    // Load from local file
+                    const parsed = await loadLocalPGSFile(score.id, score.local_file);
+                    pgsTxts.push(parsed);
+                    console.log(`Loaded local PGS file: ${score.local_file}`);
+                } else {
+                    // Fetch from remote
+                    const remote = await getTxts([score.id]);
+                    pgsTxts.push(...remote);
+                }
+            } catch (err) {
+                console.error(`Failed to load ${score.id}:`, err);
+            }
+        }
         console.log("PGS txts for calculation:", pgsTxts);
         
         // Run PRS calculation for each user x score combination

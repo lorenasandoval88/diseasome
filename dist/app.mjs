@@ -110,7 +110,7 @@ const categories = Array.from(categoryScoresMap.keys()).sort((a, b) => a.localeC
 // Flatten values and expose category keys.
 const allCategoryScoresRaw = Array.from(categoryScoresMap.values()).flat();
 
-console.log(`displayScores.js: Loaded ${allCategoryScoresRaw.length} raw category scores across ${categoryScoresMap.size} categories`,allCategoryScoresRaw);
+console.log(`displayScores.js: Loaded ${allCategoryScoresRaw.length} raw category scores across ${categoryScoresMap.size} categories`);
 // Deduplicate by PGS ID (keep first occurrence)
 const seenCategoryIds = new Set();
 const allCategoryScores = allCategoryScoresRaw.filter((score) => {
@@ -119,8 +119,8 @@ const allCategoryScores = allCategoryScoresRaw.filter((score) => {
 	seenCategoryIds.add(id);
 	return true;
 });
-console.log(`displayScores.js: Deduplicated category scores from ${allCategoryScoresRaw.length} to ${allCategoryScores.length}`);
-console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categoryScoresMap.size} categories`,allCategoryScores);
+console.log(`displayScores.js: Deduplicated category scores from ${allCategoryScoresRaw.length} to ${allCategoryScores.length}`,allCategoryScores.slice(0,10));
+//console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categoryScoresMap.size} categories`,allCategoryScores);
 
 /** Get category scores filtered by current variant range. */
 function getFilteredCategoryScores() {
@@ -144,7 +144,7 @@ const traits = Array.from(traitScoresMap.keys()).sort((a, b) => a.localeCompare(
 // Flatten values and expose trait keys.
 const allTraitScoresRaw = Array.from(traitScoresMap.values()).flat();
 
-console.log(`displayScores.js: Loaded ${allTraitScoresRaw.length} raw trait scores across ${traitScoresMap.size} traits`,allTraitScoresRaw);
+console.log(`displayScores.js: Loaded ${allTraitScoresRaw.length} raw trait scores across ${traitScoresMap.size} traits`);
 // Deduplicate by PGS ID (keep first occurrence)
 const seenTraitIds = new Set();
 const allTraitScores = allTraitScoresRaw.filter((score) => {
@@ -153,8 +153,8 @@ const allTraitScores = allTraitScoresRaw.filter((score) => {
 	seenTraitIds.add(id);
 	return true;
 });
-console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`);
-console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
+console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`,allTraitScores.slice(0,10));
+// console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
 
 /** Get trait scores filtered by current variant range. */
 function getFilteredTraitScores() {

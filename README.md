@@ -4,7 +4,8 @@ Calculating risk scores from 23andme data using a local-only dataset of 5 users 
 live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
 
 
-[<img width="760" height="937" alt="image" src="https://github.com/user-attachments/assets/a44d8760-ac86-4efd-9d7f-e3cf7e1496c2" />](https://lorenasandoval88.github.io/polygenic_risk_scores/)
+[<img width="755" height="778" alt="image" src="https://github.com/user-attachments/assets/24506e93-3aef-4e5d-9402-32686acf056d" />
+](https://lorenasandoval88.github.io/polygenic_risk_scores/)
 
 ## Architecture
 

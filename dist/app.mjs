@@ -1,6 +1,6 @@
 import { getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
-import jszip from 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.esm.mjs';
+import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 
 // logic in tabs.js to show only the selected category panel 
 function tabFunction(evt, openTab, subTab) {
@@ -3908,62 +3908,61 @@ function parsePgp23(txt, url) {
 
 /**
  * Load and parse a local 23andMe file.
- * @param {string} path - Path to the file
+ * @param {string} path - Path to the file (local .txt or remote PGP URL)
  * @returns {Promise<Object>} Parsed genome data
  */
 async function load23andMeFile(path) {
-//     const res = await fetch(pgpUrl, { credentials: "include" });
-// const zipRes = await fetch(res.url);
-// const buffer = await zipRes.arrayBuffer();
-// const zip = await jszip.loadAsync(buffer);
-// const fileName = Object.keys(zip.files)[0];
-
-  // Step 1: hit PGP endpoint (handles redirect)
+	const isRemote = /^https?:\/\//.test(path);
+	const isZipUrl = path.includes('pgp-hms.org') || path.endsWith('.zip');
+	
+	// Local .txt files - just fetch and parse directly
+	if (!isRemote || (!isZipUrl && path.endsWith('.txt'))) {
+		const response = await fetch(path);
+		if (!response.ok) {
+			throw new Error(`Failed to load ${path}: ${response.status}`);
+		}
+		const txt = await response.text();
+		return parsePgp23(txt, path);
+	}
+	
+	// Remote PGP URLs that return ZIP files
 	const response = await fetch(path);
 	if (!response.ok) {
 		throw new Error(`Failed to load ${path}: ${response.status}`);
 	}
-      // Step 2: download ZIP from redirected URL
-    const zipRes = await fetch(response.url);
-     if (!zipRes.ok) {
-    throw new Error(`Failed to download ZIP: ${zipRes.status}`);
-  }
+	
+	// Download ZIP from redirected URL
+	const zipRes = await fetch(response.url);
+	if (!zipRes.ok) {
+		throw new Error(`Failed to download ZIP: ${zipRes.status}`);
+	}
 
-    const buffer = await zipRes.arrayBuffer();
+	const buffer = await zipRes.arrayBuffer();
 
-    // Step 3: unzip and parse the 23andMe text file
-    const zip = await jszip.loadAsync(buffer);
+	// Unzip and parse the 23andMe text file
+	const zip = await JSZip.loadAsync(buffer);
 
+	// Find genotype file
+	let targetFile = null;
+	for (const name of Object.keys(zip.files)) {
+		const file = zip.files[name];
+		if (!file.dir && (
+			name.endsWith(".txt") ||
+			name.includes("23andme") ||
+			name.toLowerCase().includes("genome")
+		)) {
+			targetFile = file;
+			break;
+		}
+	}
 
-    // Step 4: find genotype file
-    let targetFile = null;
+	if (!targetFile) {
+		throw new Error("No genotype file found in ZIP");
+	}
 
-    for (const name of Object.keys(zip.files)) {
-        const file = zip.files[name];
-
-        if (!file.dir && (
-        name.endsWith(".txt") ||
-        name.includes("23andme") ||
-        name.toLowerCase().includes("genome")
-        )) {
-        targetFile = file;
-        break;
-        }
-    }
-
-  if (!targetFile) {
-    throw new Error("No genotype file found in ZIP");
-  }
-
-  // Step 5: extract text
-  const txt = await targetFile.async("string");
-
-  // Step 6: parse (your existing function)
-  return parsePgp23(txt, path);
-  
-    // // Step 4: find genotype file (assuming it's the first file in the ZIP)
-	// const txt = await response.text();
-	// return parsePgp23(txt, path);
+	// Extract text and parse
+	const txt = await targetFile.async("string");
+	return parsePgp23(txt, path);
 }
 
 console.log("calculatePrs.js loaded");

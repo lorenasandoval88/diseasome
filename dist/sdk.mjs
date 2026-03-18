@@ -1,4 +1,4 @@
-import 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.esm.mjs';
+import 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 import pako from 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.esm.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};

@@ -8,13 +8,13 @@ live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
 
 ## Architecture
 
-external helper sdks: 
+### External helper sdks: 
 https://lorenasandoval88.github.io/get-23andme-data/
 https://lorenasandoval88.github.io/get-pgscatalog-scores/
 https://lorenasandoval88.github.io/clustjs/
 
 
-Internal sdk;
+### Internal sdk:
 - `src/app/`: browser app entry and UI wiring (`main.js`, `tabs.js`, `displayScores.js`, `index.js`).
 - `src/sdk/`: reusable SDK modules (`get23me.js`, `getPgs.js`, `prs.js`).
 - `sdk.js`: public SDK entrypoint (exports the SDK API used for `dist/sdk.mjs`).

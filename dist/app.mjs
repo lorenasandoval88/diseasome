@@ -4628,7 +4628,7 @@ async function calculatePRS() {
                         <td>${escapeHtml(r.userName ?? "")}</td>
                         <td>${escapeHtml(r.userDate ?? "")}</td>
                         <td>${escapeHtml(r.pgsId)}</td>
-                        <td>${r.PRS?.toFixed(6) ?? "-"}</td>
+                        <td>${typeof r.PRS === 'number' ? r.PRS.toFixed(6) : (r.PRS ?? "-")}</td>
                         <td>${r.alleles?.length ?? 0}</td>
                         <td>${r.totalVariants ?? "-"}</td>
                         <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>

@@ -21,7 +21,7 @@ const PRS_CACHE_KEY = 'PRS: results';
  * @returns {Promise<Object|null>} Cached result or null if not found
  */
 async function getCachedPRS(userId, pgsId) {
-    console.log(`Checking cache for user ${userId} and PGS ${pgsId}`);
+    console.log(`Checking cache for key ${userId}_${pgsId}`);
 	try {
 		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
 		const key = `${userId}_${pgsId}`;
@@ -39,7 +39,7 @@ async function getCachedPRS(userId, pgsId) {
  * @param {Object} result - PRS calculation result
  */
 async function setCachedPRS(userId, pgsId, result) {
-    console.log(`Caching PRS result for user ${userId} and PGS ${pgsId}`);
+    console.log(`Caching PRS result for key ${userId}_${pgsId}`);
 	try {
 		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
 		const key = `${userId}_${pgsId}`;
@@ -212,6 +212,7 @@ async function fetchScores() {
 
 	try {
 		let selectedIds = window.getSelectedPgsIds?.() ?? [];
+        console.log("Selected PGS IDs from window.getSelectedPgsIds():", selectedIds);
 		let selectedScores = window.getSelectedScores?.() ?? [];
 		
 		// Use fallback if offline or no selection
@@ -231,7 +232,7 @@ async function fetchScores() {
 			if (statusEl) statusEl.textContent = "Loading scoring files...";
 			try {
 				const pgsTxts = await getTxts(selectedIds);
-				console.log("PGS txts:", pgsTxts);
+				console.log("fetchScores() await getTxts(selectedIds) PGS txts:", pgsTxts);
 				if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} scoring file(s).`;
 				
 				// Get user file paths and call prs

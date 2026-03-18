@@ -539,8 +539,9 @@ async function calculatePRS() {
         }
         
         // Load PGS txt files (try local first, then remote)
-        if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
-        
+        // if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
+        if (statusEl) statusEl.textContent = `"Calculating PRS....`;
+
         const pgsTxts = [];
         for (const score of selectedScoresList) {
             try {

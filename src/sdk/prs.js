@@ -1,25 +1,25 @@
-function Match2(data){
+function Match2(mypgs, my23){
 	let data2 = {}
   // extract harmonized data from PGS entry first
-  const indChr = data.pgs.cols.indexOf('hm_chr')
-  const indPos = data.pgs.cols.indexOf('hm_pos')
-  const indOther_allele = data.pgs.cols.indexOf('other_allele')
-  const indEffect_allele = data.pgs.cols.indexOf('effect_allele')
-  const indGenotype = data.my23.cols.indexOf('genotype')
+  const indChr = mypgs.cols.indexOf('hm_chr')
+  const indPos = mypgs.cols.indexOf('hm_pos')
+  const indOther_allele = mypgs.cols.indexOf('other_allele')
+  const indEffect_allele = mypgs.cols.indexOf('effect_allele')
+  const indGenotype = my23.cols.indexOf('genotype')
 	// match
 	let dtMatch = []
-	const n = data.pgs.dt.length
+	const n = mypgs.dt.length
 		for (let i=0; i<n; i++){
 			let matchFloor = 0
-			  let r = data.pgs.dt[i]
+			  let r = mypgs.dt[i]
 			//also filter 23 and me variants if they don't match pgs alt or effect allele 
 			let regexPattern = new RegExp([r[indEffect_allele], r[indOther_allele]].join('|'))
   
 			if (dtMatch.length > 0) {
 				matchFloor = dtMatch.at(-1)[0][4]
 			}
-		   // console.log("dtmacch i",r, data.my23.dt.filter(myr => (myr[2] == r[indPos])))
-			let dtMatch_i = data.my23.dt.filter(myr => (myr[2] == r[indPos]))
+		   // console.log("dtmacch i",r, my23.dt.filter(myr => (myr[2] == r[indPos])))
+			let dtMatch_i = my23.dt.filter(myr => (myr[2] == r[indPos]))
 			   .filter(myr => (myr[1] == r[indChr]))
 			// remove 23 variants that don't match pgs effect or other allele    
 			   .filter(myr => regexPattern.test(myr[indGenotype])) 
@@ -58,11 +58,11 @@ function Match2(data){
 					}
 				}
 			})
-			data2.pgs_id = data.pgs.meta.pgs_id
+			data2.pgs_id = mypgs.meta.pgs_id
 			data2.alleles = alleles
 			data2.calcRiskScore = calcRiskScore
-			let weight_idx = data.pgs.cols.indexOf('effect_weight')
-			let weights = data.pgs.dt.map(row => row[weight_idx])
+			let weight_idx = mypgs.cols.indexOf('effect_weight')
+			let weights = mypgs.dt.map(row => row[weight_idx])
 			// warning: no matches found!
 			if (calcRiskScore.length == 0) { 
 				data2.PRS = "there are no matches :-("

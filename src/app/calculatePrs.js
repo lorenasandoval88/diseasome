@@ -1,11 +1,14 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {Match2 } from "../sdk/prs.js"
-
+import { parsePGP23, load23andMeFile} from "../sdk/get23me.js";
 console.log("calculatePrs.js loaded");
 
 // Track what has been loaded
 let loadedUsers = [];
 let loadedScores = [];
+let loadedUserData = []; // Parsed 23andMe genome data
+
+
 
 /** Check if online */
 function isOnline() {
@@ -306,15 +309,37 @@ function loadFallbackScores() {
 /**
  * Load fallback users directly into the users table.
  */
-function loadFallbackUsers() {
+async function loadFallbackUsers() {
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 	
 	const selectedUsers = FALLBACK_USERS;
 	loadedUsers = selectedUsers; // Store for calculatePRS
-	if (statusEl) statusEl.textContent = `Loaded ${selectedUsers.length} fallback participant(s).`;
-	if (prsStatus) prsStatus.textContent = ""; // Clear "No users loaded" message
+	loadedUserData = []; // Clear previous parsed data
+	
+	if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)...`;
+	if (prsStatus) prsStatus.textContent = "";
+	
+	// Fetch and parse each user's genome file
+	const parsePromises = selectedUsers.map(async (user) => {
+		const genos = user?.genotypes ?? [];
+		const filePath = genos[0]?.download_url ?? genos[0]?.file;
+		if (!filePath) return null;
+		
+		try {
+			const parsed = await load23andMeFile(filePath);
+			return { user, parsed };
+		} catch (err) {
+			console.error(`Failed to load genome for ${user.id}:`, err);
+			return null;
+		}
+	});
+	
+	const results = await Promise.all(parsePromises);
+	loadedUserData = results.filter(Boolean);
+	
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUserData.length} of ${selectedUsers.length} fallback participant(s).`;
 	
 	if (resultsDiv) {
 		const rows = selectedUsers.map((user, idx) => {
@@ -325,6 +350,8 @@ function loadFallbackUsers() {
 			const genoCount = genos.length;
 			const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+			const loadedData = loadedUserData.find(d => d.user.id === user.id);
+			const variantCount = loadedData?.parsed?.dt?.length ?? 0;
 			return `
 				<tr>
 					<td>${idx + 1}</td>
@@ -333,6 +360,7 @@ function loadFallbackUsers() {
 					<td>${name}</td>
 					<td>${published}</td>
 					<td>${genoCount}</td>
+					<td>${variantCount.toLocaleString()}</td>
 					<td>${downloadHtml}</td>
 				</tr>`;
 		}).join("");
@@ -347,6 +375,7 @@ function loadFallbackUsers() {
 						<th>Name</th>
 						<th>Published Date</th>
 						<th>Genotypes #</th>
+						<th>Variants Loaded</th>
 						<th>Download</th>
 					</tr>
 				</thead>
@@ -354,7 +383,7 @@ function loadFallbackUsers() {
 			</table>`;
 	}
 	
-	console.log("Loaded fallback users:", FALLBACK_USERS);
+	console.log("Loaded fallback users with parsed data:", loadedUserData);
 }
 
 // Wire up fallback buttons
@@ -376,8 +405,6 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
-// Default fallback paths (used when calling prs directly)
-const fallbackUserTxts = FALLBACK_USERS.map(u => u.genotypes[0]?.download_url ?? u.genotypes[0]?.file).filter(Boolean);
 
 function prs(userTxts, pgsTxts) {
     let PRS = [];
@@ -391,8 +418,8 @@ function prs(userTxts, pgsTxts) {
             console.log("Processing user #", j, userTxts[j]);
             // TODO: Load and parse user genome data, then call Match2
             // let input = { "pgs": pgsTxts[i], "my23": parsedUserData }
-            // let res = Match2(input)
-            // PRS.push(res)
+            let res = Match2(userTxts, pgsTxts)
+            PRS.push(res)
         }
     }
 
@@ -409,26 +436,19 @@ async function calculatePRS() {
     console.log("calculatePRS")
     const statusEl = document.getElementById("prsResultsStatus");
     const resultsDiv = document.getElementById("prsResultsDiv");
-    // console.log("statusEl",statusEl)
     if (statusEl) statusEl.textContent = "Calculating PRS...";
     
     try {
-        // GET USERS: first check loadedUsers, then selected *****
-        let selectedUsers = loadedUsers.length > 0 ? loadedUsers : (window.getSelectedUsers?.() ?? []);
-        // console.log("Selected users for PRS calculation:", selectedUsers);
-        
-        const userTxts = selectedUsers.map(u => u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file).filter(Boolean);
-        console.log("User txts for calculation:", userTxts);
+        // Check if we have parsed genome data
+        if (loadedUserData.length === 0) {
+            if (statusEl) statusEl.textContent = "No users loaded. Click 'Load Fallback Users' first.";
+            return;
+        }
 
         // GET SCORES: first check loadedScores, then selected *****
         let selectedScoresList = loadedScores.length > 0 ? loadedScores : (window.getSelectedScores?.() ?? []);
         const selectedIds = selectedScoresList.map(s => s.id);
-        // console.log("Selected scores for PRS calculation:", selectedScoresList);
 
-        if (userTxts.length === 0) {
-            if (statusEl) statusEl.textContent = "No users loaded. Click 'Load Fallback Users' first.";
-            return;
-        }
         if (selectedIds.length === 0) {
             if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Fallback Scores' first.";
             return;
@@ -439,17 +459,63 @@ async function calculatePRS() {
         const pgsTxts = await getTxts(selectedIds);
         console.log("PGS txts for calculation:", pgsTxts);
         
-        // Run PRS calculation
-        if (statusEl) statusEl.textContent = `Calculating PRS for ${userTxts.length} user(s) x ${pgsTxts.length} model(s)...`;
-        const prsResults = prs(userTxts, pgsTxts);
+        // Run PRS calculation for each user x score combination
+        if (statusEl) statusEl.textContent = `Calculating PRS for ${loadedUserData.length} user(s) x ${pgsTxts.length} model(s)...`;
+        
+        const prsResults = [];
+        for (const userData of loadedUserData) {
+            const my23 = userData.parsed;
+            const userId = userData.user.id;
+            
+            for (const mypgs of pgsTxts) {
+                const result = Match2(mypgs, my23);
+                prsResults.push({
+                    userId,
+                    userName: userData.user.name,
+                    pgsId: mypgs.id ?? mypgs.url,
+                    ...result
+                });
+            }
+        }
+        
         console.log("PRS results:", prsResults);
         
         if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s).`;
         
-        // Display results (placeholder for now)
+        // Display results
         if (resultsDiv) {
             if (prsResults.length > 0) {
-                resultsDiv.innerHTML = `<pre>${JSON.stringify(prsResults, null, 2)}</pre>`;
+                const rows = prsResults.map((r, idx) => `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${escapeHtml(r.userId)}</td>
+                        <td>${escapeHtml(r.userName ?? "")}</td>
+                        <td>${escapeHtml(r.pgsId)}</td>
+                        <td>${r.prs?.toFixed(6) ?? r.score?.toFixed(6) ?? "-"}</td>
+                        <td>${r.matched ?? r.matchCount ?? "-"}</td>
+                        <td>${r.total ?? r.totalVariants ?? "-"}</td>
+                    </tr>
+                `).join("");
+                
+                resultsDiv.innerHTML = `
+                    <table class="table table-striped table-sm mt-3">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>User ID</th>
+                                <th>Name</th>
+                                <th>PGS ID</th>
+                                <th>PRS Score</th>
+                                <th>Matched</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <details class="mt-2">
+                        <summary>Raw JSON</summary>
+                        <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>
+                    </details>`;
             } else {
                 resultsDiv.innerHTML = `<p class="text-muted">PRS calculation completed. Check console for details.</p>`;
             }

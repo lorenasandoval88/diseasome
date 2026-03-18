@@ -4601,6 +4601,7 @@ async function calculatePRS() {
                 const prsResult = {
                     userId,
                     userName: userData.user.name,
+                    userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
                     pgsId,
                     totalVariants: mypgs.dt.length,
                     ...result
@@ -4625,6 +4626,7 @@ async function calculatePRS() {
                         <td>${idx + 1}</td>
                         <td>${escapeHtml(r.userId)}</td>
                         <td>${escapeHtml(r.userName ?? "")}</td>
+                        <td>${escapeHtml(r.userDate ?? "")}</td>
                         <td>${escapeHtml(r.pgsId)}</td>
                         <td>${r.PRS?.toFixed(6) ?? "-"}</td>
                         <td>${r.alleles?.length ?? 0}</td>
@@ -4641,6 +4643,7 @@ async function calculatePRS() {
                                 <th>#</th>
                                 <th>User ID</th>
                                 <th>Name</th>
+                                <th>Date</th>
                                 <th>PGS ID</th>
                                 <th>PRS Score</th>
                                 <th>Matched</th>

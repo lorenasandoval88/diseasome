@@ -213,7 +213,7 @@ function renderPgsTable(scores, targetId, title, key) {
 			</div>
 			<div class="table-responsive">
 				<table class="table table-sm table-striped table-bordered align-middle">
-					<thead>
+					<thead  class="table-dark">
 						<tr>
 							<th>#</th>
 							<th>Select</th>

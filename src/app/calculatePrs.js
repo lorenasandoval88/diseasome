@@ -1,4 +1,6 @@
 import { getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+import {Match2 } from "../sdk/prs.js"
+
 console.log("calculatePrs.js loaded");
 
 /** Check if online */
@@ -89,6 +91,13 @@ async function fetchScores() {
 				const pgsTxts = await getTxts(selectedIds);
 				console.log("PGS txts:", pgsTxts);
 				if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} scoring file(s).`;
+				
+				// Get user file paths and call PRS_fun
+				const userTxts = window.getSelectedUsers?.()?.map(u => u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file).filter(Boolean) ?? [];
+				if (userTxts.length > 0 && pgsTxts.length > 0) {
+					const prsResults = PRS_fun(userTxts, pgsTxts);
+					console.log("PRS results:", prsResults);
+				}
 			} catch (fetchErr) {
 				console.warn("Failed to fetch scores, using fallback:", fetchErr);
 				selectedScores = FALLBACK_SCORES;
@@ -356,3 +365,90 @@ window.loadFallbackUsers = loadFallbackUsers;
 window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
+
+// Default fallback paths (used when calling prs directly)
+const fallbackUserTxts = FALLBACK_USERS.map(u => u.genotypes[0]?.download_url ?? u.genotypes[0]?.file).filter(Boolean);
+
+function prs(userTxts, pgsTxts) {
+    let PRS = [];
+    console.log("prs called with:", userTxts.length, "users,", pgsTxts.length, "PGS models");
+
+    for (let i = 0; i < pgsTxts.length; i++) {
+        console.log("---------------------------");
+        console.log("Processing PGS model #", i, pgsTxts[i]?.id ?? pgsTxts[i]);
+
+        for (let j = 0; j < userTxts.length; j++) {
+            console.log("Processing user #", j, userTxts[j]);
+            // TODO: Load and parse user genome data, then call Match2
+            // let input = { "pgs": pgsTxts[i], "my23": parsedUserData }
+            // let res = Match2(input)
+            // PRS.push(res)
+        }
+    }
+
+    return PRS;
+}
+
+window.prs = prs;
+
+/**
+ * Calculate PRS using loaded scores and users.
+ * Triggered by the "Calculate PRS" button.
+ */
+// async function calculatePRS() {
+//     const statusEl = document.getElementById("prsResultsStatus");
+//     const resultsDiv = document.getElementById("prsResultsDiv");
+    
+//     if (statusEl) statusEl.textContent = "Calculating PRS...";
+    
+//     try {
+//         // Get selected users
+//         const selectedUsers = window.getSelectedUsers?.() ?? FALLBACK_USERS;
+//         const userTxts = selectedUsers.map(u => u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file).filter(Boolean);
+        
+//         // Get selected PGS IDs
+//         const selectedIds = window.getSelectedPgsIds?.() ?? FALLBACK_SCORES.map(s => s.id);
+        
+//         if (userTxts.length === 0) {
+//             if (statusEl) statusEl.textContent = "No users loaded. Click 'Load Fallback Users' first.";
+//             return;
+//         }
+//         if (selectedIds.length === 0) {
+//             if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Fallback Scores' first.";
+//             return;
+//         }
+        
+//         // Fetch PGS txt files
+//         if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
+//         const pgsTxts = await getTxts(selectedIds);
+//         console.log("PGS txts for calculation:", pgsTxts);
+        
+//         // Run PRS calculation
+//         if (statusEl) statusEl.textContent = `Calculating PRS for ${userTxts.length} user(s) x ${pgsTxts.length} model(s)...`;
+//         const prsResults = PRS_fun(userTxts, pgsTxts);
+//         console.log("PRS results:", prsResults);
+        
+//         if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s).`;
+        
+//         // Display results (placeholder for now)
+//         if (resultsDiv) {
+//             if (prsResults.length > 0) {
+//                 resultsDiv.innerHTML = `<pre>${JSON.stringify(prsResults, null, 2)}</pre>`;
+//             } else {
+//                 resultsDiv.innerHTML = `<p class="text-muted">PRS calculation completed. Check console for details.</p>`;
+//             }
+//         }
+        
+//     } catch (err) {
+//         console.error("calculatePRS error:", err);
+//         if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+//     }
+// }
+
+// // Wire up Calculate PRS button
+// const calculatePrsBtn = document.getElementById("calculatePrsBtn");
+// if (calculatePrsBtn) {
+//     calculatePrsBtn.addEventListener("click", calculatePRS);
+// }
+
+// window.calculatePRS = calculatePRS;

@@ -1,6 +1,5 @@
 import { getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
-import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
-import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
+import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 
 // logic in tabs.js to show only the selected category panel 
 function tabFunction(evt, openTab, subTab) {
@@ -3868,121 +3867,45 @@ function requireLocalforage () {
 var localforageExports = requireLocalforage();
 var localforage = /*@__PURE__*/getDefaultExportFromCjs(localforageExports);
 
-// 5 built in 23andme files loaded to localforage, and used by get23meUrls() and get23().
-localforage.createInstance({
-    name: "all23meURLS",
-    storeName: "all23meURLS"
-});
-localforage.createInstance({
-    name: "all23meFiles",
-    storeName: "all23meFiles"
-});
-
-/**
- * Parse a 23andMe genome text file into structured data.
- * @param {string} txt - Raw text content
- * @param {string} url - Source URL/path
- * @returns {Object} Parsed genome data with cols and dt arrays
- */
-function parsePgp23(txt, url) {
-	const obj = {};
-	const rows = String(txt ?? "").split(/[\r\n]+/g).filter(Boolean);
-	obj.txt = txt;
-	obj.url = url;
-
-	const n = rows.filter(r => r && r[0] === '#').length;
-	if (n === 0) {
-		throw new Error(`Invalid 23andMe file format: missing header in ${url}`);
-	}
-
-	obj.meta = rows.slice(0, n - 1).join('\r\n');
-	obj.cols = rows[n - 1].replace(/^#\s*/, '').split(/\t/);
-	obj.dt = rows.slice(n).map((r, i) => {
-		const parts = r.split('\t');
-		parts[2] = parseInt(parts[2]); // position as integer
-		parts[4] = i; // row index
-		return parts;
-	});
-	return obj;
-}
-
-/**
- * Load and parse a local 23andMe file.
- * @param {string} path - Path to the file (local .txt or remote PGP URL)
- * @returns {Promise<Object>} Parsed genome data
- */
-async function load23andMeFile(path) {
-	const isRemote = /^https?:\/\//.test(path);
-	const isZipUrl = path.includes('pgp-hms.org') || path.endsWith('.zip');
-	
-	// Local .txt files - just fetch and parse directly
-	if (!isRemote || (!isZipUrl && path.endsWith('.txt'))) {
-		const response = await fetch(path);
-		if (!response.ok) {
-			throw new Error(`Failed to load ${path}: ${response.status}`);
-		}
-		const txt = await response.text();
-		return parsePgp23(txt, path);
-	}
-	
-	// Remote PGP URLs that return ZIP files
-	const response = await fetch(path);
-	if (!response.ok) {
-		throw new Error(`Failed to load ${path}: ${response.status}`);
-	}
-	
-	// Download ZIP from redirected URL
-	const zipRes = await fetch(response.url);
-	if (!zipRes.ok) {
-		throw new Error(`Failed to download ZIP: ${zipRes.status}`);
-	}
-
-	const buffer = await zipRes.arrayBuffer();
-
-	// Unzip and parse the 23andMe text file
-	const zip = await JSZip.loadAsync(buffer);
-
-	// Find genotype file
-	let targetFile = null;
-	for (const name of Object.keys(zip.files)) {
-		const file = zip.files[name];
-		if (!file.dir && (
-			name.endsWith(".txt") ||
-			name.includes("23andme") ||
-			name.toLowerCase().includes("genome")
-		)) {
-			targetFile = file;
-			break;
-		}
-	}
-
-	if (!targetFile) {
-		throw new Error("No genotype file found in ZIP");
-	}
-
-	// Extract text and parse
-	const txt = await targetFile.async("string");
-	return parsePgp23(txt, path);
-}
-
 console.log("calculatePrs.js loaded");
-let loadedScores = [];
-let loadedUserData = []; // Parsed 23andMe genome data
 
-// PRS Results Cache
-const PRS_CACHE_KEY = 'PRS: results';
+// Track what has been loaded
+let loadedScores = []; // parsed PGS scoring files
+let loadedUsers = []; // parsed 23andMe genome data
 
-/**
- * Get cached PRS result for a user+PGS combination.
+/*** Fetch and parse multiple 23andMe files from paths/URLs.
+ * @param {string[]} paths - Array of file paths or URLs
+ * @returns {Promise<Object[]>} Array of parsed 23andMe genome data
+ */
+async function fetch23andMeFiles(paths) {
+	const results = await Promise.all(
+		paths.map(async (path) => {
+			try {
+				const parsed = await load23andMeFile(path);
+				console.log(`Loaded 23andMe file: ${path}`, parsed);
+				return parsed;
+			} catch (err) {
+				console.error(`Failed to load 23andMe file ${path}:`, err);
+				return null;
+			}
+		})
+	);
+	return results.filter(Boolean);
+}
+window.fetch23andMeFiles = fetch23andMeFiles;
+
+
+/*** Get cached PRS result for a user+PGS combination.
  * @param {string} userId - User ID
  * @param {string} pgsId - PGS ID
  * @returns {Promise<Object|null>} Cached result or null if not found
  */
 async function getCachedPRS(userId, pgsId) {
-    console.log(`Checking cache for key ${userId}_${pgsId}`);
 	try {
-		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
-		const key = `${userId}_${pgsId}`;
+		const key = `PRS: ${userId}_${pgsId}`;
+		const cache = await localforage.getItem(key) || {};
+		console.log(`Found cache for key ${userId}_${pgsId}`);
+
 		return cache[key] ?? null;
 	} catch (err) {
 		console.warn('Failed to read PRS cache:', err);
@@ -3990,8 +3913,7 @@ async function getCachedPRS(userId, pgsId) {
 	}
 }
 
-/**
- * Store PRS result in cache.
+/*** Store PRS result in cache.
  * @param {string} userId - User ID
  * @param {string} pgsId - PGS ID
  * @param {Object} result - PRS calculation result
@@ -3999,23 +3921,26 @@ async function getCachedPRS(userId, pgsId) {
 async function setCachedPRS(userId, pgsId, result) {
     console.log(`Caching PRS result for key ${userId}_${pgsId}`);
 	try {
-		const cache = await localforage.getItem(PRS_CACHE_KEY) || {};
-		const key = `${userId}_${pgsId}`;
+		const key = `PRS: ${userId}_${pgsId}`;
+		const cache = await localforage.getItem(key) || {};
+
 		cache[key] = { ...result, cachedAt: new Date().toISOString() };
-		await localforage.setItem(PRS_CACHE_KEY, cache);
+		await localforage.setItem(key, cache);
 	} catch (err) {
 		console.warn('Failed to write PRS cache:', err);
 	}
 }
 
-/**
- * Clear all cached PRS results.
+/*** Clear all cached PRS results (keys starting with "PRS:").
  */
 async function clearPRSCache() {
-	await localforage.removeItem(PRS_CACHE_KEY);
-	console.log('PRS cache cleared');
+	const keys = await localforage.keys();
+	const prsKeys = keys.filter(k => k.startsWith('PRS:'));
+	for (const key of prsKeys) {
+		await localforage.removeItem(key);
+	}
+	console.log(`PRS cache cleared: removed ${prsKeys.length} item(s)`);
 }
-
 window.clearPRSCache = clearPRSCache;
 
 
@@ -4104,8 +4029,7 @@ const FALLBACK_SCORES = [
 	}
 ];
 
-/**
- * Parse a PGS scoring file into structured data.
+/*** Parse a PGS scoring file into structured data.
  * @param {string} id - PGS ID
  * @param {string} txt - Raw text content
  * @returns {Object} Parsed PGS data with cols and dt arrays
@@ -4137,8 +4061,7 @@ function parsePGS(id, txt) {
 	return obj;
 }
 
-/**
- * Load and parse a local PGS scoring file.
+/*** Load and parse a local PGS scoring file.
  * @param {string} id - PGS ID
  * @param {string} path - Path to the file
  * @returns {Promise<Object>} Parsed PGS data
@@ -4159,20 +4082,19 @@ function escapeHtml(str) {
 	return div.innerHTML;
 }
 
-/**
- * Calculate PRS using the currently selected PGS IDs.
+/*** Calculate PRS using the currently selected PGS IDs.
  * Called when the user clicks the "Fetch Files" button.
- * Uses fallback data when offline.
- */
+ * Uses fallback data when offline. */
 async function fetchScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 
 	try {
+		// Get selected PGS IDs and scores from the Polygenic Scores tab (if available) defined in displayScores.js
 		let selectedIds = window.getSelectedPgsIds?.() ?? [];
-        console.log("Selected PGS IDs from window.getSelectedPgsIds():", selectedIds);
 		let selectedScores = window.getSelectedScores?.() ?? [];
-		
+		console.log( `${selectedIds.length} fetchScores(): Table** Selected PGSIDs from window.getSelectedScores():`, selectedIds, selectedScores);
+
 		// Use fallback if offline or no selection
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
@@ -4187,28 +4109,8 @@ async function fetchScores() {
 				return;
 			}
 		} else {
-			if (statusEl) statusEl.textContent = "Loading scoring files...";
-			try {
-				const pgsTxts = await getTxts(selectedIds);
-				console.log("fetchScores() await getTxts(selectedIds) PGS txts:", pgsTxts);
-				if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} scoring file(s).`;
-				
-				// Get user file paths and call prs
-				const userTxts = window.getSelectedUsers?.()?.map(u => u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file).filter(Boolean) ?? [];
-				if (userTxts.length > 0 && pgsTxts.length > 0) {
-					const prsResults = prs(userTxts, pgsTxts);
-					console.log("PRS results:", prsResults);
-				}
-			} catch (fetchErr) {
-				console.warn("Failed to fetch scores, using fallback:", fetchErr);
-				selectedScores = FALLBACK_SCORES;
-				selectedIds = FALLBACK_SCORES.map(s => s.id);
-				if (statusEl) statusEl.textContent = "Network error: using fallback scores.";
-			}
+			if (statusEl) statusEl.textContent = `Loaded ${selectedIds.length} scoring file(s).`;
 		}
-
-		console.log(`calculatePrs.js: ${selectedIds.length} Selected PGS IDs..`, selectedIds);
-
 		// Render table of selected scores
 		if (resultsDiv) {
 			const rows = selectedScores.map((score, idx) => {
@@ -4253,32 +4155,17 @@ async function fetchScores() {
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
 	}
 }
-
-// Wire up the fetch scores button
-const fetchScoresBtn = document.getElementById("fetchScoresBtn");
-if (fetchScoresBtn) {
-	fetchScoresBtn.addEventListener("click", fetchScores);
-}
-
 window.fetchScores = fetchScores;
 
-// Wire up the fetch users button
-const fetchUsersBtn = document.getElementById("fetchUsersBtn");
-if (fetchUsersBtn) {
-	fetchUsersBtn.addEventListener("click", fetchUsers);
-}
-
-
-/**
- * Fetch selected users and display them in a table.
+/*** Fetch selected users and display them in a table.
  * Called when the user clicks a "Fetch Users" button.
- * Uses fallback data when offline.
- */
+ * Uses fallback data when offline. */
 async function fetchUsers() {
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 
 	try {
+		// Get selected user IDs and users from the 23andMe Data tab (if available) defined in displayUsers.js
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
 		
@@ -4299,7 +4186,7 @@ async function fetchUsers() {
 			if (statusEl) statusEl.textContent = `Loaded ${selectedUsers.length} participant(s).`;
 		}
 
-		console.log(`calculatePrs.js: ${selectedIds.length} Selected User IDs..`, selectedIds);
+		console.log(`fetchUsers(): ${selectedIds.length} Table**: Selected User IDs from window.getSelectedUsers():`, selectedIds,selectedUsers);
 
 		// Render table of selected users
 		if (resultsDiv) {
@@ -4345,12 +4232,21 @@ async function fetchUsers() {
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
 	}
 }
-
 window.fetchUsers = fetchUsers;
 
-/**
- * Load fallback scores directly into the PRS table.
- */
+// Wire up the fetch scores button
+const fetchScoresBtn = document.getElementById("fetchScoresBtn");
+if (fetchScoresBtn) {
+	fetchScoresBtn.addEventListener("click", fetchScores);
+}
+
+// Wire up the fetch users button
+const fetchUsersBtn = document.getElementById("fetchUsersBtn");
+if (fetchUsersBtn) {
+	fetchUsersBtn.addEventListener("click", fetchUsers);
+}
+
+/** * Load fallback scores directly into the PRS table. */
 function loadFallbackScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
@@ -4400,16 +4296,15 @@ function loadFallbackScores() {
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
 }
 
-/**
- * Load fallback users directly into the users table.
- */
+/** * Load fallback users directly into the users table. */
 async function loadFallbackUsers() {
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 	
 	const selectedUsers = FALLBACK_USERS;
-	loadedUserData = []; // Clear previous parsed data
+	loadedUsers = selectedUsers; // Store for calculatePRS
+	loadedUsers = []; // Clear previous parsed data
 	
 	if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)...`;
 	if (prsStatus) prsStatus.textContent = "";
@@ -4422,6 +4317,8 @@ async function loadFallbackUsers() {
 		
 		try {
 			const parsed = await load23andMeFile(filePath);
+			console.log(`Parsed genome filePath:`, filePath);
+			console.log(`Parsed genome for ${user.id}:`, parsed);
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
@@ -4430,9 +4327,9 @@ async function loadFallbackUsers() {
 	});
 	
 	const results = await Promise.all(parsePromises);
-	loadedUserData = results.filter(Boolean);
+	loadedUsers = results.filter(Boolean);
 	
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUserData.length} of ${selectedUsers.length} fallback participant(s).`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s).`;
 	
 	if (resultsDiv) {
 		const rows = selectedUsers.map((user, idx) => {
@@ -4443,7 +4340,7 @@ async function loadFallbackUsers() {
 			const genoCount = genos.length;
 			const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
-			const loadedData = loadedUserData.find(d => d.user.id === user.id);
+			const loadedData = loadedUsers.find(d => d.user.id === user.id);
 			const variantCount = loadedData?.parsed?.dt?.length ?? 0;
 			return `
 				<tr>
@@ -4476,7 +4373,7 @@ async function loadFallbackUsers() {
 			</table>`;
 	}
 	
-	console.log("Loaded fallback users with parsed data:", loadedUserData);
+	console.log("Loaded fallback users with parsed data:", loadedUsers);
 }
 
 // Wire up fallback buttons
@@ -4498,44 +4395,58 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
-
-function prs(userTxts, pgsTxts) {
-    let PRS = [];
-    console.log("STARTING CALCULATION! prs called with:", userTxts.length, "users,", pgsTxts.length, "PGS models");
-
-    for (let i = 0; i < pgsTxts.length; i++) {
-        console.log("---------------------------");
-        console.log("Processing PGS model #", i, pgsTxts[i]?.id ?? pgsTxts[i]);
-
-        for (let j = 0; j < userTxts.length; j++) {
-            console.log("Processing user #", j, userTxts[j]);
-            // TODO: Load and parse user genome data, then call Match2
-            // let input = { "pgs": pgsTxts[i], "my23": parsedUserData }
-            let res = Match2(userTxts, pgsTxts);
-            PRS.push(res);
-        }
-    }
-
-    return PRS;
-}
-
-window.prs = prs;
-
-/**
- * Calculate PRS using loaded scores and users.
+/*** Calculate PRS using loaded scores and users.
  * Triggered by the "Calculate PRS" button.
  */
 async function calculatePRS() {
-    console.log("calculatePRS");
+    console.log("calculatePRS()");
     const statusEl = document.getElementById("prsResultsStatus");
     const resultsDiv = document.getElementById("prsResultsDiv");
     if (statusEl) statusEl.textContent = "Calculating PRS...";
     
     try {
-        // Check if we have parsed genome data
-        if (loadedUserData.length === 0) {
-            if (statusEl) statusEl.textContent = "No users loaded. Click 'Load Fallback Users' first.";
-            return;
+        // GET USERS: first check loadedUsers, then fetch selected users from 23andMe tab
+        let userDataForCalc = loadedUsers;
+        console.log("userDataForCalc",userDataForCalc);
+        if (userDataForCalc.length === 0) {
+            // Try to get selected users from the 23andMe tab
+            const selectedUsers = window.getSelectedUsers?.() ?? [];
+			console.log("Selected users for PRS calculation:", selectedUsers);
+            if (selectedUsers.length === 0) {
+                if (statusEl) statusEl.textContent = "No users loaded. Select users from '23andMe Data' tab or click 'Load Fallback Users'.";
+                return;
+            }
+            
+            // Fetch and parse 23andMe files for selected users
+            if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
+            console.log("Selected users:", selectedUsers);
+            
+            // Extract download URLs - check multiple possible property paths
+            const userPaths = selectedUsers.map(u => {
+                const path = u.downloadUrl ?? u.download_url ?? u.url ?? 
+                    u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file ?? null;
+                return path;
+            }).filter(Boolean);
+            
+            console.log("User paths to fetch:", userPaths);
+            const parsedUsers = await fetch23andMeFiles(userPaths);
+            console.log("Parsed users result:", parsedUsers);
+            
+            // Map parsed data back to user info (use index-based matching since paths are in same order)
+            userDataForCalc = selectedUsers.map((user, idx) => {
+                const parsed = parsedUsers[idx];
+                if (parsed) {
+                    return { user, parsed };
+                }
+                return null;
+            }).filter(Boolean);
+            
+            console.log("userDataForCalc:", userDataForCalc);
+            
+            if (userDataForCalc.length === 0) {
+                if (statusEl) statusEl.textContent = "Failed to load user genome files.";
+                return;
+            }
         }
 
         // GET SCORES: first check loadedScores, then selected *****
@@ -4572,13 +4483,13 @@ async function calculatePRS() {
         console.log("PGS txts for calculation:", pgsTxts);
         
         // Run PRS calculation for each user x score combination
-        if (statusEl) statusEl.textContent = `Calculating PRS for ${loadedUserData.length} user(s) x ${pgsTxts.length} model(s)...`;
+        if (statusEl) statusEl.textContent = `Calculating PRS for ${userDataForCalc.length} user(s) x ${pgsTxts.length} model(s)...`;
         
         const prsResults = [];
         let cachedCount = 0;
         let calculatedCount = 0;
         
-        for (const userData of loadedUserData) {
+        for (const userData of userDataForCalc) {
             const my23 = userData.parsed;
             const userId = userData.user.id;
             console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
@@ -4588,7 +4499,7 @@ async function calculatePRS() {
                 // Check cache first
                 const cached = await getCachedPRS(userId, pgsId);
                 if (cached) {
-                    console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
+                    // console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
                     prsResults.push({
                         ...cached,
                         fromCache: true

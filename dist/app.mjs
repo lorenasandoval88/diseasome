@@ -3882,7 +3882,7 @@ async function fetch23andMeFiles(paths) {
 		paths.map(async (path) => {
 			try {
 				const parsed = await load23andMeFile(path);
-				console.log(`Loaded 23andMe file: ${path}`, parsed);
+				console.log(`Loaded 23andMe file: ${path}`);
 				return parsed;
 			} catch (err) {
 				console.error(`Failed to load 23andMe file ${path}:`, err);
@@ -4405,7 +4405,7 @@ async function calculatePRS() {
     if (statusEl) statusEl.textContent = "Calculating PRS...";
     
     try {
-        // GET USERS: first check loadedUsers, then fetch selected users from 23andMe tab
+        //// GET USERS: first check loadedUsers, then fetch selected users from 23andMe tab
         let userDataForCalc = loadedUsers;
         console.log("userDataForCalc",userDataForCalc);
         if (userDataForCalc.length === 0) {
@@ -4428,9 +4428,9 @@ async function calculatePRS() {
                 return path;
             }).filter(Boolean);
             
-            console.log("User paths to fetch:", userPaths);
+            //console.log("User paths to fetch:", userPaths);
             const parsedUsers = await fetch23andMeFiles(userPaths);
-            console.log("Parsed users result:", parsedUsers);
+            //console.log("Parsed users result:", parsedUsers);
             
             // Map parsed data back to user info (use index-based matching since paths are in same order)
             userDataForCalc = selectedUsers.map((user, idx) => {
@@ -4449,7 +4449,7 @@ async function calculatePRS() {
             }
         }
 
-        // GET SCORES: first check loadedScores, then selected *****
+        //// GET SCORES: first check loadedScores, then selected *****
         let selectedScoresList = loadedScores.length > 0 ? loadedScores : (window.getSelectedScores?.() ?? []);
         console.log("Selected scores for PRS calculation:", selectedScoresList);
         const selectedIds = selectedScoresList.map(s => s.id);
@@ -4492,7 +4492,7 @@ async function calculatePRS() {
         for (const userData of userDataForCalc) {
             const my23 = userData.parsed;
             const userId = userData.user.id;
-            console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
+            //console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
             for (const mypgs of pgsTxts) {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 

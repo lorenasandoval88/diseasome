@@ -3875,15 +3875,17 @@ let loadedUsers = []; // parsed 23andMe genome data
 
 /*** Fetch and parse multiple 23andMe files from paths/URLs.
  * @param {string[]} paths - Array of file paths or URLs
- * @returns {Promise<Object[]>} Array of parsed 23andMe genome data
+ * @param {string[]} userIds - Array of user IDs corresponding to each path
+ * @returns {Promise<Object[]>} Array of objects with { userId, parsed } data
  */
-async function fetch23andMeFiles(paths) {
+async function fetch23andMeFiles(paths, userIds = []) {
 	const results = await Promise.all(
-		paths.map(async (path) => {
+		paths.map(async (path, idx) => {
 			try {
-				const parsed = await load23andMeFile(path);
-				console.log(`Loaded 23andMe file: ${path}`);
-				return parsed;
+				const userId = userIds[idx] ?? null;
+				const parsed = await load23andMeFile(path, userId);
+				console.log(`Loaded 23andMe file: ${path} (userId: ${userId})`);
+				return { userId, parsed };
 			} catch (err) {
 				console.error(`Failed to load 23andMe file ${path}:`, err);
 				return null;
@@ -4428,14 +4430,21 @@ async function calculatePRS() {
                 return path;
             }).filter(Boolean);
             
-            //console.log("User paths to fetch:", userPaths);
-            const parsedUsers = await fetch23andMeFiles(userPaths);
+
+			 const userIds = selectedUsers.map(u => {
+                const id = u.id ?? null;
+                return id;
+            }).filter(Boolean);
+
+            console.log("User ids to fetch:", userIds);
+            const parsedUsers = await fetch23andMeFiles(userPaths, userIds);
             //console.log("Parsed users result:", parsedUsers);
             
-            // Map parsed data back to user info (use index-based matching since paths are in same order)
-            userDataForCalc = selectedUsers.map((user, idx) => {
-                const parsed = parsedUsers[idx];
-                if (parsed) {
+			
+            // Map parsed data back to user info using userId from fetch results
+            userDataForCalc = parsedUsers.map(({ userId, parsed }) => {
+                const user = selectedUsers.find(u => u.id === userId) ?? selectedUsers[parsedUsers.indexOf({ userId, parsed })];
+                if (user && parsed) {
                     return { user, parsed };
                 }
                 return null;

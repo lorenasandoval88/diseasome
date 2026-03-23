@@ -36,6 +36,14 @@ window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
 /** Get the currently selected scores with full metadata. */
 window.getSelectedScores = () => Array.from(selectedScoresMap.values());
 
+/** Clear all selected scores. */
+window.clearSelectedScores = () => {
+	selectedPgsIds.clear();
+	selectedScoresMap.clear();
+	updateGlobalSelectionCount();
+	console.log("Cleared all selected scores");
+};
+
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
 	const el = document.getElementById("globalSelectionCount");

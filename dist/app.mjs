@@ -64,6 +64,14 @@ window.getSelectedPgsIds = () => Array.from(selectedPgsIds);
 /** Get the currently selected scores with full metadata. */
 window.getSelectedScores = () => Array.from(selectedScoresMap.values());
 
+/** Clear all selected scores. */
+window.clearSelectedScores = () => {
+	selectedPgsIds.clear();
+	selectedScoresMap.clear();
+	updateGlobalSelectionCount$1();
+	console.log("Cleared all selected scores");
+};
+
 /** Update the global selection count display. */
 function updateGlobalSelectionCount$1() {
 	const el = document.getElementById("globalSelectionCount");
@@ -4091,6 +4099,9 @@ async function fetchScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 
+	// Clear previously loaded scores so dynamically selected scores take priority
+	loadedScores = [];
+
 	try {
 		// Get selected PGS IDs and scores from the Polygenic Scores tab (if available) defined in displayScores.js
 		let selectedIds = window.getSelectedPgsIds?.() ?? [];
@@ -4253,6 +4264,9 @@ function loadFallbackScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus"); // check if users selected before allowing score load
+	
+	// Clear any dynamically selected scores so fallback takes priority
+	window.clearSelectedScores?.();
 	
 	const selectedScores = FALLBACK_SCORES;
 	loadedScores = selectedScores; // Store for calculatePRS
@@ -4458,9 +4472,11 @@ async function calculatePRS() {
             }
         }
 
-        //// GET SCORES: first check loadedScores, then selected *****
-        let selectedScoresList = loadedScores.length > 0 ? loadedScores : (window.getSelectedScores?.() ?? []);
-        console.log("Selected scores for PRS calculation:", selectedScoresList);
+        //// GET SCORES: prefer dynamically selected scores, fallback to loadedScores
+        const dynamicScores = window.getSelectedScores?.() ?? [];
+        let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
+        const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
+        console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
         const selectedIds = selectedScoresList.map(s => s.id);
 
         if (selectedIds.length === 0) {
@@ -4468,6 +4484,43 @@ async function calculatePRS() {
             return;
         }
         
+        // Update scores table display
+        const scoresDiv = document.getElementById("prsScoresDiv");
+        const scoresAction = document.getElementById("prsScoresAction");
+        if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingFallback ? "fallback" : "selected"} scoring file(s).`;
+        if (scoresAction) {
+            const rows = selectedScoresList.map((score, idx) => {
+                const id = escapeHtml(score?.id ?? "");
+                const name = escapeHtml(score?.name ?? "");
+                const trait = escapeHtml(score?.trait_reported ?? "");
+                const variants = escapeHtml(score?.variants_number ?? "");
+                const date = escapeHtml(score?.date_release ?? "");
+                return `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${id}</td>
+                        <td>${name}</td>
+                        <td>${trait}</td>
+                        <td>${variants}</td>
+                        <td>${date}</td>
+                    </tr>`;
+            }).join("");
+            scoresAction.innerHTML = `
+                <table class="table table-striped table-sm mt-3">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>PGS ID</th>
+                            <th>Name</th>
+                            <th>Trait</th>
+                            <th>Variants #</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
         // Load PGS txt files (try local first, then remote)
         // if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
         if (statusEl) statusEl.textContent = `Calculating PRS....`;

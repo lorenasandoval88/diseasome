@@ -10,23 +10,52 @@ const sampleClusterData = [
   { prs_breast_cancer: 2.4, prs_diabetes: 1.9, prs_cad: 2.1, label: "User C" },
   { prs_breast_cancer: 2.5, prs_diabetes: 2.0, prs_cad: 2.2, label: "User D" }
 ];
-console.log("sample cluster data:", sampleClusterData)
-const clusterContainer = document.getElementById(clusterContainerId);
 
-if (clusterContainer) {
+/**
+ * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
+ * one object per user where each key is a pgsId and the value is PRS.
+ * Returns null if no usable results exist.
+ */
+function pivotPrsResults(rawResults) {
+  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
+
+  const byUser = new Map();
+  for (const r of rawResults) {
+    if (!r.userId || r.PRS == null || !Number.isFinite(r.PRS)) continue;
+    if (!byUser.has(r.userId)) {
+      byUser.set(r.userId, { label: r.userName ?? r.userId });
+    }
+    byUser.get(r.userId)[r.pgsId] = r.PRS;
+  }
+
+  const rows = Array.from(byUser.values());
+  return rows.length >= 2 ? rows : null;
+}
+
+async function renderCluster() {
+  const clusterContainer = document.getElementById(clusterContainerId);
+  if (!clusterContainer) return;
+
+  const pivoted = pivotPrsResults(window.prsResults);
+  const plotData = pivoted ?? sampleClusterData;
+  const usingReal = pivoted !== null;
+
   clusterContainer.innerHTML = `
-    <p class="text-muted small mb-3">Sample hierarchical clustering from the remote \`clustjs\` module.</p>
+    <p class="text-muted small mb-3">
+      ${usingReal
+        ? `Hierarchical clustering of PRS results (${plotData.length} users).`
+        : 'No PRS results yet — showing sample data. Calculate PRS first.'}
+    </p>
     <div id="clusterPlotMount"></div>
   `;
-await clust.hclust_plot({
+
+  console.log("cluster plot data:", plotData);
+  await clust.hclust_plot({
     divid: "clusterPlotMount",
+    data: plotData,
     width: 700,
     height: 520
   });
-//   await clust.hclust_plot({
-//     divid: "clusterPlotMount",
-//     data: sampleClusterData,
-//     width: 700,
-//     height: 520
-//   });
 }
+
+window.renderCluster = renderCluster;

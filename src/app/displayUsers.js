@@ -5,7 +5,7 @@ const data = await fetch23andMeParticipants();
 const participants = data ?? [];
 
 const ROWS_PER_PAGE = 50;
-const MAX_SELECTION = 6;
+const MAX_SELECTION = 10;
 
 // Module-level selected users (shared across renders)
 const selectedUserIds = new Set();

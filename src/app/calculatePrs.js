@@ -298,19 +298,18 @@ async function fetchScores() {
 }
 window.fetchScores = fetchScores;
 
-/*** Fetch selected users and display them in a table.
- * Called when the user clicks a "Fetch Users" button.
- * Uses fallback data when offline. */
+/*** Fetch selected users, display them in a table, and parse their genome files.
+ * Called when the user clicks the "Fetch Users" button in the PRS tab.
+ * Uses fallback data when offline or nothing is selected. */
 async function fetchUsers() {
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 
 	try {
-		// Get selected user IDs and users from the 23andMe Data tab (if available) defined in displayUsers.js
+		// Get selected user IDs and users from the 23andMe Data tab or fallback
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
-		
-		// Use fallback if offline or no selection
+
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
 			if (offline) {
@@ -319,17 +318,37 @@ async function fetchUsers() {
 				selectedIds = FALLBACK_USERS.map(u => u.id);
 				if (statusEl) statusEl.textContent = "Offline mode: using fallback users.";
 			} else {
-				if (statusEl) statusEl.textContent = "Please select at least one participant.";
+				if (statusEl) statusEl.textContent = "Please select at least one participant in the 23andMe Data tab.";
 				if (resultsDiv) resultsDiv.innerHTML = "";
 				return;
 			}
 		} else {
-			if (statusEl) statusEl.textContent = `Loaded ${selectedUsers.length} participant(s).`;
+			if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
 		}
 
-		console.log(`fetchUsers(): ${selectedIds.length} Table**: Selected User IDs from window.getSelectedUsers():`, selectedIds,selectedUsers);
+		console.log(`fetchUsers(): ${selectedIds.length} users selected:`, selectedIds, selectedUsers);
 
-		// Render table of selected users
+		// Parse genome files for all selected users
+		loadedUsers = [];
+		const parsePromises = selectedUsers.map(async (user) => {
+			const genos = user?.genotypes ?? [];
+			const filePath = user?.downloadUrl ?? user?.download_url ??
+				genos[0]?.download_url ?? genos[0]?.file ?? null;
+			if (!filePath) return null;
+			try {
+				const parsed = await load23andMeFile(filePath, user.id);
+				return { user, parsed };
+			} catch (err) {
+				console.error(`Failed to load genome for ${user.id}:`, err);
+				return null;
+			}
+		});
+		const results = await Promise.all(parsePromises);
+		loadedUsers = results.filter(Boolean);
+
+		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
+
+		// Render table
 		if (resultsDiv) {
 			const rows = selectedUsers.map((user, idx) => {
 				const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
@@ -339,6 +358,8 @@ async function fetchUsers() {
 				const genoCount = genos.length;
 				const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
 				const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+				const loadedData = loadedUsers.find(d => d.user.id === user.id);
+				const variantCount = loadedData?.parsed?.dt?.length ?? 0;
 				return `
 					<tr>
 						<td>${idx + 1}</td>
@@ -347,6 +368,7 @@ async function fetchUsers() {
 						<td>${name}</td>
 						<td>${published}</td>
 						<td>${genoCount}</td>
+						<td>${variantCount.toLocaleString()}</td>
 						<td>${downloadHtml}</td>
 					</tr>`;
 			}).join("");
@@ -361,6 +383,7 @@ async function fetchUsers() {
 							<th>Name</th>
 							<th>Published Date</th>
 							<th>Genotypes #</th>
+							<th>Variants Loaded</th>
 							<th>Download</th>
 						</tr>
 					</thead>
@@ -368,6 +391,7 @@ async function fetchUsers() {
 				</table>`;
 		}
 
+		console.log("fetchUsers() loadedUsers:", loadedUsers);
 	} catch (err) {
 		console.error("fetchUsers error:", err);
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
@@ -549,51 +573,48 @@ async function calculatePRS() {
     if (statusEl) statusEl.textContent = "Calculating PRS...";
     
     try {
-        //// GET USERS: first check loadedUsers, then fetch selected users from 23andMe tab
+        //// GET USERS: use loadedUsers (from fetchUsers / loadFallbackUsers),
+        //  filtered to only those whose checkbox is still checked in the PRS users table.
+        //  If loadedUsers is empty, fall back to window.getSelectedUsers() from the LocalData tab.
         let userDataForCalc = loadedUsers;
-        console.log("userDataForCalc",userDataForCalc)
+        console.log("loadedUsers", userDataForCalc);
+
+        // Filter by checkboxes in the PRS users table (if rendered)
+        const checkedUserIds = new Set(
+            Array.from(document.querySelectorAll(".prs-user-select-cb:checked")).map(cb => cb.value)
+        );
+        if (checkedUserIds.size > 0 && userDataForCalc.length > 0) {
+            userDataForCalc = userDataForCalc.filter(d => checkedUserIds.has(d.user.id ?? d.user.participant_id));
+            console.log(`Filtered to ${userDataForCalc.length} checked user(s):`, Array.from(checkedUserIds));
+        }
+
         if (userDataForCalc.length === 0) {
-            // Try to get selected users from the 23andMe tab
+            // Try to get selected users from the 23andMe Data tab
             const selectedUsers = window.getSelectedUsers?.() ?? [];
-			console.log("Selected users for PRS calculation:", selectedUsers);
+            console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
             if (selectedUsers.length === 0) {
-                if (statusEl) statusEl.textContent = "No users loaded. Select users from '23andMe Data' tab or click 'Load Fallback Users'.";
+                if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Fallback Users' in the PRS tab, or select users in the 23andMe Data tab.";
                 return;
             }
-            
-            // Fetch and parse 23andMe files for selected users
+
             if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
-            console.log("Selected users:", selectedUsers);
-            
-            // Extract download URLs - check multiple possible property paths
-            const userPaths = selectedUsers.map(u => {
-                const path = u.downloadUrl ?? u.download_url ?? u.url ?? 
-                    u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file ?? null;
-                return path;
-            }).filter(Boolean);
-            
 
-			 const userIds = selectedUsers.map(u => {
-                const id = u.id ?? null;
-                return id;
-            }).filter(Boolean);
+            const userPaths = selectedUsers.map(u =>
+                u.downloadUrl ?? u.download_url ?? u.url ??
+                u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file ?? null
+            ).filter(Boolean);
 
+            const userIds = selectedUsers.map(u => u.id ?? null).filter(Boolean);
             console.log("User ids to fetch:", userIds);
+
             const parsedUsers = await fetch23andMeFiles(userPaths, userIds);
-            //console.log("Parsed users result:", parsedUsers);
-            
-			
-            // Map parsed data back to user info using userId from fetch results
             userDataForCalc = parsedUsers.map(({ userId, parsed }) => {
-                const user = selectedUsers.find(u => u.id === userId) ?? selectedUsers[parsedUsers.indexOf({ userId, parsed })];
-                if (user && parsed) {
-                    return { user, parsed };
-                }
-                return null;
+                const user = selectedUsers.find(u => u.id === userId);
+                return user && parsed ? { user, parsed } : null;
             }).filter(Boolean);
-            
-            console.log("userDataForCalc:", userDataForCalc);
-            
+
+            console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
+
             if (userDataForCalc.length === 0) {
                 if (statusEl) statusEl.textContent = "Failed to load user genome files.";
                 return;
@@ -717,6 +738,7 @@ async function calculatePRS() {
         }
         
         console.log("PRS results:", prsResults);
+        window.prsResults = prsResults;  // expose for cluster tab
         
         if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
         

@@ -1,4 +1,4 @@
-import {  getScoresPerTrait,getScoresPerCategory} from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+import {  getScoresPerTrait,getScoresPerCategory, loadTraitStats} from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
 /*
  Module: displayScores.js
@@ -16,15 +16,44 @@ import {  getScoresPerTrait,getScoresPerCategory} from "https://lorenasandoval88
  `variants_number` before rendering.
 */
 
-const data = await getScoresPerTrait();
-const data2 = await getScoresPerCategory()
+const pgsLoadingStatusEl = document.getElementById("pgsLoadingStatus");
+
+function setPgsLoadingStatus(message, isError = false) {
+	if (!pgsLoadingStatusEl) return;
+	pgsLoadingStatusEl.textContent = message;
+	pgsLoadingStatusEl.classList.toggle("text-danger", isError);
+	pgsLoadingStatusEl.classList.toggle("text-muted", !isError);
+}
+
+let data = { scoresPerTrait: {} };
+let data2 = { scoresPerCategory: {} };
+
+try {
+	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
+	// that getScoresPerTrait() and getScoresPerCategory() depend on.
+	setPgsLoadingStatus("Loading PGS scores: preparing trait summary cache...");
+	await loadTraitStats();
+
+	setPgsLoadingStatus("Loading PGS scores: running loadScores() to cache scores per trait and category...");
+	const [scoresPerTrait, scoresPerCategory] = await Promise.all([
+		getScoresPerTrait(),
+		getScoresPerCategory(),
+	]);
+
+	data = scoresPerTrait ?? { scoresPerTrait: {} };
+	data2 = scoresPerCategory ?? { scoresPerCategory: {} };
+	setPgsLoadingStatus("Loading PGS scores... done (cache ready).");
+} catch (error) {
+	console.error("displayScores.js: failed to load/cache PGS scores", error);
+	setPgsLoadingStatus(`Loading PGS scores... failed: ${error.message}`, true);
+}
 
 // Dynamic variant filter state
-let variantMin = 1;
-let variantMax = 1000;
+let variantMin = 100;
+let variantMax = 400;
 const ALL_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
-const MAX_SELECTION = 6;
+const MAX_SELECTION = 10; // Max number of scores that can be selected at once for PRS calculation
 
 // Module-level selected PGS IDs and scores (shared across renders)
 const selectedPgsIds = new Set([]);

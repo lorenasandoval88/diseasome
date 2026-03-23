@@ -20,6 +20,9 @@ function tabFunction(evt, openTab, subTab) {
         if (openTab === 'LocalData' && typeof window.renderLocalUsers === 'function') {
             try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
         }
+        if (openTab === 'Cluster' && typeof window.renderCluster === 'function') {
+            try { window.renderCluster(); } catch (e) { console.error('renderCluster error', e); }
+        }
 
 }
 

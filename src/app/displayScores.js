@@ -1,4 +1,4 @@
-import {  getScoresPerTrait,getScoresPerCategory, loadTraitStats} from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+import {  loadAllScores, getScoresPerTrait,getScoresPerCategory, loadTraitStats} from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
 /*
  Module: displayScores.js
@@ -28,13 +28,19 @@ function setPgsLoadingStatus(message, isError = false) {
 let data = { scoresPerTrait: {} };
 let data2 = { scoresPerCategory: {} };
 
+
+// TODO combine all 3 steps below in pgs sdk!
 try {
 	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
 	// that getScoresPerTrait() and getScoresPerCategory() depend on.
-	setPgsLoadingStatus("Loading PGS scores: preparing trait summary cache...");
+	setPgsLoadingStatus("Step 1 - Loading PGS scores: running  loadTraitStats() and preparing trait summary cache...");
 	await loadTraitStats();
 
-	setPgsLoadingStatus("Loading PGS scores: running loadScores() to cache scores per trait and category...");
+	// loadAllScores() must run second — it populates pgs:all-score-summary cache.
+	setPgsLoadingStatus("Step 2 - Loading PGS scores: running loadAllScores() and preparing all-score summary cache...");
+	await loadAllScores();
+
+	setPgsLoadingStatus("Step 3 - Loading PGS scores: running getScoresPerTrait() and getScoresPerCategory() to cache scores per trait and category...");
 	const [scoresPerTrait, scoresPerCategory] = await Promise.all([
 		getScoresPerTrait(),
 		getScoresPerCategory(),

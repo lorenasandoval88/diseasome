@@ -173,9 +173,17 @@
                         by volunteer
                         participants. The project provides publicly available genotype and sequencing datasets that can
                         be used for research, education, and the development of genomic analysis tools.</p>
+
                     <h3>Data Selection</h3>
-                    <h6 style="color: rgb(6, 137, 231);">Local 23andMe files automatically configured. You can also
-                        choose files below:</h6>
+    <hr class="my-3" />
+                    <h5 id="UserTitle" class="mb-2">Load your raw 23andMe file (optional): </h5>
+                    <button id="my23Btn" class="btn btn-primary btn-sm mb-3">Upload Your 23andMe File</button>
+                    <input type="file" id="my23FileInput" accept=".txt,.csv" style="display: none;" />
+                    <div id="my23Status" class="small text-muted mb-2"></div>
+    <hr class="my-3" />
+
+                    <h6 style="color: rgb(6, 137, 231);">Use 5 Local 23andMe files or
+                        choose up to 6 files subset year below:</h6>
                     <ol>
                         <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
                         <li>PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt</li>
@@ -183,7 +191,7 @@
                         <li>PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt</li>
                         <li>PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt</li>
                     </ol>
-                    <hr id="participantsSeparator" class="my-3" />
+                    <hr class="my-3" />
                     <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
                     <div class="my-3">
                         <label for="participantsYearSelect" class="form-label"><b>Year</b></label>

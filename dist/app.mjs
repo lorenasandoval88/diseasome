@@ -1,4 +1,4 @@
-import { loadTraitStats, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { loadTraitStats, loadAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 import * as clust from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 
@@ -60,13 +60,19 @@ function setPgsLoadingStatus(message, isError = false) {
 let data$1 = { scoresPerTrait: {} };
 let data2 = { scoresPerCategory: {} };
 
+
+// TODO combine all 3 steps below in pgs sdk!
 try {
 	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
 	// that getScoresPerTrait() and getScoresPerCategory() depend on.
-	setPgsLoadingStatus("Loading PGS scores: preparing trait summary cache...");
+	setPgsLoadingStatus("Step 1 - Loading PGS scores: running  loadTraitStats() and preparing trait summary cache...");
 	await loadTraitStats();
 
-	setPgsLoadingStatus("Loading PGS scores: running loadScores() to cache scores per trait and category...");
+	// loadAllScores() must run second — it populates pgs:all-score-summary cache.
+	setPgsLoadingStatus("Step 2 - Loading PGS scores: running loadAllScores() and preparing all-score summary cache...");
+	await loadAllScores();
+
+	setPgsLoadingStatus("Step 3 - Loading PGS scores: running getScoresPerTrait() and getScoresPerCategory() to cache scores per trait and category...");
 	const [scoresPerTrait, scoresPerCategory] = await Promise.all([
 		getScoresPerTrait(),
 		getScoresPerCategory(),
@@ -663,6 +669,8 @@ if (categoryBtn) {
 	categoryBtn.addEventListener("click", () => { currentMode = "Category"; });
 }
 
+console.log("displayUsers.js loaded");
+console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
 const data = await fetch23andMeParticipants();
 // console.log("Fetched 23andMe participants:", data);
 const participants = data ?? [];
@@ -683,8 +691,20 @@ window.getSelectedUsers = () => Array.from(selectedUsersMap.values());
 
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
+	// Update count on 23andMe Data tab
 	const el = document.getElementById("globalSelectionCount2");
 	if (el) el.textContent = `Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
+	
+	// Also update PRS tab user section to reflect selection
+	const prsUsersdiv = document.getElementById("prsUsersdiv");
+	if (prsUsersdiv && selectedUserIds.size > 0) {
+		const userList = Array.from(selectedUsersMap.values())
+			.map(u => u.name || u.id)
+			.join(", ");
+		prsUsersdiv.textContent = `${selectedUserIds.size} user(s) selected: ${userList}`;
+	}
+	
+	console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
 }
 /**
  * escapeHtml(value)
@@ -826,13 +846,12 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 			/**
 			 * getDownloadUrl(item)
-			 * Prefer known download URL fields (downloadUrl, download_url, url, profileUrl)
-			 * and fall back to genotype file locations.
+			 * Prefer known download URL fields (downloadUrl, download_url, url, profileUrl).
 			 * @param {Object} item
 			 * @returns {string|null}
 			 */
 			function getDownloadUrl(item) {
-				return item.downloadUrl ?? item.download_url ?? item.url ?? (item.genotypes && item.genotypes[0] && (item.genotypes[0].download_url ?? item.genotypes[0].file)) ?? item.profileUrl ?? null;
+				return item.downloadUrl ?? item.download_url ?? item.url ?? item.profileUrl ?? null;
 			}
 
 			const published = escapeHtml$1(String(getPublishedDate(p)));
@@ -982,6 +1001,140 @@ if (document.getElementById("LocalData")?.style.display === "block") {
 
 // populate year select after definitions
 populateYearSelect();
+
+// --- Upload Your 23andMe File Button Handler ---
+
+/**
+ * Handle user clicking the "Upload Your 23andMe File" button.
+ * Opens a file picker and parses the selected file.
+ */
+const my23Btn = document.getElementById("my23Btn");
+const my23FileInput = document.getElementById("my23FileInput");
+const my23Status = document.getElementById("my23Status");
+
+if (my23Btn && my23FileInput) {
+	// console.log("Setting up 23andMe file upload handler");
+	// Clicking the button triggers the hidden file input
+	my23Btn.addEventListener("click", () => {
+		console.log("Upload 23andMe button clicked");
+		my23FileInput.click();
+	});
+
+	// Handle file selection
+	my23FileInput.addEventListener("change", async (event) => {
+		const file = event.target.files?.[0];
+		console.log("file upload", file);
+		if (!file) return;
+
+		if (my23Status) my23Status.textContent = `Reading ${file.name}...`;
+
+		try {
+			const text = await file.text();
+			
+			// Use parse23Txt from the SDK if available, otherwise fall back to local parser
+			let parsed;
+			
+			if (typeof load23andMeFile === "function") {
+				// SDK is available - load23andMeFile returns parsed data directly
+				parsed = await load23andMeFile(file);
+				console.log("Using load23andMeFile from SDK import", parsed);
+				// If load23andMeFile returns an object with a 'dt' property, use it directly
+				if (parsed && parsed.dt) {
+					parsed = {
+						cols: parsed.cols || [],
+						dt: parsed.dt || [],
+						meta: parsed.meta || ""
+					};
+				} else {
+					throw new Error("load23andMeFile did not return expected parsed data structure.");
+				}
+			} else if (typeof window.parse23Txt === "function") {
+				parsed = await window.parse23Txt(text);
+				console.log("Using window.parse23Txt from window", parsed);
+			} else {
+				parsed = parseLocalFile(text, file.name);
+				console.log("Using parseLocalFile fallback", parsed);
+			}
+
+			if (!parsed || !parsed.dt || parsed.dt.length === 0) {
+				if (my23Status) my23Status.textContent = `Failed to parse ${file.name}. Ensure it's a valid 23andMe file.`;
+				return;
+			}
+
+			// Extract published date from first line (e.g., "# This data file generated by 23andMe at: Wed Jan 29 21:17:49 2025")
+			const firstLine = text.split(/[\r\n]/)[0] ?? "";
+			let publishedDate = new Date().toISOString().slice(0, 10); // default to today
+			const dateMatch = firstLine.match(/at:\s*(.+)$/i);
+			if (dateMatch) {
+				const parsedDate = new Date(dateMatch[1].trim());
+				if (!isNaN(parsedDate.getTime())) {
+					publishedDate = parsedDate.toISOString().slice(0, 10);
+				}
+			}
+
+			// Always create a proper user object structure
+			const userId = file.name; // Use filename with extension as ID
+			const user = {
+				id: userId,
+				//name: userId,
+				dataSource: "file Upload",
+				dataType: "23andMe",
+				downloadUrl: null, // No URL for uploaded files
+				profileUrl: null,
+				participant_id: userId,
+				publishedDate: publishedDate,
+			
+			};
+			
+			// Add to selection
+			if (selectedUserIds.size < MAX_SELECTION) {
+				selectedUserIds.add(userId);
+				selectedUsersMap.set(userId, user);
+				updateGlobalSelectionCount();
+				if (my23Status) my23Status.textContent = `Loaded ${file.name}: ${parsed.dt.length.toLocaleString()} variants. Added to selection.`;
+			} else {
+				if (my23Status) my23Status.textContent = `Loaded ${file.name}, but max selection (${MAX_SELECTION}) reached. Deselect a user first.`;
+			}
+
+			console.log("Uploaded 23andMe file:", user);
+		} catch (err) {
+			console.error("Error reading 23andMe file:", err);
+			if (my23Status) my23Status.textContent = `Error: ${err.message}`;
+		}
+
+		// Reset input so the same file can be re-selected
+		my23FileInput.value = "";
+	});
+}
+
+/**
+ * Fallback parser for 23andMe files when SDK parse23Txt is not available.
+ * Matches the structure of parse23Txt from the SDK.
+ * @param {string} txt - Raw file content
+ * @param {string} url - Name or URL of the file
+ * @returns {Object} Parsed data with cols, dt, meta arrays
+ */
+function parseLocalFile(txt, url) {
+	const obj = {};
+	const rows = String(txt ?? "").split(/[\r\n]+/g).filter(Boolean);
+	obj.txt = txt;
+	obj.url = url || "no url";
+
+	const n = rows.filter(r => r && r[0] === '#').length;
+	if (n === 0) {
+		throw new Error(`Invalid 23andMe file format: missing header in ${url}`);
+	}
+
+	obj.meta = rows.slice(0, n - 1).join('\r\n');
+	obj.cols = rows[n - 1].replace(/^#\s*/, '').split(/\t/);
+	obj.dt = rows.slice(n).map((r, i) => {
+		const parts = r.split('\t');
+		parts[2] = parseInt(parts[2]); // position as integer
+		parts[4] = i; // row index
+		return parts;
+	});
+	return obj;
+}
 
 function Match2(mypgs, my23){
 	let data2 = {};
@@ -4214,7 +4367,8 @@ async function fetchUsers() {
 		// Get selected user IDs and users from the 23andMe Data tab or fallback
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
-
+console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds);
+// console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
 			if (offline) {
@@ -4236,12 +4390,26 @@ async function fetchUsers() {
 		// Parse genome files for all selected users
 		loadedUsers = [];
 		const parsePromises = selectedUsers.map(async (user) => {
+			console.log(`Processing user ${user.id} for PRS calculation...`);
+			// Check if user already has parsed data (e.g., from uploaded file)
+			if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
+				console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
+				return { user, parsed: user._parsed };
+			}
+
 			const genos = user?.genotypes ?? [];
-			const filePath = user?.downloadUrl ?? user?.download_url ??
+			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id;
 				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			if (!filePath) return null;
+			console.log("filePath:", user, filePath);
+			
+			if (!filePath) {
+				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
+				return null;
+			}
 			try {
 				const parsed = await load23andMeFile(filePath, user.id);
+				// const parsed = await load23andMeFile(filePath, user.id);
+				console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
 				console.error(`Failed to load genome for ${user.id}:`, err);
@@ -4367,6 +4535,11 @@ function loadFallbackScores() {
 	}
 	
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
+	
+	// Update cluster page
+	if (typeof window.renderCluster === "function") {
+		window.renderCluster();
+	}
 }
 
 /** * Load fallback users directly into the users table. */
@@ -4447,6 +4620,37 @@ async function loadFallbackUsers() {
 	}
 	
 	console.log("Loaded fallback users with parsed data:", loadedUsers);
+	
+	// Update cluster page with loaded users
+	if (typeof window.renderCluster === "function") {
+		window.renderCluster();
+	}
+	
+	// Update the PRS results section to show users are ready
+	const prsResultsDiv = document.getElementById("prsResultsDiv");
+	if (prsResultsDiv && loadedUsers.length > 0) {
+		const userRows = loadedUsers.map((d, idx) => {
+			const id = escapeHtml(d.user?.id ?? "");
+			const name = escapeHtml(d.user?.name ?? "");
+			const variants = d.parsed?.dt?.length ?? 0;
+			return `<tr><td>${idx + 1}</td><td>${id}</td><td>${name}</td><td>${variants.toLocaleString()}</td><td><span class="text-muted">Ready</span></td></tr>`;
+		}).join("");
+		
+		prsResultsDiv.innerHTML = `
+			<p class="text-muted small">Users loaded and ready for PRS calculation. Click "Calculate PRS" to compute scores.</p>
+			<table class="table table-striped table-sm">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>User ID</th>
+						<th>Name</th>
+						<th>Variants</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody>${userRows}</tbody>
+			</table>`;
+	}
 }
 
 // Wire up fallback buttons
@@ -4504,19 +4708,33 @@ async function calculatePRS() {
 
             if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
 
-            const userPaths = selectedUsers.map(u =>
-                u.downloadUrl ?? u.download_url ?? u.url ??
-                u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file ?? null
-            ).filter(Boolean);
+            // Process each user - use pre-parsed data if available, otherwise fetch from URL
+            const parsePromises = selectedUsers.map(async (user) => {
+                // Check if user already has parsed data (e.g., from uploaded file)
+                if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
+                    console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
+                    return { user, parsed: user._parsed };
+                }
 
-            const userIds = selectedUsers.map(u => u.id ?? null).filter(Boolean);
-            console.log("User ids to fetch:", userIds);
+                const filePath = user.downloadUrl ?? user.download_url ?? user.url ??
+                    user.genotypes?.[0]?.download_url ?? user.genotypes?.[0]?.file ?? null;
+                
+                if (!filePath) {
+                    console.warn(`No file path or pre-parsed data for user ${user?.id}`);
+                    return null;
+                }
 
-            const parsedUsers = await fetch23andMeFiles(userPaths, userIds);
-            userDataForCalc = parsedUsers.map(({ userId, parsed }) => {
-                const user = selectedUsers.find(u => u.id === userId);
-                return user && parsed ? { user, parsed } : null;
-            }).filter(Boolean);
+                try {
+                    const parsed = await load23andMeFile(filePath, user.id);
+                    return { user, parsed };
+                } catch (err) {
+                    console.error(`Failed to load genome for ${user.id}:`, err);
+                    return null;
+                }
+            });
+
+            const results = await Promise.all(parsePromises);
+            userDataForCalc = results.filter(Boolean);
 
             console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
 

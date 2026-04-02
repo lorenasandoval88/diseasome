@@ -309,7 +309,8 @@ async function fetchUsers() {
 		// Get selected user IDs and users from the 23andMe Data tab or fallback
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
-
+console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds);
+// console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
 			if (offline) {
@@ -331,12 +332,26 @@ async function fetchUsers() {
 		// Parse genome files for all selected users
 		loadedUsers = [];
 		const parsePromises = selectedUsers.map(async (user) => {
+			console.log(`Processing user ${user.id} for PRS calculation...`);
+			// Check if user already has parsed data (e.g., from uploaded file)
+			if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
+				console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
+				return { user, parsed: user._parsed };
+			}
+
 			const genos = user?.genotypes ?? [];
-			const filePath = user?.downloadUrl ?? user?.download_url ??
+			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id
 				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			if (!filePath) return null;
+			console.log("filePath:", user, filePath);
+			
+			if (!filePath) {
+				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
+				return null;
+			}
 			try {
 				const parsed = await load23andMeFile(filePath, user.id);
+				// const parsed = await load23andMeFile(filePath, user.id);
+				console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
 				console.error(`Failed to load genome for ${user.id}:`, err);
@@ -462,6 +477,11 @@ function loadFallbackScores() {
 	}
 	
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
+	
+	// Update cluster page
+	if (typeof window.renderCluster === "function") {
+		window.renderCluster();
+	}
 }
 
 /** * Load fallback users directly into the users table. */
@@ -542,6 +562,37 @@ async function loadFallbackUsers() {
 	}
 	
 	console.log("Loaded fallback users with parsed data:", loadedUsers);
+	
+	// Update cluster page with loaded users
+	if (typeof window.renderCluster === "function") {
+		window.renderCluster();
+	}
+	
+	// Update the PRS results section to show users are ready
+	const prsResultsDiv = document.getElementById("prsResultsDiv");
+	if (prsResultsDiv && loadedUsers.length > 0) {
+		const userRows = loadedUsers.map((d, idx) => {
+			const id = escapeHtml(d.user?.id ?? "");
+			const name = escapeHtml(d.user?.name ?? "");
+			const variants = d.parsed?.dt?.length ?? 0;
+			return `<tr><td>${idx + 1}</td><td>${id}</td><td>${name}</td><td>${variants.toLocaleString()}</td><td><span class="text-muted">Ready</span></td></tr>`;
+		}).join("");
+		
+		prsResultsDiv.innerHTML = `
+			<p class="text-muted small">Users loaded and ready for PRS calculation. Click "Calculate PRS" to compute scores.</p>
+			<table class="table table-striped table-sm">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>User ID</th>
+						<th>Name</th>
+						<th>Variants</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody>${userRows}</tbody>
+			</table>`;
+	}
 }
 
 // Wire up fallback buttons
@@ -599,19 +650,33 @@ async function calculatePRS() {
 
             if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
 
-            const userPaths = selectedUsers.map(u =>
-                u.downloadUrl ?? u.download_url ?? u.url ??
-                u.genotypes?.[0]?.download_url ?? u.genotypes?.[0]?.file ?? null
-            ).filter(Boolean);
+            // Process each user - use pre-parsed data if available, otherwise fetch from URL
+            const parsePromises = selectedUsers.map(async (user) => {
+                // Check if user already has parsed data (e.g., from uploaded file)
+                if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
+                    console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
+                    return { user, parsed: user._parsed };
+                }
 
-            const userIds = selectedUsers.map(u => u.id ?? null).filter(Boolean);
-            console.log("User ids to fetch:", userIds);
+                const filePath = user.downloadUrl ?? user.download_url ?? user.url ??
+                    user.genotypes?.[0]?.download_url ?? user.genotypes?.[0]?.file ?? null;
+                
+                if (!filePath) {
+                    console.warn(`No file path or pre-parsed data for user ${user?.id}`);
+                    return null;
+                }
 
-            const parsedUsers = await fetch23andMeFiles(userPaths, userIds);
-            userDataForCalc = parsedUsers.map(({ userId, parsed }) => {
-                const user = selectedUsers.find(u => u.id === userId);
-                return user && parsed ? { user, parsed } : null;
-            }).filter(Boolean);
+                try {
+                    const parsed = await load23andMeFile(filePath, user.id);
+                    return { user, parsed };
+                } catch (err) {
+                    console.error(`Failed to load genome for ${user.id}:`, err);
+                    return null;
+                }
+            });
+
+            const results = await Promise.all(parsePromises);
+            userDataForCalc = results.filter(Boolean);
 
             console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
 

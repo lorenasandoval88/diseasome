@@ -1023,7 +1023,7 @@ if (my23Btn && my23FileInput) {
 	// Handle file selection
 	my23FileInput.addEventListener("change", async (event) => {
 		const file = event.target.files?.[0];
-		console.log("file upload", file);
+		// console.log("file upload", file);
 		if (!file) return;
 
 		if (my23Status) my23Status.textContent = `Reading ${file.name}...`;
@@ -1037,7 +1037,7 @@ if (my23Btn && my23FileInput) {
 			if (typeof load23andMeFile === "function") {
 				// SDK is available - load23andMeFile returns parsed data directly
 				parsed = await load23andMeFile(file);
-				console.log("Using load23andMeFile from SDK import", parsed);
+				//console.log("Using load23andMeFile from SDK import", parsed);
 				// If load23andMeFile returns an object with a 'dt' property, use it directly
 				if (parsed && parsed.dt) {
 					parsed = {
@@ -1081,7 +1081,6 @@ if (my23Btn && my23FileInput) {
 				dataType: "23andMe",
 				downloadUrl: null, // No URL for uploaded files
 				profileUrl: null,
-				participant_id: userId,
 				publishedDate: publishedDate,
 			
 			};

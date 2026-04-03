@@ -81,6 +81,34 @@ async function clearPRSCache() {
 }
 window.clearPRSCache = clearPRSCache;
 
+/*** Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
+ */
+async function clearPGSCache() {
+	const keys = await localforage.keys();
+	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
+	const pgsKeys = keys.filter(k => k.startsWith('pgs:PGS'));
+	for (const key of pgsKeys) {
+		await localforage.removeItem(key);
+	}
+	console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+	return pgsKeys.length;
+}
+window.clearPGSCache = clearPGSCache;
+
+/*** Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+ */
+async function clearGenomeCache() {
+	const keys = await localforage.keys();
+	// Only clear keys like "Genome:id-hu09B28E", not metadata keys
+	const genomeKeys = keys.filter(k => k.startsWith('Genome:id-'));
+	for (const key of genomeKeys) {
+		await localforage.removeItem(key);
+	}
+	console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+	return genomeKeys.length;
+}
+window.clearGenomeCache = clearGenomeCache;
+
 
 /**
  * Organize PRS match results by allele count (0, 1, or 2).
@@ -453,7 +481,10 @@ async function fetchScores() {
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>`;
+				</table>
+				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+					Clear PGS Cache
+				</button>`;
 		}
 
 		// TODO: Add actual PRS calculation logic here
@@ -570,7 +601,10 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>`;
+				</table>
+				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
+					Clear Genome Cache
+				</button>`;
 		}
 
 		console.log("fetchUsers() loadedUsers:", loadedUsers);
@@ -640,7 +674,10 @@ function loadFallbackScores() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>`;
+			</table>
+			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+				Clear PGS Cache
+			</button>`;
 	}
 	
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
@@ -725,7 +762,10 @@ async function loadFallbackUsers() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>`;
+			</table>
+			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
+				Clear Genome Cache
+			</button>`;
 	}
 	
 	console.log("Loaded fallback users with parsed data:", loadedUsers);
@@ -899,7 +939,10 @@ async function calculatePRS() {
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                </table>`;
+                </table>
+                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+                    Clear PGS Cache
+                </button>`;
         }
 
         // Load PGS txt files (try local first, then remote)
@@ -1029,7 +1072,9 @@ async function calculatePRS() {
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="clearPRSCache().then(() => location.reload());">Clear Cache</button>
+                    <button class="btn btn-outline-danger btn-sm mt-2" onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">
+                        Clear PRS Cache
+                    </button>
                     <details class="mt-2">
                         <summary>Raw JSON</summary>
                         <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>

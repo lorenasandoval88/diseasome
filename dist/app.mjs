@@ -4141,6 +4141,34 @@ async function clearPRSCache() {
 }
 window.clearPRSCache = clearPRSCache;
 
+/*** Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
+ */
+async function clearPGSCache$1() {
+	const keys = await localforage.keys();
+	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
+	const pgsKeys = keys.filter(k => k.startsWith('pgs:PGS'));
+	for (const key of pgsKeys) {
+		await localforage.removeItem(key);
+	}
+	console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+	return pgsKeys.length;
+}
+window.clearPGSCache = clearPGSCache$1;
+
+/*** Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+ */
+async function clearGenomeCache$1() {
+	const keys = await localforage.keys();
+	// Only clear keys like "Genome:id-hu09B28E", not metadata keys
+	const genomeKeys = keys.filter(k => k.startsWith('Genome:id-'));
+	for (const key of genomeKeys) {
+		await localforage.removeItem(key);
+	}
+	console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+	return genomeKeys.length;
+}
+window.clearGenomeCache = clearGenomeCache$1;
+
 
 /**
  * Organize PRS match results by allele count (0, 1, or 2).
@@ -4513,7 +4541,10 @@ async function fetchScores() {
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>`;
+				</table>
+				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+					Clear PGS Cache
+				</button>`;
 		}
 
 		// TODO: Add actual PRS calculation logic here
@@ -4630,7 +4661,10 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>`;
+				</table>
+				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
+					Clear Genome Cache
+				</button>`;
 		}
 
 		console.log("fetchUsers() loadedUsers:", loadedUsers);
@@ -4700,7 +4734,10 @@ function loadFallbackScores() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>`;
+			</table>
+			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+				Clear PGS Cache
+			</button>`;
 	}
 	
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
@@ -4785,7 +4822,10 @@ async function loadFallbackUsers() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>`;
+			</table>
+			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
+				Clear Genome Cache
+			</button>`;
 	}
 	
 	console.log("Loaded fallback users with parsed data:", loadedUsers);
@@ -4959,7 +4999,10 @@ async function calculatePRS() {
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                </table>`;
+                </table>
+                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+                    Clear PGS Cache
+                </button>`;
         }
 
         // Load PGS txt files (try local first, then remote)
@@ -5089,7 +5132,9 @@ async function calculatePRS() {
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="clearPRSCache().then(() => location.reload());">Clear Cache</button>
+                    <button class="btn btn-outline-danger btn-sm mt-2" onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">
+                        Clear PRS Cache
+                    </button>
                     <details class="mt-2">
                         <summary>Raw JSON</summary>
                         <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>
@@ -5117,6 +5162,36 @@ if (calculatePrsBtn) {
  * PRS Visualization Functions
  * Plotly-based visualizations for PRS calculation results
  */
+
+/**
+ * Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
+ */
+async function clearPGSCache() {
+    const keys = await localforage.keys();
+    // Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
+    const pgsKeys = keys.filter(k => k.startsWith('pgs:PGS'));
+    for (const key of pgsKeys) {
+        await localforage.removeItem(key);
+    }
+    console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+    return pgsKeys.length;
+}
+window.clearPGSCache = clearPGSCache;
+
+/**
+ * Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+ */
+async function clearGenomeCache() {
+    const keys = await localforage.keys();
+    // Only clear keys like "Genome:id-hu09B28E", not metadata keys
+    const genomeKeys = keys.filter(k => k.startsWith('Genome:id-'));
+    for (const key of genomeKeys) {
+        await localforage.removeItem(key);
+    }
+    console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+    return genomeKeys.length;
+}
+window.clearGenomeCache = clearGenomeCache;
 
 /**
  * Plot all matched variants by effect weight (beta)
@@ -5471,6 +5546,24 @@ function tabulateAllMatchByEffect(data = PGS23.data, div = document.getElementBy
         if (xi.length > 2) { my_23idx = 2; }
         row.innerHTML = `<tr><td align="left">${i + 1})</td><td align="center">${Math.round(xi[my_23idx][indEffect_weight] * 1000) / 1000}</td><td align="center">${data.alleles[ind]}</td><td align="left">${Math.round(data.calcRiskScore[ind] * 1000) / 1000}</td><td align="left" style="font-size:small;color:darkgreen"><a href="https://myvariant.info/v1/variant/chr${xi.at(-1)[indChr]}:g.${xi.at(-1)[indPos]}${xi.at(-1)[indOther_allele]}>${xi.at(-1)[indEffect_allele]}" target="_blank">Chr${xi.at(-1)[indChr]}.${xi.at(-1)[indPos]}:g.${xi.at(-1)[indOther_allele]}>${xi.at(-1)[indEffect_allele]}</a></td><td align="left"><a href="https://www.ncbi.nlm.nih.gov/snp/${xi[0][0]}" target="_blank">${xi[0][0]}</a><td align="left"><a href="https://www.snpedia.com/index.php/${xi[0][0]}" target="_blank">  wiki   </a></td></tr>`;
     });
+
+    // Add cache clear buttons at the bottom
+    const cacheButtonsDiv = document.createElement('div');
+    cacheButtonsDiv.className = 'mt-3 mb-3';
+    cacheButtonsDiv.innerHTML = `
+        <hr>
+        <strong>Clear Cache:</strong>
+        <button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
+            Clear PGS Cache
+        </button>
+        <button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
+            Clear Genome Cache
+        </button>
+        <button class="btn btn-outline-danger btn-sm ms-2" onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">
+            Clear PRS Cache
+        </button>
+    `;
+    div.appendChild(cacheButtonsDiv);
 }
 
 /**

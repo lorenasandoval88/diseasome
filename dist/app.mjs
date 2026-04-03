@@ -5167,8 +5167,8 @@ if (calculatePrsBtn) {
  */
 async function clearPGSCache() {
     const keys = await localforage.keys();
-    // Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-    const pgsKeys = keys.filter(k => k.startsWith('pgs:PGS'));
+    // Only clear keys like "pgs:id-PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
+    const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
     for (const key of pgsKeys) {
         await localforage.removeItem(key);
     }

@@ -367,43 +367,22 @@ function tabulateAllMatchByEffect(data = PGS23.data, div = document.getElementBy
  * Called when the PlotPRS tab is opened.
  * Uses window.prsResults from calculatePrs.js if available.
  */
-function renderPlotPRS() {
+/**
+ * Plot a specific PRS result by index.
+ * @param {number} index - Index of the result in the valid results array
+ * @param {Array} validResults - Array of results with plotting data
+ */
+function plotResultByIndex(index, validResults) {
     const errorDiv = document.getElementById('errorDiv');
     const plotDiv = document.getElementById('plotAllMatchByEffectDiv');
-    const tableDiv = document.getElementById('tabulateAllMatchByEffectDiv');
     
-    // Check if we have PRS results from calculatePrs.js
-    const prsResults = window.prsResults ?? [];
-    
-    if (prsResults.length === 0) {
-        if (plotDiv) {
-            plotDiv.innerHTML = `<div class="alert alert-info">
-                <strong>No PRS results available.</strong><br>
-                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
-            </div>`;
-        }
-        if (tableDiv) tableDiv.innerHTML = '';
-        return;
-    }
-    
-    // Find the first result with organized data for plotting
-    const resultWithData = prsResults.find(r => r.organized && r.pgsMatchMy23);
-    
-    if (!resultWithData) {
-        if (plotDiv) {
-            plotDiv.innerHTML = `<div class="alert alert-warning">
-                <strong>PRS results found but no detailed match data available.</strong><br>
-                The results may have been loaded from cache. Try clearing the cache and recalculating.
-            </div>`;
-        }
-        return;
-    }
+    const resultWithData = validResults[index];
+    if (!resultWithData) return;
     
     // Build PGS23.data-like object for plotting functions
     const pgsData = {
         pgs: {
-            cols: resultWithData.pgs.cols,
-            // cols: ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
+            cols: resultWithData.pgs?.cols ?? ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
             dt: resultWithData.organized?.all?.dt ?? [],
             meta: {
                 pgs_id: resultWithData.pgsId,
@@ -430,6 +409,78 @@ function renderPlotPRS() {
             </div>`;
         }
     }
+}
+
+function renderPlotPRS() {
+    const errorDiv = document.getElementById('errorDiv');
+    const plotDiv = document.getElementById('plotAllMatchByEffectDiv');
+    const tableDiv = document.getElementById('tabulateAllMatchByEffectDiv');
+    
+    // Check if we have PRS results from calculatePrs.js
+    const prsResults = window.prsResults ?? [];
+    
+    if (prsResults.length === 0) {
+        if (plotDiv) {
+            plotDiv.innerHTML = `<div class="alert alert-info">
+                <strong>No PRS results available.</strong><br>
+                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
+            </div>`;
+        }
+        if (tableDiv) tableDiv.innerHTML = '';
+        return;
+    }
+    
+    // Filter to results with plotting data
+    const validResults = prsResults.filter(r => r.organized && r.pgsMatchMy23);
+    
+    if (validResults.length === 0) {
+        if (plotDiv) {
+            plotDiv.innerHTML = `<div class="alert alert-warning">
+                <strong>PRS results found but no detailed match data available.</strong><br>
+                The results may have been loaded from cache. Try clearing the cache and recalculating.
+            </div>`;
+        }
+        return;
+    }
+    
+    // Store valid results globally for the dropdown handler
+    window._plotPrsValidResults = validResults;
+    
+    // Create or update dropdown selector
+    let selectorDiv = document.getElementById('plotPrsSelectorDiv');
+    if (!selectorDiv) {
+        selectorDiv = document.createElement('div');
+        selectorDiv.id = 'plotPrsSelectorDiv';
+        selectorDiv.className = 'mb-3';
+        // Insert before the plot div
+        plotDiv?.parentNode?.insertBefore(selectorDiv, plotDiv);
+    }
+    
+    // Build dropdown options
+    const options = validResults.map((r, idx) => {
+        const userId = r.userId ?? 'Unknown';
+        const userName = r.userName ? ` (${r.userName})` : '';
+        const pgsId = r.pgsId ?? 'Unknown';
+        const prs = typeof r.PRS === 'number' ? ` | PRS: ${r.PRS.toFixed(4)}` : '';
+        return `<option value="${idx}">${userId}${userName} - ${pgsId}${prs}</option>`;
+    }).join('');
+    
+    selectorDiv.innerHTML = `
+        <label for="plotPrsSelect" class="form-label"><strong>Select Result:</strong></label>
+        <select id="plotPrsSelect" class="form-select form-select-sm" style="max-width: 400px;">
+            ${options}
+        </select>
+    `;
+    
+    // Add change handler
+    const selectEl = document.getElementById('plotPrsSelect');
+    selectEl.onchange = function() {
+        const idx = parseInt(this.value, 10);
+        plotResultByIndex(idx, window._plotPrsValidResults);
+    };
+    
+    // Plot the first result by default
+    plotResultByIndex(0, validResults);
 }
 
 // Expose functions globally for use in HTML

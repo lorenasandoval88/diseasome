@@ -943,8 +943,21 @@ async function calculatePRS() {
                 const cached = await getCachedPRS(userId, pgsId);
                 if (cached) {
                     // console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
+                    // If cached result doesn't have organized data, add it now
+                    let organizedData = cached.organized;
+                    if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
+                        organizedData = organizeResultsByAllele(cached, mypgs);
+                    }
+                    // Add pgs data if not cached (for plotting)
+                    const pgsForPlot = cached.pgs ?? {
+                        cols: mypgs.cols,
+                        dt: mypgs.dt,
+                        meta: mypgs.meta
+                    };
                     prsResults.push({
                         ...cached,
+                        organized: organizedData,
+                        pgs: pgsForPlot,
                         fromCache: true
                     });
                     cachedCount++;
@@ -964,7 +977,13 @@ async function calculatePRS() {
                     pgsId,
                     totalVariants: mypgs.dt.length,
                     ...result,
-                    organized: organizedData // Add organized data for plotting/analysis
+                    organized: organizedData, // Add organized data for plotting/analysis
+                    // Store PGS structure for plotting
+                    pgs: {
+                        cols: mypgs.cols,
+                        dt: mypgs.dt,
+                        meta: mypgs.meta
+                    }
                 };
                 
                 // Store in cache

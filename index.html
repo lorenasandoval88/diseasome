@@ -23,6 +23,8 @@
     <!-- <script src='https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.3/pako.min.js'></script>-->
     <!-- font awesome -->
     <script src="https://kit.fontawesome.com/31149d48b0.js" crossorigin="anonymous"></script>
+    <!-- Plotly for PRS visualization -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 
 
 </head>
@@ -90,15 +92,27 @@
         <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Polygenic Scores</button>
         <button class="tablinks" onclick="tabFunction(event, 'LocalData')">23andMe Data</button>
         <button id="prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
+        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
     </div>
     <div id="selection"></div>
 
-    <!-- Cluster tab (placeholder) -->
-
+    <!-- PlotPRS tab -->
     <div>
         <ul class="navbar-nav">
             <li class="nav-item">
+                <div id="PlotPRS" class="tabcontent">
+                    <h3>Plot PRS</h3>
+                    <p>Visualize PRS calculation results by matched allele counts.</p>
+                    <div id="errorDiv" class="text-danger small mb-2"></div>
+                    <div id="plotAllMatchByEffectDiv" style="width:100%; min-height:400px;"></div>
+                    <div id="plotRiskDiv" style="width:100%; min-height:400px;"></div>
+                    <hr />
+                    <div id="tabulateAllMatchByEffectDiv"></div>
+                </div>
+
+    <!-- Cluster tab (placeholder) -->
+
                 <!-- NOTE: Cluster UI is a placeholder; implement handlers in JS when ready -->
                 <div id="Cluster" class="tabcontent">
                     <h3>Cluster</h3>

@@ -43,6 +43,7 @@ function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById(
             return v[2]
         }
     })
+    console.log("matched variants", matched)
     // separate pgs.dt into 2 (matches and non matches) arrays and then sort by effect  
     // " matched" data
 
@@ -361,11 +362,82 @@ function tabulateAllMatchByEffect(data = PGS23.data, div = document.getElementBy
     })
 }
 
+/**
+ * Render Plot PRS tab content.
+ * Called when the PlotPRS tab is opened.
+ * Uses window.prsResults from calculatePrs.js if available.
+ */
+function renderPlotPRS() {
+    const errorDiv = document.getElementById('errorDiv');
+    const plotDiv = document.getElementById('plotAllMatchByEffectDiv');
+    const tableDiv = document.getElementById('tabulateAllMatchByEffectDiv');
+    
+    // Check if we have PRS results from calculatePrs.js
+    const prsResults = window.prsResults ?? [];
+    
+    if (prsResults.length === 0) {
+        if (plotDiv) {
+            plotDiv.innerHTML = `<div class="alert alert-info">
+                <strong>No PRS results available.</strong><br>
+                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
+            </div>`;
+        }
+        if (tableDiv) tableDiv.innerHTML = '';
+        return;
+    }
+    
+    // Find the first result with organized data for plotting
+    const resultWithData = prsResults.find(r => r.organized && r.pgsMatchMy23);
+    
+    if (!resultWithData) {
+        if (plotDiv) {
+            plotDiv.innerHTML = `<div class="alert alert-warning">
+                <strong>PRS results found but no detailed match data available.</strong><br>
+                The results may have been loaded from cache. Try clearing the cache and recalculating.
+            </div>`;
+        }
+        return;
+    }
+    
+    // Build PGS23.data-like object for plotting functions
+    const pgsData = {
+        pgs: {
+            cols: ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
+            dt: resultWithData.organized?.all?.dt ?? [],
+            meta: {
+                pgs_id: resultWithData.pgsId,
+                trait_mapped: resultWithData.organized?.summary?.trait ?? ''
+            }
+        },
+        pgsMatchMy23: resultWithData.pgsMatchMy23,
+        alleles: resultWithData.alleles,
+        calcRiskScore: resultWithData.calcRiskScore,
+        PRS: resultWithData.PRS
+    };
+    
+    // Set global PGS23 for the plotting functions
+    window.PGS23 = window.PGS23 || {};
+    window.PGS23.data = pgsData;
+    
+    try {
+        plotAllMatchByEffect4(pgsData, errorDiv, plotDiv);
+    } catch (err) {
+        console.error('Error rendering PRS plot:', err);
+        if (plotDiv) {
+            plotDiv.innerHTML = `<div class="alert alert-danger">
+                <strong>Error rendering plot:</strong> ${err.message}
+            </div>`;
+        }
+    }
+}
+
 // Expose functions globally for use in HTML
 window.plotAllMatchByEffect4 = plotAllMatchByEffect4;
 window.tabulateAllMatchByEffect = tabulateAllMatchByEffect;
+window.renderPlotPRS = renderPlotPRS;
 
 export {
     plotAllMatchByEffect4,
-    tabulateAllMatchByEffect
+    tabulateAllMatchByEffect,
+    renderPlotPRS
 }

@@ -20,6 +20,9 @@ function tabFunction(evt, openTab, subTab) {
         if (openTab === 'LocalData' && typeof window.renderLocalUsers === 'function') {
             try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
         }
+        if (openTab === 'PlotPRS' && typeof window.renderPlotPRS === 'function') {
+            try { window.renderPlotPRS(); } catch (e) { console.error('renderPlotPRS error', e); }
+        }
         if (openTab === 'Cluster' && typeof window.renderCluster === 'function') {
             try { window.renderCluster(); } catch (e) { console.error('renderCluster error', e); }
         }

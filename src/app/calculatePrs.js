@@ -994,6 +994,7 @@ async function calculatePRS() {
                     prsResults.push({
                         ...cached,
                         organized: organizedData,
+                        pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta }, // Ensure pgs structure exists
                         fromCache: true
                     });
                     cachedCount++;
@@ -1013,7 +1014,8 @@ async function calculatePRS() {
                     pgsId,
                     totalVariants: mypgs.dt.length,
                     ...result,
-                    organized: organizedData // Add organized data for plotting/analysis
+                    organized: organizedData, // Add organized data for plotting/analysis
+                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta } // Store PGS structure for plotting
                 };
                 
                 // Store in cache

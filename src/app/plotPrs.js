@@ -428,10 +428,13 @@ function plotResultByIndex(index, validResults) {
     const resultWithData = validResults[index];
     if (!resultWithData) return;
     
+    // Default cols array if not stored in result
+    const defaultCols = ['rsID', 'hm_chr', 'hm_pos', 'effect_allele', 'effect_weight', 'other_allele', 'hm_inferOtherAllele'];
+    
     // Build PGS23.data-like object for plotting functions
     const pgsData = {
         pgs: {
-            cols: resultWithData.pgs?.cols,// ?? ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
+            cols: resultWithData.pgs?.cols ?? defaultCols,
             dt: resultWithData.organized?.all?.dt ?? [],
             meta: {
                 pgs_id: resultWithData.pgsId,

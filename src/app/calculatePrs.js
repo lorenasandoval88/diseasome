@@ -86,7 +86,7 @@ window.clearPRSCache = clearPRSCache;
 async function clearPGSCache() {
 	const keys = await localforage.keys();
 	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-	const pgsKeys = keys.filter(k => k.startsWith('pgs:PGS'));
+	const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
 	for (const key of pgsKeys) {
 		await localforage.removeItem(key);
 	}
@@ -1074,9 +1074,6 @@ async function calculatePRS() {
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
-                    <button class="btn btn-outline-danger btn-sm mt-2" onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">
-                        Clear PRS Cache
-                    </button>
                     <details class="mt-2">
                         <summary>Raw JSON</summary>
                         <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>

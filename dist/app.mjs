@@ -5493,7 +5493,7 @@ function plotResultByIndex(index, validResults) {
     // Build PGS23.data-like object for plotting functions
     const pgsData = {
         pgs: {
-            cols: resultWithData.pgs?.cols ?? ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
+            cols: resultWithData.pgs?.cols,// ?? ['hm_chr', 'hm_pos', 'effect_weight', 'other_allele', 'effect_allele'],
             dt: resultWithData.organized?.all?.dt ?? [],
             meta: {
                 pgs_id: resultWithData.pgsId,

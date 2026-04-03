@@ -82,6 +82,173 @@ async function clearPRSCache() {
 window.clearPRSCache = clearPRSCache;
 
 
+/**
+ * Organize PRS match results by allele count (0, 1, or 2).
+ * Returns structured data suitable for plotting or analysis.
+ * @param {Object} matchResult - Result from Match2 function (contains pgsMatchMy23, alleles, calcRiskScore, PRS, etc.)
+ * @param {Object} pgsData - Parsed PGS scoring file (contains cols, dt, meta)
+ * @returns {Object} Organized data with matched/not_matched/matched_by_alleles breakdown
+ */
+function organizeResultsByAllele(matchResult, pgsData) {
+	const obj = {};
+	const indChr = pgsData.cols.indexOf('hm_chr');
+	const indPos = pgsData.cols.indexOf('hm_pos');
+	const indBeta = pgsData.cols.indexOf('effect_weight');
+
+	// Extract matched PGS variants from pgsMatchMy23
+	// Each element in pgsMatchMy23 is [23andMe variant(s), ..., PGS variant]
+	const matched = matchResult.pgsMatchMy23.map(v => {
+		if (v.length === 2) {
+			return v[1]; // [23andMe, PGS]
+		} else if (v.length >= 3) {
+			return v[v.length - 1]; // Last element is PGS variant
+		}
+		return null;
+	}).filter(Boolean);
+
+	// Helper function to combine arrays into array of objects
+	function Push(data, subdata) {
+		return subdata.map((_, i) => {
+			return Object.entries(data).reduce((a, [k, arr]) => (a[k] = arr[i], a), {});
+		});
+	}
+
+	// --- MATCHED (all) ---
+	const matched_risk = matched.map(j => j[indBeta]);
+	const matched_chrPos = matched.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+
+	obj.matched = {
+		chrPos: matched_chrPos,
+		dt: matched,
+		alleles: matchResult.alleles,
+		risk: matched_risk,
+		category: Array(matched.length).fill("matched"),
+		count: matched.length
+	};
+
+	// --- NOT MATCHED ---
+	const notMatchData = pgsData.dt.filter(element => !matched.includes(element));
+	const not_matched_chrPos = notMatchData.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+	const not_matched_risk = notMatchData.map(j => j[indBeta]);
+
+	obj.not_matched = {
+		chrPos: not_matched_chrPos,
+		dt: notMatchData,
+		risk: not_matched_risk,
+		category: Array(notMatchData.length).fill(`${notMatchData.length} not matched`),
+		count: notMatchData.length,
+		size: Array(notMatchData.length).fill("9"),
+		color: Array(notMatchData.length).fill("rgb(140, 140, 140)"),
+		opacity: Array(notMatchData.length).fill("0.5"),
+		symbol: Array(notMatchData.length).fill("x"),
+		hoverinfo: Array(notMatchData.length).fill("all")
+	};
+
+	// --- ALL VARIANTS ---
+	const allData = pgsData.dt;
+	const allData_chrPos = allData.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+	const allData_risk = allData.map(j => j[indBeta]);
+
+	obj.all = {
+		chrPos: allData_chrPos,
+		dt: allData,
+		risk: allData_risk,
+		category: Array(allData.length).fill(" "),
+		count: allData.length,
+		size: Array(allData.length).fill("10"),
+		color: Array(allData.length).fill("green"),
+		opacity: Array(allData.length).fill("0"),
+		symbol: Array(allData.length).fill("square"),
+		hoverinfo: Array(allData.length).fill("none")
+	};
+
+	// --- MATCHED BY ALLELE COUNT (0, 1, 2) ---
+	const alleles = matchResult.alleles;
+
+	// Filter indices by allele count
+	const zero_allele_idx = alleles.map((elm, idx) => elm === 0 ? idx : '').filter(x => x !== '');
+	const one_allele_idx = alleles.map((elm, idx) => elm === 1 ? idx : '').filter(x => x !== '');
+	const two_allele_idx = alleles.map((elm, idx) => elm === 2 ? idx : '').filter(x => x !== '');
+
+	// Filter matched variants by allele count
+	const zero_allele = matched.filter((_, idx) => alleles[idx] === 0);
+	const one_allele = matched.filter((_, idx) => alleles[idx] === 1);
+	const two_allele = matched.filter((_, idx) => alleles[idx] === 2);
+
+	// Build chr.pos arrays
+	const zero_allele_chrpos = zero_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`);
+	const one_allele_chrpos = one_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`);
+	const two_allele_chrpos = two_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`);
+
+	obj.matched_by_alleles = {
+		zero_allele: {
+			chrPos: zero_allele_chrpos,
+			dt: zero_allele,
+			risk: zero_allele_idx.map(i => matched[i][indBeta]),
+			riskScores: zero_allele_idx.map(i => matchResult.calcRiskScore[i]),
+			category: Array(zero_allele.length).fill(`${zero_allele.length} matched, zero alleles`),
+			count: zero_allele.length,
+			size: Array(zero_allele.length).fill("8"),
+			color: Array(zero_allele.length).fill("#17becf"),
+			opacity: Array(zero_allele.length).fill("1"),
+			symbol: Array(zero_allele.length).fill("circle"),
+			hoverinfo: Array(zero_allele.length).fill("all")
+		},
+		one_allele: {
+			chrPos: one_allele_chrpos,
+			dt: one_allele,
+			risk: one_allele_idx.map(i => matched[i][indBeta]),
+			riskScores: one_allele_idx.map(i => matchResult.calcRiskScore[i]),
+			category: Array(one_allele.length).fill(`${one_allele.length} matched, one allele`),
+			count: one_allele.length,
+			size: Array(one_allele.length).fill("8"),
+			color: Array(one_allele.length).fill("navy"),
+			opacity: Array(one_allele.length).fill("1"),
+			symbol: Array(one_allele.length).fill("diamond"),
+			hoverinfo: Array(one_allele.length).fill("all")
+		},
+		two_allele: {
+			chrPos: two_allele_chrpos,
+			dt: two_allele,
+			risk: two_allele_idx.map(i => matched[i][indBeta]),
+			riskScores: two_allele_idx.map(i => matchResult.calcRiskScore[i]),
+			category: Array(two_allele.length).fill(`${two_allele.length} matched, two alleles`),
+			count: two_allele.length,
+			size: Array(two_allele.length).fill("10"),
+			color: Array(two_allele.length).fill("#d62728"),
+			opacity: Array(two_allele.length).fill("1"),
+			symbol: Array(two_allele.length).fill("square"),
+			hoverinfo: Array(two_allele.length).fill("all")
+		}
+	};
+
+	// --- COMBINED ITEMS for plotting (like plotAllMatchByEffect4) ---
+	const items = Push(obj.all, obj.all.risk).concat(
+		Push(obj.not_matched, obj.not_matched.risk)).concat(
+		Push(obj.matched_by_alleles.zero_allele, obj.matched_by_alleles.zero_allele.risk)).concat(
+		Push(obj.matched_by_alleles.one_allele, obj.matched_by_alleles.one_allele.risk)).concat(
+		Push(obj.matched_by_alleles.two_allele, obj.matched_by_alleles.two_allele.risk));
+
+	obj.items = items;
+
+	// Summary stats
+	obj.summary = {
+		totalPgsVariants: pgsData.dt.length,
+		totalMatched: matched.length,
+		totalNotMatched: notMatchData.length,
+		zeroAlleleCount: zero_allele.length,
+		oneAlleleCount: one_allele.length,
+		twoAlleleCount: two_allele.length,
+		matchRate: (matched.length / pgsData.dt.length * 100).toFixed(2) + "%",
+		PRS: matchResult.PRS,
+		pgsId: matchResult.pgs_id ?? pgsData.meta?.pgs_id,
+		trait: pgsData.meta?.trait_mapped ?? pgsData.meta?.trait_reported ?? ""
+	};
+
+	return obj;
+}
+window.organizeResultsByAllele = organizeResultsByAllele;
+
 
 /** Check if online */
 function isOnline() {
@@ -786,13 +953,18 @@ async function calculatePRS() {
                 
                 // Calculate if not cached
                 const result = Match2(mypgs, my23);
+                
+                // Organize results by allele count (0, 1, 2)
+                const organizedData = organizeResultsByAllele(result, mypgs);
+                
                 const prsResult = {
                     userId,
                     userName: userData.user.name,
                     userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
                     pgsId,
                     totalVariants: mypgs.dt.length,
-                    ...result
+                    ...result,
+                    organized: organizedData // Add organized data for plotting/analysis
                 };
                 
                 // Store in cache
@@ -810,20 +982,25 @@ async function calculatePRS() {
         // Display results
         if (resultsDiv) {
             if (prsResults.length > 0) {
-                const rows = prsResults.map((r, idx) => `
+                const rows = prsResults.map((r, idx) => {
+                    const org = r.organized?.summary ?? {};
+                    return `
                     <tr${r.fromCache ? ' class="table-secondary"' : ''}>
                         <td>${idx + 1}</td>
                         <td>${escapeHtml(r.userId)}</td>
                         <td>${escapeHtml(r.userName ?? "")}</td>
-                        <td>${escapeHtml(r.userDate ?? "")}</td>
                         <td>${escapeHtml(r.pgsId)}</td>
                         <td>${typeof r.PRS === 'number' ? r.PRS.toFixed(6) : (r.PRS ?? "-")}</td>
                         <td>${r.alleles?.length ?? 0}</td>
+                        <td title="Zero alleles">${org.zeroAlleleCount ?? "-"}</td>
+                        <td title="One allele">${org.oneAlleleCount ?? "-"}</td>
+                        <td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
                         <td>${r.totalVariants ?? "-"}</td>
+                        <td>${org.matchRate ?? "-"}</td>
                         <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
                         <td>${r.fromCache ? "📦" : "🔄"}</td>
                     </tr>
-                `).join("");
+                `}).join("");
                 
                 resultsDiv.innerHTML = `
                     <table class="table table-striped table-sm mt-3">
@@ -832,11 +1009,14 @@ async function calculatePRS() {
                                 <th>#</th>
                                 <th>User ID</th>
                                 <th>Name</th>
-                                <th>Date</th>
                                 <th>PGS ID</th>
                                 <th>PRS Score</th>
                                 <th>Matched</th>
+                                <th title="Matched with 0 effect alleles">0</th>
+                                <th title="Matched with 1 effect allele">1</th>
+                                <th title="Matched with 2 effect alleles">2</th>
                                 <th>Total</th>
+                                <th>Match %</th>
                                 <th>QC</th>
                                 <th title="📦 = cached, 🔄 = calculated">Src</th>
                             </tr>

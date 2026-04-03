@@ -332,7 +332,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		// Parse genome files for all selected users
 		loadedUsers = [];
 		const parsePromises = selectedUsers.map(async (user) => {
-			console.log(`Processing user ${user.id} for PRS calculation...`);
+			//console.log(`Processing user ${user.id} for PRS calculation...`);
 			// Check if user already has parsed data (e.g., from uploaded file)
 			if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
 				console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);

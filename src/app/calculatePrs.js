@@ -967,6 +967,7 @@ async function calculatePRS() {
             const my23 = userData.parsed;
             const userId = userData.user.id;
             //console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
+            
             for (const mypgs of pgsTxts) {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 
@@ -1003,7 +1004,8 @@ async function calculatePRS() {
                     totalVariants: mypgs.dt.length,
                     ...result,
                     organized: organizedData, // Add organized data for plotting/analysis
-                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta } // Store PGS structure for plotting
+                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta }, // Store PGS structure for plotting
+                    genome: { cols: my23.cols, variantCount: my23.dt.length } // Store genome info (not full dt to save space)
                 };
                 
                 // Store in cache

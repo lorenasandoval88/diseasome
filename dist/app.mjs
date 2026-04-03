@@ -5027,6 +5027,7 @@ async function calculatePRS() {
             const my23 = userData.parsed;
             const userId = userData.user.id;
             //console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
+            
             for (const mypgs of pgsTxts) {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 
@@ -5063,7 +5064,8 @@ async function calculatePRS() {
                     totalVariants: mypgs.dt.length,
                     ...result,
                     organized: organizedData, // Add organized data for plotting/analysis
-                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta } // Store PGS structure for plotting
+                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta }, // Store PGS structure for plotting
+                    genome: { cols: my23.cols, variantCount: my23.dt.length } // Store genome info (not full dt to save space)
                 };
                 
                 // Store in cache
@@ -5236,11 +5238,22 @@ window.inspect23File = async function(userId) {
         const cacheKey = `Genome:id-${userId}`;
         const cached = await localforage.getItem(cacheKey);
         
-        if (cached && cached.dt) {
-            window._inspectData = { data: cached, type: '23andMe', id: userId };
+        // SDK caches under .data, local caching uses .dt
+        const genomeData = cached?.data ?? cached;
+        if (genomeData && genomeData.dt) {
+            window._inspectData = { data: genomeData, type: '23andMe', id: userId };
             renderInspectPage(0);
         } else {
-            modal.body.innerHTML = '<div class="alert alert-warning">Genome data not found in cache. Try recalculating PRS.</div>';
+            modal.body.innerHTML = `<div class="alert alert-warning">
+                <strong>Genome data not found in cache.</strong><br>
+                This can happen if PRS was calculated before genome caching was enabled.<br><br>
+                <strong>To fix:</strong>
+                <ol>
+                    <li>Go to the <strong>Calculate PRS</strong> tab</li>
+                    <li>Click <strong>Clear PRS Cache</strong></li>
+                    <li>Recalculate PRS</li>
+                </ol>
+            </div>`;
         }
     } catch (err) {
         modal.body.innerHTML = `<div class="alert alert-danger">Error loading genome: ${err.message}</div>`;
@@ -5292,11 +5305,19 @@ function renderInspectPage(page) {
     html += '</div>';
     
     // Show metadata for PGS files (only on first page)
+    // PGS files store meta.txt as array of raw header lines
     if (type === 'PGS' && data.meta && page === 0) {
-        let metaText = '###PGS CATALOG SCORING FILE\n##METADATA\n';
-        for (const [key, value] of Object.entries(data.meta)) {
-            if (value !== null && value !== undefined && value !== '') {
-                metaText += `#${key}=${value}\n`;
+        let metaText = '';
+        if (data.meta.txt && Array.isArray(data.meta.txt)) {
+            // Display raw header lines from the file
+            metaText = data.meta.txt.join('\n');
+        } else {
+            // Fallback: build from key=value pairs
+            metaText = '###PGS CATALOG SCORING FILE\n##METADATA\n';
+            for (const [key, value] of Object.entries(data.meta)) {
+                if (key !== 'txt' && value !== null && value !== undefined && value !== '') {
+                    metaText += `#${key}=${value}\n`;
+                }
             }
         }
         html += '<details open class="mb-2"><summary><strong>File Metadata</strong></summary>';
@@ -5305,20 +5326,22 @@ function renderInspectPage(page) {
     }
     
     // Show metadata for 23andMe files (only on first page)
+    // SDK stores meta as a raw string of all comment lines joined by \r\n
     if (type === '23andMe' && page === 0) {
-        let metaText = '# 23andMe Genome Data File\n';
-        if (data.meta) {
+        let metaText = '';
+        if (data.meta && typeof data.meta === 'string') {
+            // Raw header lines from the file
+            metaText = data.meta;
+        } else if (data.meta && typeof data.meta === 'object') {
+            // Fallback if meta is an object
             for (const [key, value] of Object.entries(data.meta)) {
                 if (value !== null && value !== undefined && value !== '') {
                     metaText += `# ${key}: ${value}\n`;
                 }
             }
         }
-        if (data.header) {
-            metaText += '\n# Original file header:\n' + data.header;
-        }
-        metaText += `# Total variants: ${totalRows}\n`;
-        metaText += `# Columns: ${cols.join(', ')}\n`;
+        metaText += `\n# Total variants: ${totalRows}`;
+        metaText += `\n# Columns: ${cols.join(', ')}`;
         html += '<details open class="mb-2"><summary><strong>File Metadata</strong></summary>';
         html += `<pre style="max-height:200px; overflow-y:auto; background:#e9ecef; padding:10px; font-size:11px; white-space:pre; overflow-x:auto; margin-top:5px;">${metaText}</pre>`;
         html += '</details>';
@@ -5635,10 +5658,7 @@ console.log("plotAllMatchByEffect4 called with data", data);
         Push(obj.matched_by_alleles.one_allele, obj.matched_by_alleles.one_allele.risk)).concat(
         Push(obj.matched_by_alleles.two_allele, obj.matched_by_alleles.two_allele.risk));
 
-    const plotRiskDiv = document.getElementById('plotRiskDiv');
-    const plotAllMatchByEffectDiv = document.getElementById('plotAllMatchByEffectDiv');
-    if (plotRiskDiv) plotRiskDiv.style.height = 20 + data.pgs.dt.length * 1.1 + 'em';
-    if (plotAllMatchByEffectDiv) plotAllMatchByEffectDiv.style.height = 20 + data.pgs.dt.length * 1.1 + 'em';
+    document.getElementById('plotAllMatchByEffectDiv');
     const chooseData = [" ", `${zero_allele.length} matched, zero alleles`, `${one_allele.length} matched, one allele`, `${two_allele.length} matched, two alleles`, `${not_matched.length} not matched`];
 
     const plotData = items
@@ -5705,6 +5725,7 @@ console.log("plotAllMatchByEffect4 called with data", data);
                 size: 19
             }
         },
+        height: Math.max(400, 50 + data.pgs.dt.length * 8), // Dynamic height based on number of variants
         margin: {
             l: 140,
         },
@@ -5892,11 +5913,13 @@ function renderPlotPRS() {
         if (plotDiv) {
             plotDiv.innerHTML = '';
             plotDiv.style.minHeight = '0';
+            plotDiv.style.height = 'auto';
         }
         if (tableDiv) tableDiv.innerHTML = '';
         if (pieChartDiv) {
             pieChartDiv.innerHTML = '';
             pieChartDiv.style.minHeight = '0';
+            pieChartDiv.style.height = 'auto';
         }
         if (pieChartHeading) pieChartHeading.style.display = 'none';
         if (plotPrsHr) plotPrsHr.style.display = 'none';

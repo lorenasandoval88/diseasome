@@ -132,7 +132,8 @@
                         these effects are weighted and summed to produce a single score that reflects relative genetic
                         predisposition. </p>
 
-                    <h5 class="prs-step-header">1.) Select Weight Files</h5>
+                    <h5 class="prs-step-header d-inline">1.) Select Weight Files</h5>
+                    <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear Cache</button>
                     <div id=prsScoresDiv>Select at least one scoring file or click below. <a href="#" onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Go to PGS Catalog →</a></div>
                     <button id="loadFallbackScoresBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
                         Scores</button>

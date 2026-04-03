@@ -927,10 +927,7 @@ async function calculatePRS() {
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                </table>
-                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
-                    Clear PGS Cache
-                </button>`;
+                </table>`;
         }
 
         // Load PGS txt files (try local first, then remote)

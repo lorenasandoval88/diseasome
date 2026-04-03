@@ -47,6 +47,15 @@ function inspectFiles(result) {
     const pgsId = result.pgsId ?? 'Unknown';
     const pgsNum = pgsId.replace(/^PGS0*/, '');
     
+    // Store PGS data for inspect modal (SDK caches in separate instance, so we store from result)
+    const defaultCols = ['rsID', 'hm_chr', 'hm_pos', 'effect_allele', 'effect_weight', 'other_allele', 'hm_inferOtherAllele'];
+    window._inspectPGSData = window._inspectPGSData || {};
+    window._inspectPGSData[pgsId] = {
+        cols: result.pgs?.cols ?? defaultCols,
+        dt: result.organized?.all?.dt ?? result.pgs?.dt ?? [],
+        meta: result.pgs?.meta ?? { pgs_id: pgsId }
+    };
+    
     // Build PGS Catalog link
     const pgsCatalogUrl = `https://www.pgscatalog.org/score/${pgsId}/`;
     const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/${pgsId}.txt.gz`;
@@ -122,14 +131,14 @@ window.inspectPGSFile = async function(pgsId) {
     modal.show();
     
     try {
-        const cacheKey = `pgs:id-${pgsId}`;
-        const cached = await localforage.getItem(cacheKey);
+        // Use stored data from inspectFiles (SDK caches in separate localforage instance)
+        const storedData = window._inspectPGSData?.[pgsId];
         
-        if (cached && cached.dt) {
-            window._inspectData = { data: cached, type: 'PGS', id: pgsId };
+        if (storedData && storedData.dt && storedData.dt.length > 0) {
+            window._inspectData = { data: storedData, type: 'PGS', id: pgsId };
             renderInspectPage(0);
         } else {
-            modal.body.innerHTML = '<div class="alert alert-warning">PGS data not found in cache. Try recalculating PRS.</div>';
+            modal.body.innerHTML = '<div class="alert alert-warning">PGS data not available. Please select a different result from the dropdown.</div>';
         }
     } catch (err) {
         modal.body.innerHTML = `<div class="alert alert-danger">Error loading PGS: ${err.message}</div>`;

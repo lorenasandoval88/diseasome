@@ -5140,7 +5140,7 @@ if (calculatePrsBtn) {
  */
 function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById('errorDiv'), dv = document.getElementById('plotAllMatchByEffectDiv')) {
     //https://community.plotly.com/t/fill-shade-a-chart-above-a-specific-y-value-in-plotlyjs/5133
-
+console.log("plotAllMatchByEffect4 called with data", data);
     const obj = {};
     const indChr = data.pgs.cols.indexOf('hm_chr');
     const indPos = data.pgs.cols.indexOf('hm_pos');

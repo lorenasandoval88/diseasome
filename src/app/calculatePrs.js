@@ -481,10 +481,7 @@ async function fetchScores() {
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>
-				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
-					Clear PGS Cache
-				</button>`;
+				</table>`;
 		}
 
 		// TODO: Add actual PRS calculation logic here
@@ -601,10 +598,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
-				</table>
-				<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
-					Clear Genome Cache
-				</button>`;
+				</table>`;
 		}
 
 		console.log("fetchUsers() loadedUsers:", loadedUsers);
@@ -674,10 +668,7 @@ function loadFallbackScores() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>
-			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
-				Clear PGS Cache
-			</button>`;
+			</table>`;
 	}
 	
 	console.log("Loaded fallback scores:", FALLBACK_SCORES);
@@ -762,10 +753,7 @@ async function loadFallbackUsers() {
 					</tr>
 				</thead>
 				<tbody>${rows}</tbody>
-			</table>
-			<button class="btn btn-outline-secondary btn-sm mt-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
-				Clear Genome Cache
-			</button>`;
+			</table>`;
 	}
 	
 	console.log("Loaded fallback users with parsed data:", loadedUsers);

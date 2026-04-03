@@ -35,6 +35,283 @@ async function clearGenomeCache() {
 window.clearGenomeCache = clearGenomeCache;
 
 /**
+ * Display file inspection links for the selected result
+ * @param {Object} result - The PRS result object
+ */
+function inspectFiles(result) {
+    const div = document.getElementById('inspectFilesDiv');
+    if (!div) return;
+    
+    const userId = result.userId ?? 'Unknown';
+    const userName = result.userName ? ` (${result.userName})` : '';
+    const pgsId = result.pgsId ?? 'Unknown';
+    const pgsNum = pgsId.replace(/^PGS0*/, '');
+    
+    // Build PGS Catalog link
+    const pgsCatalogUrl = `https://www.pgscatalog.org/score/${pgsId}/`;
+    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/${pgsId}.txt.gz`;
+    
+    div.style.display = '';
+    div.innerHTML = `
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>23andMe Genome:</strong> ${userId}${userName}<br>
+                        <button class="btn btn-sm btn-outline-primary mt-1" onclick="window.inspect23File('${userId}')">
+                            <i class="bi bi-file-text"></i> Inspect Genome
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>PGS File:</strong> <a href="${pgsCatalogUrl}" target="_blank">${pgsId}</a><br>
+                        <button class="btn btn-sm btn-outline-primary mt-1" onclick="window.inspectPGSFile('${pgsId}')">
+                            <i class="bi bi-file-text"></i> Inspect PGS
+                        </button>
+                        <a href="${pgsDownloadUrl}" target="_blank" class="btn btn-sm btn-outline-secondary mt-1">
+                            <i class="bi bi-download"></i> Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Inspect 23andMe genome file from cache - raw text with pagination
+ */
+window.inspect23File = async function(userId) {
+    const modal = createInspectModal();
+    modal.title.textContent = `23andMe Genome: ${userId}`;
+    modal.body.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><br>Loading...</div>';
+    modal.show();
+    
+    try {
+        const cacheKey = `Genome:id-${userId}`;
+        const cached = await localforage.getItem(cacheKey);
+        
+        if (cached && cached.dt) {
+            window._inspectData = { data: cached, type: '23andMe', id: userId };
+            renderInspectPage(0);
+        } else {
+            modal.body.innerHTML = '<div class="alert alert-warning">Genome data not found in cache. Try recalculating PRS.</div>';
+        }
+    } catch (err) {
+        modal.body.innerHTML = `<div class="alert alert-danger">Error loading genome: ${err.message}</div>`;
+    }
+};
+
+/**
+ * Inspect PGS scoring file from cache - raw text with pagination
+ */
+window.inspectPGSFile = async function(pgsId) {
+    const modal = createInspectModal();
+    modal.title.textContent = `PGS Scoring File: ${pgsId}`;
+    modal.body.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><br>Loading...</div>';
+    modal.show();
+    
+    try {
+        const cacheKey = `pgs:id-${pgsId}`;
+        const cached = await localforage.getItem(cacheKey);
+        
+        if (cached && cached.dt) {
+            window._inspectData = { data: cached, type: 'PGS', id: pgsId };
+            renderInspectPage(0);
+        } else {
+            modal.body.innerHTML = '<div class="alert alert-warning">PGS data not found in cache. Try recalculating PRS.</div>';
+        }
+    } catch (err) {
+        modal.body.innerHTML = `<div class="alert alert-danger">Error loading PGS: ${err.message}</div>`;
+    }
+};
+
+/**
+ * Render a page of raw text data with pagination
+ */
+function renderInspectPage(page) {
+    const body = document.getElementById('inspectModalBody');
+    const { data, type, id } = window._inspectData;
+    const pageSize = 100;
+    const totalRows = data.dt.length;
+    const totalPages = Math.ceil(totalRows / pageSize);
+    const start = page * pageSize;
+    const end = Math.min(start + pageSize, totalRows);
+    const cols = data.cols || (type === '23andMe' ? ['rsid', 'chromosome', 'position', 'genotype'] : ['rsID', 'hm_chr', 'hm_pos', 'effect_allele', 'effect_weight']);
+    
+    // Build header info
+    let html = '<div class="mb-2">';
+    html += `<strong>Total rows:</strong> ${totalRows} | `;
+    html += `<strong>Showing:</strong> ${start + 1} - ${end} | `;
+    html += `<strong>Page:</strong> ${page + 1} of ${totalPages}`;
+    html += '</div>';
+    
+    // Show metadata for PGS files (only on first page)
+    if (type === 'PGS' && data.meta && page === 0) {
+        let metaText = '###PGS CATALOG SCORING FILE\n##METADATA\n';
+        for (const [key, value] of Object.entries(data.meta)) {
+            if (value !== null && value !== undefined && value !== '') {
+                metaText += `#${key}=${value}\n`;
+            }
+        }
+        html += '<details open class="mb-2"><summary><strong>File Metadata</strong></summary>';
+        html += `<pre style="max-height:200px; overflow-y:auto; background:#e9ecef; padding:10px; font-size:11px; white-space:pre; overflow-x:auto; margin-top:5px;">${metaText}</pre>`;
+        html += '</details>';
+    }
+    
+    // Show metadata for 23andMe files (only on first page)
+    if (type === '23andMe' && page === 0) {
+        let metaText = '# 23andMe Genome Data File\n';
+        if (data.meta) {
+            for (const [key, value] of Object.entries(data.meta)) {
+                if (value !== null && value !== undefined && value !== '') {
+                    metaText += `# ${key}: ${value}\n`;
+                }
+            }
+        }
+        if (data.header) {
+            metaText += '\n# Original file header:\n' + data.header;
+        }
+        metaText += `# Total variants: ${totalRows}\n`;
+        metaText += `# Columns: ${cols.join(', ')}\n`;
+        html += '<details open class="mb-2"><summary><strong>File Metadata</strong></summary>';
+        html += `<pre style="max-height:200px; overflow-y:auto; background:#e9ecef; padding:10px; font-size:11px; white-space:pre; overflow-x:auto; margin-top:5px;">${metaText}</pre>`;
+        html += '</details>';
+    }
+    
+    // Pagination controls
+    html += '<div class="btn-group mb-2">';
+    html += `<button class="btn btn-sm btn-outline-primary" ${page === 0 ? 'disabled' : ''} onclick="renderInspectPage(0)">First</button>`;
+    html += `<button class="btn btn-sm btn-outline-primary" ${page === 0 ? 'disabled' : ''} onclick="renderInspectPage(${page - 1})">Previous 100</button>`;
+    html += `<button class="btn btn-sm btn-outline-primary" ${page >= totalPages - 1 ? 'disabled' : ''} onclick="renderInspectPage(${page + 1})">Next 100</button>`;
+    html += `<button class="btn btn-sm btn-outline-primary" ${page >= totalPages - 1 ? 'disabled' : ''} onclick="renderInspectPage(${totalPages - 1})">Last</button>`;
+    html += '</div>';
+    
+    // Raw text content
+    const rows = data.dt.slice(start, end);
+    const header = cols.join('\t');
+    const text = rows.map(row => row.join('\t')).join('\n');
+    
+    html += `<pre style="max-height:400px; overflow-y:auto; background:#f8f9fa; padding:10px; font-size:11px; white-space:pre; overflow-x:auto;">${header}\n${text}</pre>`;
+    
+    // Bottom pagination
+    html += '<div class="btn-group mt-2">';
+    html += `<button class="btn btn-sm btn-outline-primary" ${page === 0 ? 'disabled' : ''} onclick="renderInspectPage(${page - 1})">Previous 100</button>`;
+    html += `<button class="btn btn-sm btn-outline-primary" ${page >= totalPages - 1 ? 'disabled' : ''} onclick="renderInspectPage(${page + 1})">Next 100</button>`;
+    html += '</div>';
+    
+    body.innerHTML = html;
+}
+window.renderInspectPage = renderInspectPage;
+
+/**
+ * Create or get the inspect modal
+ */
+function createInspectModal() {
+    let modal = document.getElementById('inspectModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'inspectModal';
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="inspectModalTitle">Inspect File</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" id="inspectModalBody"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    const bsModal = new bootstrap.Modal(modal);
+    return {
+        title: document.getElementById('inspectModalTitle'),
+        body: document.getElementById('inspectModalBody'),
+        show: () => bsModal.show()
+    };
+}
+
+/**
+ * Plot pie chart showing total beta contribution for matched vs unmatched variants
+ * @param {Object} data - PGS23.data object containing pgs and 23andMe match data
+ */
+function pieChart(data = PGS23.data) {
+    const pieChartDiv = document.getElementById('pieChartDiv');
+    if (!pieChartDiv) {
+        console.warn('pieChartDiv not found');
+        return;
+    }
+    pieChartDiv.style.height = 19 + 'em';
+
+    // Show the heading when results are available
+    const heading = document.getElementById('pieChartHeading');
+    if (heading) heading.style.display = '';
+
+    /* Plot percent of matched and not matched betas */
+    const risk_composition = {};
+    const risk1 = data.plot.matched.risk.reduce((partialSum, a) => partialSum + a, 0);
+    const risk2 = data.plot.not_matched.risk.reduce((partialSum, a) => partialSum + a, 0);
+    risk_composition[`total β for ${data.plot.matched.risk.length} <br>matched variants`] = risk1;
+    risk_composition[`total β for ${data.plot.not_matched.risk.length} <br>unmatched variants`] = risk2;
+    var y = Object.values(risk_composition);
+    var x = Object.keys(risk_composition);
+    var piePlotData = [{
+        values: y,
+        labels: x,
+        insidetextorientation: "horizontal",
+        textinfo: "percent",
+        textposition: "inside",
+        type: 'pie',
+        marker: {
+            colors: ["#2ca02c", "grey"],
+            size: 19,
+            line: {
+                color: 'black'
+            }
+        },
+        textfont: {
+            color: 'black',
+            size: 19
+        },
+        hoverlabel: {
+            bgcolor: 'black',
+            bordercolor: 'black',
+            font: {
+                color: 'white',
+                size: 18
+            }
+        }
+    }];
+    var layout = {
+        title: {
+            text: ` PGS#${data.pgs.meta.pgs_id.replace(/^.*0+/, '')}: total β contribution for ${data.pgsMatchMy23.length} matched <br>and ${data.pgs.dt.length - data.pgsMatchMy23.length} unmatched variants`,
+            font: {
+                size: 19
+            }
+        },
+        width: '20em',
+        legend: {
+            xanchor: "right",
+            font: {
+                size: 16
+            }
+        },
+    };
+    var config = {
+        responsive: true
+    };
+
+    Plotly.newPlot('pieChartDiv', piePlotData, layout, config);
+}
+
+/**
  * Plot all matched variants by effect weight (beta)
  * Creates a scatter plot showing matched and unmatched variants sorted by effect
  * @param {Object} data - PGS23.data object containing pgs and 23andMe match data
@@ -339,6 +616,7 @@ console.log("plotAllMatchByEffect4 called with data", data)
     data.plot.traces = traces
 
     Plotly.newPlot(dv, traces, layout, config)
+    pieChart(data)
     tabulateAllMatchByEffect()
 }
 
@@ -353,12 +631,13 @@ function tabulateAllMatchByEffect(data = PGS23.data, div = document.getElementBy
         div = document.createElement('div')
         document.body.appendChild(div)
     }
-    div.innerHTML = `<span style="font-size:x-large">PRS = exp( ∑ (𝛽*z)) = ${Math.round(data.PRS * 1000) / 1000}</span><br><hr><div>Table for ${data.plot.matched_by_alleles.one_allele.dt.length + data.plot.matched_by_alleles.two_allele.dt.length} matched PGS variants (dosage = 1 or 2)</div><hr>`
+    div.innerHTML = `<span style="font-size:x-large">PRS = exp( ∑ (𝛽*z)) = ${Math.round(data.PRS * 1000) / 1000}</span><br><hr><div>Top 20 contributing variants</div><hr>`
     // sort by absolute value
     let jj = [...Array(data.calcRiskScore.length)].map((_, i) => i) // match indexes
     // remove zero effect
     jj = jj.filter(x => data.calcRiskScore[x] != 0)
     jj.sort((a, b) => (data.calcRiskScore[b] - data.calcRiskScore[a])) // indexes sorted by absolute value
+    jj = jj.slice(0, 20) // Limit to top 20
 
     // tabulate
     let tb = document.createElement('table')
@@ -391,24 +670,6 @@ function tabulateAllMatchByEffect(data = PGS23.data, div = document.getElementBy
         if (xi.length > 2) { my_23idx = 2 }
         row.innerHTML = `<tr><td align="left">${i + 1})</td><td align="center">${Math.round(xi[my_23idx][indEffect_weight] * 1000) / 1000}</td><td align="center">${data.alleles[ind]}</td><td align="left">${Math.round(data.calcRiskScore[ind] * 1000) / 1000}</td><td align="left" style="font-size:small;color:darkgreen"><a href="https://myvariant.info/v1/variant/chr${xi.at(-1)[indChr]}:g.${xi.at(-1)[indPos]}${xi.at(-1)[indOther_allele]}>${xi.at(-1)[indEffect_allele]}" target="_blank">Chr${xi.at(-1)[indChr]}.${xi.at(-1)[indPos]}:g.${xi.at(-1)[indOther_allele]}>${xi.at(-1)[indEffect_allele]}</a></td><td align="left"><a href="https://www.ncbi.nlm.nih.gov/snp/${xi[0][0]}" target="_blank">${xi[0][0]}</a><td align="left"><a href="https://www.snpedia.com/index.php/${xi[0][0]}" target="_blank">  wiki   </a></td></tr>`
     })
-
-    // Add cache clear buttons at the bottom
-    const cacheButtonsDiv = document.createElement('div');
-    cacheButtonsDiv.className = 'mt-3 mb-3';
-    cacheButtonsDiv.innerHTML = `
-        <hr>
-        <strong>Clear Cache:</strong>
-        <button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">
-            Clear PGS Cache
-        </button>
-        <button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">
-            Clear Genome Cache
-        </button>
-        <button class="btn btn-outline-danger btn-sm ms-2" onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">
-            Clear PRS Cache
-        </button>
-    `;
-    div.appendChild(cacheButtonsDiv);
 }
 
 /**
@@ -452,7 +713,11 @@ function plotResultByIndex(index, validResults) {
     window.PGS23.data = pgsData;
     
     try {
+        inspectFiles(resultWithData);
         plotAllMatchByEffect4(pgsData, errorDiv, plotDiv);
+        // Show the hr separator when results are rendered
+        const plotPrsHr = document.getElementById('plotPrsHr');
+        if (plotPrsHr) plotPrsHr.style.display = '';
     } catch (err) {
         console.error('Error rendering PRS plot:', err);
         if (plotDiv) {
@@ -467,18 +732,33 @@ function renderPlotPRS() {
     const errorDiv = document.getElementById('errorDiv');
     const plotDiv = document.getElementById('plotAllMatchByEffectDiv');
     const tableDiv = document.getElementById('tabulateAllMatchByEffectDiv');
+    const pieChartDiv = document.getElementById('pieChartDiv');
+    const pieChartHeading = document.getElementById('pieChartHeading');
+    const plotPrsHr = document.getElementById('plotPrsHr');
+    const inspectFilesDiv = document.getElementById('inspectFilesDiv');
     
     // Check if we have PRS results from calculatePrs.js
     const prsResults = window.prsResults ?? [];
     
     if (prsResults.length === 0) {
-        if (plotDiv) {
-            plotDiv.innerHTML = `<div class="alert alert-info">
+        if (errorDiv) {
+            errorDiv.innerHTML = `<div class="alert alert-info">
                 <strong>No PRS results available.</strong><br>
                 Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
             </div>`;
         }
+        if (plotDiv) {
+            plotDiv.innerHTML = '';
+            plotDiv.style.minHeight = '0';
+        }
         if (tableDiv) tableDiv.innerHTML = '';
+        if (pieChartDiv) {
+            pieChartDiv.innerHTML = '';
+            pieChartDiv.style.minHeight = '0';
+        }
+        if (pieChartHeading) pieChartHeading.style.display = 'none';
+        if (plotPrsHr) plotPrsHr.style.display = 'none';
+        if (inspectFilesDiv) inspectFilesDiv.style.display = 'none';
         return;
     }
     
@@ -504,8 +784,8 @@ function renderPlotPRS() {
         selectorDiv = document.createElement('div');
         selectorDiv.id = 'plotPrsSelectorDiv';
         selectorDiv.className = 'mb-3';
-        // Insert before the plot div
-        plotDiv?.parentNode?.insertBefore(selectorDiv, plotDiv);
+        // Insert at top, before errorDiv (below the description paragraph)
+        errorDiv?.parentNode?.insertBefore(selectorDiv, errorDiv);
     }
     
     // Build dropdown options

@@ -343,6 +343,7 @@ const FALLBACK_USERS = [
 ];
 
 /** Fallback PGS scores (sample entries) */
+// TODO: these are not cached in localforage yet, need to implement that and loading logic in displayScores.js
 const FALLBACK_SCORES = [
 	{
 		id: "PGS000001",
@@ -359,6 +360,30 @@ const FALLBACK_SCORES = [
 		variants_number: 313,
 		date_release: "2019-10-14",
 		local_file: "data/PGS000004_hmPOS_GRCh37.txt"
+	},
+	{
+		id: "PGS000055",
+		name: "PRS_CRC",
+		trait_reported: "Colorectal cancer",
+		variants_number: 76,
+		date_release: "2019-07-01",
+		local_file: "data/PGS000055_hmPOS_GRCh37.txt"
+	},
+	{
+		id: "PGS000740",
+		name: "PRS128_LC",
+		trait_reported: "Lung cancer",
+		variants_number: 128,
+		date_release: "2021-01-01",
+		local_file: "data/PGS000740_hmPOS_GRCh37.txt"
+	},
+	{
+		id: "PGS001808",
+		name: "portability-PLR_191.11",
+		trait_reported: "Brain cancer",
+		variants_number: 117,
+		date_release: "2022-07-28",
+		local_file: "data/PGS001808_hmPOS_GRCh37.txt"
 	}
 ];
 
@@ -701,7 +726,7 @@ async function loadFallbackUsers() {
 		try {
 			const parsed = await load23andMeFile(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
-			console.log(`Parsed genome for ${user.id}:`, parsed);
+			// console.log(`Parsed genome for ${user.id}:`, parsed);
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);

@@ -4,12 +4,12 @@ console.log("clustjs version:", clust.version);
 
 const clusterContainerId = "clusterDiv";
 
-const sampleClusterData = [
-  { prs_breast_cancer: 1.2, prs_diabetes: 0.8, prs_cad: 1.1, label: "User A" },
-  { prs_breast_cancer: 1.1, prs_diabetes: 0.9, prs_cad: 1.0, label: "User B" },
-  { prs_breast_cancer: 2.4, prs_diabetes: 1.9, prs_cad: 2.1, label: "User C" },
-  { prs_breast_cancer: 2.5, prs_diabetes: 2.0, prs_cad: 2.2, label: "User D" }
-];
+// const sampleClusterData = [
+//   { prs_breast_cancer: 1.2, prs_diabetes: 0.8, prs_cad: 1.1, label: "User A" },
+//   { prs_breast_cancer: 1.1, prs_diabetes: 0.9, prs_cad: 1.0, label: "User B" },
+//   { prs_breast_cancer: 2.4, prs_diabetes: 1.9, prs_cad: 2.1, label: "User C" },
+//   { prs_breast_cancer: 2.5, prs_diabetes: 2.0, prs_cad: 2.2, label: "User D" }
+// ];
 
 /**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
@@ -37,22 +37,29 @@ async function renderCluster() {
   if (!clusterContainer) return;
 
   const pivoted = pivotPrsResults(window.prsResults);
-  const plotData = pivoted ?? sampleClusterData;
-  const usingReal = pivoted !== null;
+  
+  // Show message if no PRS results available
+  if (pivoted === null) {
+    clusterContainer.innerHTML = `
+      <div class="alert alert-info">
+        <strong>No PRS results available.</strong><br>
+        Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
+      </div>
+    `;
+    return;
+  }
 
   clusterContainer.innerHTML = `
     <p class="text-muted small mb-3">
-      ${usingReal
-        ? `Hierarchical clustering of PRS results (${plotData.length} users).`
-        : 'No PRS results yet — showing sample data. Calculate PRS first.'}
+      Hierarchical clustering of PRS results (${pivoted.length} users).
     </p>
     <div id="clusterPlotMount"></div>
   `;
 
-  console.log("cluster plot data:", plotData);
+  console.log("cluster plot data:", pivoted);
   await clust.hclust_plot({
     divid: "clusterPlotMount",
-    data: plotData,
+    data: pivoted,
     width: 700,
     height: 520
   });

@@ -26,6 +26,9 @@ function tabFunction(evt, openTab, subTab) {
         if (openTab === 'Cluster' && typeof window.renderCluster === 'function') {
             try { window.renderCluster(); } catch (e) { console.error('renderCluster error', e); }
         }
+        if (openTab === 'AskAI' && typeof window.renderAskAI === 'function') {
+            try { window.renderAskAI(); } catch (e) { console.error('renderAskAI error', e); }
+        }
 
 }
 

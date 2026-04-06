@@ -94,6 +94,7 @@
         <button id="prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
+        <button id="askAIButton" class="tablinks" onclick="tabFunction(event, 'AskAI')">Ask AI</button>
     </div>
     <div id="selection"></div>
 
@@ -120,6 +121,13 @@
                     <h3>Cluster</h3>
                     <p>Clustering tools and visualizations will appear here.</p>
                     <div id="clusterDiv"></div>
+                </div>
+
+                <!-- Ask AI tab -->
+                <div id="AskAI" class="tabcontent">
+                    <h3>Ask AI</h3>
+                    <p>Use a local AI model to analyze and understand your PRS results.</p>
+                    <div id="askAIDiv"></div>
                 </div>
 
                 <!-- PRS ------------------------------------------>
@@ -236,8 +244,11 @@
                     <h6 style="color: rgb(6, 137, 231);">Local PGS files automatically configured. You can also choose
                         files below:</h6>
                     <ol>
-                        <li>PGS000001.txt (Breast cancer - 77 variants)</li>
-                        <li>PGS000004_hmPOS_GRCh37.txt (Breast carcinoma - 313 variants, harmonized)</li>
+                        <li>PGS000001_hmPOS_GRCh37.txt (Breast cancer - 77 variants)</li>
+                        <li>PGS000004_hmPOS_GRCh37.txt (Breast carcinoma - 313 variants)</li>
+                        <li>PGS000055_hmPOS_GRCh37.txt (Colorectal cancer - 76 variants)</li>
+                        <li>PGS000740_hmPOS_GRCh37.txt (Lung cancer - 128 variants)</li>
+                        <li>PGS001808_hmPOS_GRCh37.txt (Brain cancer - 117 variants)</li>
                     </ol>
                     <hr class="my-3" />
                     <div class="my-3">

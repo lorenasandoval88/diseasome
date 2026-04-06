@@ -30471,7 +30471,7 @@ let isModelLoading = false;
 let modelLoaded = false;
 
 // Use a small, efficient model for browser inference
-const MODEL_ID = 'Xenova/LaMini-Flan-T5-248M';
+const MODEL_ID = 'Xenova/flan-t5-base';
 
 /**
  * Initialize the text generation pipeline

@@ -5559,6 +5559,162 @@ function pieChart(data = PGS23.data) {
 }
 
 /**
+ * Build matched data object from PGS/23andMe data without plotting.
+ * Extracts the data processing logic from plotAllMatchByEffect4 for reuse.
+ * @param {Object} data - PGS23.data-like object containing pgs and 23andMe match data
+ * @returns {Object} Matched data object with matched, not_matched, all, matched_by_alleles
+ */
+function buildMatchedData(data) {
+    const obj = {};
+    const indChr = data.pgs.cols.indexOf('hm_chr');
+    const indPos = data.pgs.cols.indexOf('hm_pos');
+    const indBeta = data.pgs.cols.indexOf('effect_weight');
+
+    const matched = data.pgsMatchMy23.map(function (v) {
+        if (v.length == 2) {
+            return v[1];
+        } else if (v.length >= 3) {
+            return v[2];
+        }
+    });
+
+    // Matched data
+    const matched_risk = matched.map((j) => j[indBeta]);
+    const matched_chrPos = matched.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    obj['matched'] = {
+        chrPos: matched_chrPos,
+        dt: matched,
+        alleles: data.alleles,
+        risk: matched_risk,
+        category: Array(matched.length).fill("matched")
+    };
+
+    // Not matched data
+    const notMatchData = data.pgs.dt.filter(element => !matched.includes(element));
+    let not_matched_idx = [...Array(notMatchData.length)]
+        .map((_, i) => i).sort((a, b) => (notMatchData[a][4] - notMatchData[b][4]));
+    const not_matched = not_matched_idx.map(j => notMatchData[j]);
+    const not_matched_chrPos = not_matched.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    const not_matched_risk = not_matched.map((yi) => yi[indBeta]);
+    
+    obj['not_matched'] = {
+        chrPos: not_matched_chrPos,
+        dt: not_matched,
+        risk: not_matched_risk,
+        category: Array(not_matched.length).fill(`${not_matched.length} not matched`)
+    };
+
+    // All variants
+    const allData = data.pgs.dt;
+    const allData_chrPos = allData.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    const allData_risk = allData.map((yi) => yi[indBeta]);
+    obj['all'] = {
+        chrPos: allData_chrPos,
+        dt: allData,
+        risk: allData_risk
+    };
+
+    // Matched by alleles (zero, one, two)
+    const zero_allele = matched.filter((ele, idx) => data.alleles[idx] == 0);
+    const zero_allele_idx = data.alleles.map((elm, idx) => elm == 0 ? idx : '').filter(String);
+    const one_allele = matched.filter((ele, idx) => data.alleles[idx] == 1);
+    const one_allele_idx = data.alleles.map((elm, idx) => elm == 1 ? idx : '').filter(String);
+    const two_allele = matched.filter((ele, idx) => data.alleles[idx] == 2);
+    const two_allele_idx = data.alleles.map((elm, idx) => elm == 2 ? idx : '').filter(String);
+
+    obj['matched_by_alleles'] = {
+        zero_allele: {
+            chrPos: zero_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: zero_allele,
+            risk: zero_allele_idx.map(i => matched[i][indBeta]),
+            count: zero_allele.length
+        },
+        one_allele: {
+            chrPos: one_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: one_allele,
+            risk: one_allele_idx.map(i => matched[i][indBeta]),
+            count: one_allele.length
+        },
+        two_allele: {
+            chrPos: two_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: two_allele,
+            risk: two_allele_idx.map(i => matched[i][indBeta]),
+            count: two_allele.length
+        }
+    };
+
+    // Compute beta sums for AI analysis
+    obj.betaSums = {
+        matchedPositive: matched_risk.filter(b => b > 0).reduce((s, b) => s + b, 0),
+        matchedNegative: matched_risk.filter(b => b < 0).reduce((s, b) => s + b, 0),
+        unmatchedPositive: not_matched_risk.filter(b => b > 0).reduce((s, b) => s + b, 0),
+        unmatchedNegative: not_matched_risk.filter(b => b < 0).reduce((s, b) => s + b, 0)
+    };
+
+    // Top contributing variants (sorted by absolute beta * allele)
+    if (data.calcRiskScore) {
+        const contributions = data.calcRiskScore.map((score, idx) => ({
+            idx,
+            score,
+            chrPos: matched_chrPos[idx],
+            beta: matched_risk[idx],
+            allele: data.alleles[idx]
+        })).filter(c => c.score !== 0).sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+        obj.topContributors = contributions.slice(0, 10);
+    }
+
+    return obj;
+}
+
+/**
+ * Process all PRS results and store matched data in window.matchedResults.
+ * @param {Array} validResults - Array of PRS results with plotting data
+ */
+function processAllResults(validResults) {
+    const defaultCols = ['rsID', 'hm_chr', 'hm_pos', 'effect_allele', 'effect_weight', 'other_allele', 'hm_inferOtherAllele'];
+    window.matchedResults = {};
+
+    validResults.forEach((result) => {
+        const userId = result.userId ?? 'Unknown';
+        const pgsId = result.pgsId ?? 'Unknown';
+        const key = `${userId}_${pgsId}`;
+
+        // Build PGS23.data-like object
+        const pgsData = {
+            pgs: {
+                cols: result.pgs?.cols ?? defaultCols,
+                dt: result.organized?.all?.dt ?? [],
+                meta: {
+                    pgs_id: pgsId,
+                    trait_mapped: result.organized?.summary?.trait ?? ''
+                }
+            },
+            pgsMatchMy23: result.pgsMatchMy23,
+            alleles: result.alleles,
+            calcRiskScore: result.calcRiskScore,
+            PRS: result.PRS
+        };
+
+        try {
+            const matchedData = buildMatchedData(pgsData);
+            window.matchedResults[key] = {
+                userId,
+                userName: result.userName ?? '',
+                pgsId,
+                PRS: result.PRS,
+                trait: result.organized?.summary?.trait ?? '',
+                matchedData,
+                timestamp: new Date().toISOString()
+            };
+        } catch (err) {
+            console.error(`Error processing result for ${key}:`, err);
+        }
+    });
+
+    console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
+}
+
+/**
  * Plot all matched variants by effect weight (beta)
  * Creates a scatter plot showing matched and unmatched variants sorted by effect
  * @param {Object} data - PGS23.data object containing pgs and 23andMe match data
@@ -5567,7 +5723,7 @@ function pieChart(data = PGS23.data) {
  */
 function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById('errorDiv'), dv = document.getElementById('plotAllMatchByEffectDiv')) {
     //https://community.plotly.com/t/fill-shade-a-chart-above-a-specific-y-value-in-plotlyjs/5133
-console.log("plotAllMatchByEffect4 called with data", data);
+    // console.log("plotAllMatchByEffect4 called with data", data)
     const obj = {};
     const indChr = data.pgs.cols.indexOf('hm_chr');
     const indPos = data.pgs.cols.indexOf('hm_pos');
@@ -5598,7 +5754,7 @@ console.log("plotAllMatchByEffect4 called with data", data);
             return v[2]
         }
     });
-    console.log("matched variants", matched);
+    // console.log("matched variants", matched)
     // separate pgs.dt into 2 (matches and non matches) arrays and then sort by effect  
     // " matched" data
 
@@ -6020,6 +6176,9 @@ function renderPlotPRS() {
     
     // Store valid results globally for the dropdown handler
     window._plotPrsValidResults = validResults;
+    
+    // Process all results and store matched data in window.matchedResults
+    processAllResults(validResults);
     
     // Create or update dropdown selector
     let selectorDiv = document.getElementById('plotPrsSelectorDiv');
@@ -30356,10 +30515,84 @@ async function generateResponse(prompt, maxLength = 256) {
 
 /**
  * Build a prompt from PRS results for AI analysis
+ * Uses detailed matched data from window.matchedResults when available
  */
 function buildPRSPrompt(results, question) {
     if (!results || results.length === 0) {
         return `Question about polygenic risk scores: ${question}\n\nAnswer:`;
+    }
+    
+    // Check for detailed matched data from window.matchedResults (processed all results)
+    const matchedResults = window.matchedResults ?? {};
+    const hasMatchedResults = Object.keys(matchedResults).length > 0;
+    
+    let detailedAnalysis = '';
+    
+    if (hasMatchedResults) {
+        detailedAnalysis = '\nDetailed variant analysis for all results:\n';
+        
+        Object.entries(matchedResults).forEach(([key, data]) => {
+            const md = data.matchedData;
+            if (!md) return;
+            
+            const totalVariants = (md.matched?.dt?.length ?? 0) + (md.not_matched?.dt?.length ?? 0);
+            const matchedCount = md.matched?.dt?.length ?? 0;
+            const matchRate = totalVariants > 0 ? ((matchedCount / totalVariants) * 100).toFixed(1) : 0;
+            
+            // Allele distribution
+            const zeroAlleles = md.matched_by_alleles?.zero_allele?.count ?? 0;
+            const oneAllele = md.matched_by_alleles?.one_allele?.count ?? 0;
+            const twoAlleles = md.matched_by_alleles?.two_allele?.count ?? 0;
+            
+            // Beta sums
+            const betaSums = md.betaSums ?? {};
+            
+            detailedAnalysis += `
+${data.userId}${data.userName ? ` (${data.userName})` : ''} - ${data.pgsId} (${data.trait || 'trait unknown'}):
+  PRS: ${typeof data.PRS === 'number' ? data.PRS.toFixed(4) : 'N/A'}
+  Variants: ${matchedCount}/${totalVariants} matched (${matchRate}%)
+  Allele distribution: 0-allele=${zeroAlleles}, 1-allele=${oneAllele}, 2-allele=${twoAlleles}
+  Beta sums: matched(+)=${(betaSums.matchedPositive ?? 0).toFixed(4)}, matched(-)=${(betaSums.matchedNegative ?? 0).toFixed(4)}`;
+            
+            // Top contributors
+            if (md.topContributors && md.topContributors.length > 0) {
+                detailedAnalysis += '\n  Top contributors: ';
+                detailedAnalysis += md.topContributors.slice(0, 3).map(c => 
+                    `${c.chrPos}(β×z=${c.score.toFixed(3)})`
+                ).join(', ');
+            }
+            detailedAnalysis += '\n';
+        });
+    } else {
+        // Fallback to window.PGS23.data for single selected result
+        const plotData = window.PGS23?.data;
+        
+        if (plotData && plotData.plot) {
+            const matched = plotData.plot.matched;
+            const notMatched = plotData.plot.not_matched;
+            const matchedByAlleles = plotData.plot.matched_by_alleles;
+            
+            const totalVariants = (matched?.dt?.length ?? 0) + (notMatched?.dt?.length ?? 0);
+            const matchedCount = matched?.dt?.length ?? 0;
+            const matchRate = totalVariants > 0 ? ((matchedCount / totalVariants) * 100).toFixed(1) : 0;
+            
+            const matchedBetaSum = matched?.risk?.reduce((a, b) => a + b, 0) ?? 0;
+            const unmatchedBetaSum = notMatched?.risk?.reduce((a, b) => a + b, 0) ?? 0;
+            
+            const zeroAlleles = matchedByAlleles?.zero_allele?.dt?.length ?? 0;
+            const oneAllele = matchedByAlleles?.one_allele?.dt?.length ?? 0;
+            const twoAlleles = matchedByAlleles?.two_allele?.dt?.length ?? 0;
+            
+            detailedAnalysis = `
+Detailed variant analysis (selected result only):
+- Total variants in score: ${totalVariants}
+- Matched to genome: ${matchedCount} (${matchRate}%)
+- Unmatched: ${notMatched?.dt?.length ?? 0}
+- Sum of matched betas: ${matchedBetaSum.toFixed(4)}
+- Sum of unmatched betas: ${unmatchedBetaSum.toFixed(4)}
+- Allele distribution: 0-allele=${zeroAlleles}, 1-allele=${oneAllele}, 2-allele=${twoAlleles}
+`;
+        }
     }
     
     // Summarize PRS results
@@ -30378,7 +30611,7 @@ function buildPRSPrompt(results, question) {
     const prompt = `You are an expert in genomics and polygenic risk scores. Analyze these PRS results:
 
 ${summaries}
-
+${detailedAnalysis}
 Question: ${question}
 
 Provide a brief, helpful response:`;
@@ -30394,9 +30627,19 @@ function renderAskAI() {
     if (!container) return;
     
     const prsResults = window.prsResults ?? [];
+    console.log("Rendering Ask AI tab with PRS results:", prsResults);
     const hasResults = prsResults.length > 0;
+    const matchedResults = window.matchedResults ?? {};
+    const hasMatchedResults = Object.keys(matchedResults).length > 0;
     
     container.innerHTML = `
+        ${!hasResults ? `
+            <div class="alert alert-info">
+                <strong>No PRS results available.</strong><br>
+                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
+            </div>
+        ` : ''}
+        
         <div class="mb-3">
             <div id="modelStatusDiv" class="alert alert-secondary">
                 <strong>Model Status:</strong> <span id="modelStatusText">Not loaded</span>
@@ -30414,12 +30657,7 @@ function renderAskAI() {
         
         <hr />
         
-        ${!hasResults ? `
-            <div class="alert alert-info">
-                <strong>No PRS results available.</strong><br>
-                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
-            </div>
-        ` : `
+        ${hasResults ? `
             <div class="mb-3">
                 <strong>Available Results:</strong>
                 <ul class="small mb-2">
@@ -30431,14 +30669,25 @@ function renderAskAI() {
                     }).join('')}
                     ${prsResults.length > 5 ? `<li>...and ${prsResults.length - 5} more</li>` : ''}
                 </ul>
+                ${hasMatchedResults ? `
+                    <div class="alert alert-success py-2 small">
+                        <strong>✓ Detailed variant analysis available for ${Object.keys(matchedResults).length} result(s)</strong> - 
+                        The AI has access to allele distributions, top contributing variants, and beta values for all results.
+                    </div>
+                ` : `
+                    <div class="alert alert-warning py-2 small">
+                        <strong>Tip:</strong> Visit the <strong>Plot PRS</strong> tab first to give the AI detailed 
+                        variant analysis (allele distributions, top contributors, beta values) for all results.
+                    </div>
+                `}
             </div>
-        `}
+        ` : ''}
         
         <div class="mb-3">
             <label for="aiQuestionInput" class="form-label"><strong>Ask a question about your PRS results:</strong></label>
             <textarea id="aiQuestionInput" class="form-control" rows="3" 
-                placeholder="Example: What do these PRS results suggest about genetic risk? Which variants contribute most to the score?"
-                ${!hasResults ? 'disabled' : ''}></textarea>
+                placeholder="Enter your question here..."
+                ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Which variants contribute most to the score?</textarea>
         </div>
         
         <div class="mb-3">

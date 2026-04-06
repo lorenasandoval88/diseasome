@@ -342,6 +342,162 @@ function pieChart(data = PGS23.data) {
 }
 
 /**
+ * Build matched data object from PGS/23andMe data without plotting.
+ * Extracts the data processing logic from plotAllMatchByEffect4 for reuse.
+ * @param {Object} data - PGS23.data-like object containing pgs and 23andMe match data
+ * @returns {Object} Matched data object with matched, not_matched, all, matched_by_alleles
+ */
+function buildMatchedData(data) {
+    const obj = {};
+    const indChr = data.pgs.cols.indexOf('hm_chr');
+    const indPos = data.pgs.cols.indexOf('hm_pos');
+    const indBeta = data.pgs.cols.indexOf('effect_weight');
+
+    const matched = data.pgsMatchMy23.map(function (v) {
+        if (v.length == 2) {
+            return v[1];
+        } else if (v.length >= 3) {
+            return v[2];
+        }
+    });
+
+    // Matched data
+    const matched_risk = matched.map((j) => j[indBeta]);
+    const matched_chrPos = matched.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    obj['matched'] = {
+        chrPos: matched_chrPos,
+        dt: matched,
+        alleles: data.alleles,
+        risk: matched_risk,
+        category: Array(matched.length).fill("matched")
+    };
+
+    // Not matched data
+    const notMatchData = data.pgs.dt.filter(element => !matched.includes(element));
+    let not_matched_idx = [...Array(notMatchData.length)]
+        .map((_, i) => i).sort((a, b) => (notMatchData[a][4] - notMatchData[b][4]));
+    const not_matched = not_matched_idx.map(j => notMatchData[j]);
+    const not_matched_chrPos = not_matched.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    const not_matched_risk = not_matched.map((yi) => yi[indBeta]);
+    
+    obj['not_matched'] = {
+        chrPos: not_matched_chrPos,
+        dt: not_matched,
+        risk: not_matched_risk,
+        category: Array(not_matched.length).fill(`${not_matched.length} not matched`)
+    };
+
+    // All variants
+    const allData = data.pgs.dt;
+    const allData_chrPos = allData.map(j => `Chr${j[indChr]}.${j[indPos]}`);
+    const allData_risk = allData.map((yi) => yi[indBeta]);
+    obj['all'] = {
+        chrPos: allData_chrPos,
+        dt: allData,
+        risk: allData_risk
+    };
+
+    // Matched by alleles (zero, one, two)
+    const zero_allele = matched.filter((ele, idx) => data.alleles[idx] == 0);
+    const zero_allele_idx = data.alleles.map((elm, idx) => elm == 0 ? idx : '').filter(String);
+    const one_allele = matched.filter((ele, idx) => data.alleles[idx] == 1);
+    const one_allele_idx = data.alleles.map((elm, idx) => elm == 1 ? idx : '').filter(String);
+    const two_allele = matched.filter((ele, idx) => data.alleles[idx] == 2);
+    const two_allele_idx = data.alleles.map((elm, idx) => elm == 2 ? idx : '').filter(String);
+
+    obj['matched_by_alleles'] = {
+        zero_allele: {
+            chrPos: zero_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: zero_allele,
+            risk: zero_allele_idx.map(i => matched[i][indBeta]),
+            count: zero_allele.length
+        },
+        one_allele: {
+            chrPos: one_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: one_allele,
+            risk: one_allele_idx.map(i => matched[i][indBeta]),
+            count: one_allele.length
+        },
+        two_allele: {
+            chrPos: two_allele_idx.map(i => `Chr${matched[i][indChr]}.${matched[i][indPos]}`),
+            dt: two_allele,
+            risk: two_allele_idx.map(i => matched[i][indBeta]),
+            count: two_allele.length
+        }
+    };
+
+    // Compute beta sums for AI analysis
+    obj.betaSums = {
+        matchedPositive: matched_risk.filter(b => b > 0).reduce((s, b) => s + b, 0),
+        matchedNegative: matched_risk.filter(b => b < 0).reduce((s, b) => s + b, 0),
+        unmatchedPositive: not_matched_risk.filter(b => b > 0).reduce((s, b) => s + b, 0),
+        unmatchedNegative: not_matched_risk.filter(b => b < 0).reduce((s, b) => s + b, 0)
+    };
+
+    // Top contributing variants (sorted by absolute beta * allele)
+    if (data.calcRiskScore) {
+        const contributions = data.calcRiskScore.map((score, idx) => ({
+            idx,
+            score,
+            chrPos: matched_chrPos[idx],
+            beta: matched_risk[idx],
+            allele: data.alleles[idx]
+        })).filter(c => c.score !== 0).sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+        obj.topContributors = contributions.slice(0, 10);
+    }
+
+    return obj;
+}
+
+/**
+ * Process all PRS results and store matched data in window.matchedResults.
+ * @param {Array} validResults - Array of PRS results with plotting data
+ */
+function processAllResults(validResults) {
+    const defaultCols = ['rsID', 'hm_chr', 'hm_pos', 'effect_allele', 'effect_weight', 'other_allele', 'hm_inferOtherAllele'];
+    window.matchedResults = {};
+
+    validResults.forEach((result) => {
+        const userId = result.userId ?? 'Unknown';
+        const pgsId = result.pgsId ?? 'Unknown';
+        const key = `${userId}_${pgsId}`;
+
+        // Build PGS23.data-like object
+        const pgsData = {
+            pgs: {
+                cols: result.pgs?.cols ?? defaultCols,
+                dt: result.organized?.all?.dt ?? [],
+                meta: {
+                    pgs_id: pgsId,
+                    trait_mapped: result.organized?.summary?.trait ?? ''
+                }
+            },
+            pgsMatchMy23: result.pgsMatchMy23,
+            alleles: result.alleles,
+            calcRiskScore: result.calcRiskScore,
+            PRS: result.PRS
+        };
+
+        try {
+            const matchedData = buildMatchedData(pgsData);
+            window.matchedResults[key] = {
+                userId,
+                userName: result.userName ?? '',
+                pgsId,
+                PRS: result.PRS,
+                trait: result.organized?.summary?.trait ?? '',
+                matchedData,
+                timestamp: new Date().toISOString()
+            };
+        } catch (err) {
+            console.error(`Error processing result for ${key}:`, err);
+        }
+    });
+
+    console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
+}
+
+/**
  * Plot all matched variants by effect weight (beta)
  * Creates a scatter plot showing matched and unmatched variants sorted by effect
  * @param {Object} data - PGS23.data object containing pgs and 23andMe match data
@@ -350,7 +506,7 @@ function pieChart(data = PGS23.data) {
  */
 function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById('errorDiv'), dv = document.getElementById('plotAllMatchByEffectDiv')) {
     //https://community.plotly.com/t/fill-shade-a-chart-above-a-specific-y-value-in-plotlyjs/5133
-console.log("plotAllMatchByEffect4 called with data", data)
+    // console.log("plotAllMatchByEffect4 called with data", data)
     const obj = {}
     const indChr = data.pgs.cols.indexOf('hm_chr')
     const indPos = data.pgs.cols.indexOf('hm_pos')
@@ -381,7 +537,7 @@ console.log("plotAllMatchByEffect4 called with data", data)
             return v[2]
         }
     })
-    console.log("matched variants", matched)
+    // console.log("matched variants", matched)
     // separate pgs.dt into 2 (matches and non matches) arrays and then sort by effect  
     // " matched" data
 
@@ -808,6 +964,9 @@ function renderPlotPRS() {
     
     // Store valid results globally for the dropdown handler
     window._plotPrsValidResults = validResults;
+    
+    // Process all results and store matched data in window.matchedResults
+    processAllResults(validResults);
     
     // Create or update dropdown selector
     let selectorDiv = document.getElementById('plotPrsSelectorDiv');

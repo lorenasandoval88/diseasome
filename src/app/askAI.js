@@ -59,10 +59,84 @@ async function generateResponse(prompt, maxLength = 256) {
 
 /**
  * Build a prompt from PRS results for AI analysis
+ * Uses detailed matched data from window.matchedResults when available
  */
 function buildPRSPrompt(results, question) {
     if (!results || results.length === 0) {
         return `Question about polygenic risk scores: ${question}\n\nAnswer:`;
+    }
+    
+    // Check for detailed matched data from window.matchedResults (processed all results)
+    const matchedResults = window.matchedResults ?? {};
+    const hasMatchedResults = Object.keys(matchedResults).length > 0;
+    
+    let detailedAnalysis = '';
+    
+    if (hasMatchedResults) {
+        detailedAnalysis = '\nDetailed variant analysis for all results:\n';
+        
+        Object.entries(matchedResults).forEach(([key, data]) => {
+            const md = data.matchedData;
+            if (!md) return;
+            
+            const totalVariants = (md.matched?.dt?.length ?? 0) + (md.not_matched?.dt?.length ?? 0);
+            const matchedCount = md.matched?.dt?.length ?? 0;
+            const matchRate = totalVariants > 0 ? ((matchedCount / totalVariants) * 100).toFixed(1) : 0;
+            
+            // Allele distribution
+            const zeroAlleles = md.matched_by_alleles?.zero_allele?.count ?? 0;
+            const oneAllele = md.matched_by_alleles?.one_allele?.count ?? 0;
+            const twoAlleles = md.matched_by_alleles?.two_allele?.count ?? 0;
+            
+            // Beta sums
+            const betaSums = md.betaSums ?? {};
+            
+            detailedAnalysis += `
+${data.userId}${data.userName ? ` (${data.userName})` : ''} - ${data.pgsId} (${data.trait || 'trait unknown'}):
+  PRS: ${typeof data.PRS === 'number' ? data.PRS.toFixed(4) : 'N/A'}
+  Variants: ${matchedCount}/${totalVariants} matched (${matchRate}%)
+  Allele distribution: 0-allele=${zeroAlleles}, 1-allele=${oneAllele}, 2-allele=${twoAlleles}
+  Beta sums: matched(+)=${(betaSums.matchedPositive ?? 0).toFixed(4)}, matched(-)=${(betaSums.matchedNegative ?? 0).toFixed(4)}`;
+            
+            // Top contributors
+            if (md.topContributors && md.topContributors.length > 0) {
+                detailedAnalysis += '\n  Top contributors: ';
+                detailedAnalysis += md.topContributors.slice(0, 3).map(c => 
+                    `${c.chrPos}(β×z=${c.score.toFixed(3)})`
+                ).join(', ');
+            }
+            detailedAnalysis += '\n';
+        });
+    } else {
+        // Fallback to window.PGS23.data for single selected result
+        const plotData = window.PGS23?.data;
+        
+        if (plotData && plotData.plot) {
+            const matched = plotData.plot.matched;
+            const notMatched = plotData.plot.not_matched;
+            const matchedByAlleles = plotData.plot.matched_by_alleles;
+            
+            const totalVariants = (matched?.dt?.length ?? 0) + (notMatched?.dt?.length ?? 0);
+            const matchedCount = matched?.dt?.length ?? 0;
+            const matchRate = totalVariants > 0 ? ((matchedCount / totalVariants) * 100).toFixed(1) : 0;
+            
+            const matchedBetaSum = matched?.risk?.reduce((a, b) => a + b, 0) ?? 0;
+            const unmatchedBetaSum = notMatched?.risk?.reduce((a, b) => a + b, 0) ?? 0;
+            
+            const zeroAlleles = matchedByAlleles?.zero_allele?.dt?.length ?? 0;
+            const oneAllele = matchedByAlleles?.one_allele?.dt?.length ?? 0;
+            const twoAlleles = matchedByAlleles?.two_allele?.dt?.length ?? 0;
+            
+            detailedAnalysis = `
+Detailed variant analysis (selected result only):
+- Total variants in score: ${totalVariants}
+- Matched to genome: ${matchedCount} (${matchRate}%)
+- Unmatched: ${notMatched?.dt?.length ?? 0}
+- Sum of matched betas: ${matchedBetaSum.toFixed(4)}
+- Sum of unmatched betas: ${unmatchedBetaSum.toFixed(4)}
+- Allele distribution: 0-allele=${zeroAlleles}, 1-allele=${oneAllele}, 2-allele=${twoAlleles}
+`;
+        }
     }
     
     // Summarize PRS results
@@ -81,7 +155,7 @@ function buildPRSPrompt(results, question) {
     const prompt = `You are an expert in genomics and polygenic risk scores. Analyze these PRS results:
 
 ${summaries}
-
+${detailedAnalysis}
 Question: ${question}
 
 Provide a brief, helpful response:`;
@@ -97,7 +171,10 @@ function renderAskAI() {
     if (!container) return;
     
     const prsResults = window.prsResults ?? [];
+    console.log("Rendering Ask AI tab with PRS results:", prsResults);
     const hasResults = prsResults.length > 0;
+    const matchedResults = window.matchedResults ?? {};
+    const hasMatchedResults = Object.keys(matchedResults).length > 0;
     
     container.innerHTML = `
         ${!hasResults ? `
@@ -136,14 +213,25 @@ function renderAskAI() {
                     }).join('')}
                     ${prsResults.length > 5 ? `<li>...and ${prsResults.length - 5} more</li>` : ''}
                 </ul>
+                ${hasMatchedResults ? `
+                    <div class="alert alert-success py-2 small">
+                        <strong>✓ Detailed variant analysis available for ${Object.keys(matchedResults).length} result(s)</strong> - 
+                        The AI has access to allele distributions, top contributing variants, and beta values for all results.
+                    </div>
+                ` : `
+                    <div class="alert alert-warning py-2 small">
+                        <strong>Tip:</strong> Visit the <strong>Plot PRS</strong> tab first to give the AI detailed 
+                        variant analysis (allele distributions, top contributors, beta values) for all results.
+                    </div>
+                `}
             </div>
         ` : ''}
         
         <div class="mb-3">
             <label for="aiQuestionInput" class="form-label"><strong>Ask a question about your PRS results:</strong></label>
             <textarea id="aiQuestionInput" class="form-control" rows="3" 
-                placeholder="Example: What do these PRS results suggest about genetic risk? Which variants contribute most to the score?"
-                ${!hasResults ? 'disabled' : ''}></textarea>
+                placeholder="Enter your question here..."
+                ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Which variants contribute most to the score?</textarea>
         </div>
         
         <div class="mb-3">

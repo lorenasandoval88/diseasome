@@ -1,12 +1,13 @@
 import localforage from "localforage";
 import {
-	fetch23andMeParticipants, fetchProfile
+	fetch23andMeParticipants, fetchProfile,load23andMeFile
 } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
 // import { loadAllScores as pgs_scores_list } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {
 	loadTraitStats,
 	getScoresPerTrait,
-	getScoresPerCategory
+	getScoresPerCategory,
+	getTxts,
 } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
 import {
@@ -17,15 +18,17 @@ from "./src/sdk/prs.js";
 export const data = {
 	pgp: {
 		profile: fetchProfile,
-		users:fetch23andMeParticipants
+		users:fetch23andMeParticipants,
+		txt: load23andMeFile
 	},
 	pgs: {
 		summary: loadTraitStats,
 		traits: getScoresPerTrait,
-		categories: getScoresPerCategory
+		categories: getScoresPerCategory,
+		txts: getTxts
 	},
 	prs: {
-		match:Match2
+		calc:Match2 // pgsTxt, my23Txt
 	}
 };
 

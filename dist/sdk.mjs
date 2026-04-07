@@ -1,5 +1,5 @@
-import { fetch23andMeParticipants, fetchProfile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
-import { getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { load23andMeFile, fetch23andMeParticipants, fetchProfile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
+import { getTxts, getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -2929,15 +2929,17 @@ function Match2(mypgs, my23){
 const data = {
 	pgp: {
 		profile: fetchProfile,
-		users:fetch23andMeParticipants
+		users:fetch23andMeParticipants,
+		txt: load23andMeFile
 	},
 	pgs: {
 		summary: loadTraitStats,
 		traits: getScoresPerTrait,
-		categories: getScoresPerCategory
+		categories: getScoresPerCategory,
+		txts: getTxts
 	},
 	prs: {
-		match:Match2
+		calc:Match2 // pgsTxt, my23Txt
 	}
 };
 

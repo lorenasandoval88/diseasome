@@ -1,3 +1,6 @@
+import { fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
+import { getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
 function getDefaultExportFromCjs (x) {
@@ -2923,5 +2926,38 @@ function Match2(mypgs, my23){
   return data2
   }
 
-export { Match2, localforage };
+const data = {
+	pgp: {
+		users:fetch23andMeParticipants
+	},
+	pgs: {
+		summary: loadTraitStats,
+		traits: getScoresPerTrait,
+		categories: getScoresPerCategory
+	},
+	storage: localforage
+};
+
+// export {
+// 	get23meUrls,
+// 	parse23,
+// 	get23
+// } from "./src/sdk/get23me.js";
+
+// export {
+// 	searchTraits,
+// 	getPGSTxts,
+// 	getPGSTxts2,
+// 	getPGSTxtsHm,
+// 	parsePGS,
+// 	loadScore,
+// 	loadScore2,
+// 	fetchAll2,
+// 	getAllCategories,
+// 	getPGSidsForOneTraitCategory,
+// 	getPGSidsForOneTraitLabel,
+// 	getPGSIds
+// } from "./src/sdk/getPgs.js";
+
+export { Match2, data };
 //# sourceMappingURL=sdk.mjs.map

@@ -9,17 +9,6 @@ import {
 	getScoresPerCategory
 } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
-// export { pgs_scores_list };
-export {
-	localforage
-};
-export {
-	pgs_summary
-};
-// export const data = {
-//   list_23andme,
-//   pgs_summary,
-// };
 
 
 export const data = {

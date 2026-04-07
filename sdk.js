@@ -1,6 +1,6 @@
 import localforage from "localforage";
 import {
-	fetch23andMeParticipants as _23andme
+	fetch23andMeParticipants, fetchProfile
 } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
 // import { loadAllScores as pgs_scores_list } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 import {
@@ -16,7 +16,8 @@ from "./src/sdk/prs.js";
 
 export const data = {
 	pgp: {
-		users:_23andme
+		profile: fetchProfile,
+		users:fetch23andMeParticipants
 	},
 	pgs: {
 		summary: loadTraitStats,

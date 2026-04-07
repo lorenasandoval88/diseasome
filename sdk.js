@@ -9,7 +9,10 @@ import {
 	getScoresPerCategory
 } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
-
+import {
+	Match2
+}
+from "./src/sdk/prs.js";
 
 export const data = {
 	pgp: {
@@ -20,13 +23,13 @@ export const data = {
 		traits: getScoresPerTrait,
 		categories: getScoresPerCategory
 	},
+	prs: {
+		match:Match2
+	},
 	storage: localforage
 };
 
-export {
-	Match2
-}
-from "./src/sdk/prs.js";
+
 
 // export {
 // 	get23meUrls,

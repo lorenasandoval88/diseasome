@@ -2935,8 +2935,13 @@ const data = {
 		traits: getScoresPerTrait,
 		categories: getScoresPerCategory
 	},
+	prs: {
+		match:Match2
+	},
 	storage: localforage
 };
+
+
 
 // export {
 // 	get23meUrls,
@@ -2959,5 +2964,5 @@ const data = {
 // 	getPGSIds
 // } from "./src/sdk/getPgs.js";
 
-export { Match2, data };
+export { data };
 //# sourceMappingURL=sdk.mjs.map

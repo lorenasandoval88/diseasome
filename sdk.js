@@ -26,11 +26,12 @@ export const data = {
 	},
 	prs: {
 		match:Match2
-	},
-	storage: localforage
+	}
 };
 
-
+export {
+	localforage
+};
 
 // export {
 // 	get23meUrls,

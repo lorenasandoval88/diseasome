@@ -2938,11 +2938,8 @@ const data = {
 	},
 	prs: {
 		match:Match2
-	},
-	storage: localforage
+	}
 };
-
-
 
 // export {
 // 	get23meUrls,
@@ -2965,5 +2962,5 @@ const data = {
 // 	getPGSIds
 // } from "./src/sdk/getPgs.js";
 
-export { data };
+export { data, localforage };
 //# sourceMappingURL=sdk.mjs.map

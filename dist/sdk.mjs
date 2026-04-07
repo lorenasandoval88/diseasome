@@ -1,4 +1,6 @@
-import { load23andMeFile, fetch23andMeParticipants, fetchProfile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
+import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+export { sdk_mjs as clustjs };
+import { fetchProfile, load23andMeFile, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
 import { getTxts, getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
@@ -2926,21 +2928,23 @@ function Match2(mypgs, my23){
   return data2
   }
 
-const data = {
-	pgp: {
-		profile: fetchProfile,
-		users:fetch23andMeParticipants,
-		txt: load23andMeFile
-	},
-	pgs: {
+const pgp = {
+	data: fetch23andMeParticipants,
+	txt: load23andMeFile,
+	profile: fetchProfile,
+};
+
+const pgs = {
+	data: {
 		summary: loadTraitStats,
 		traits: getScoresPerTrait,
 		categories: getScoresPerCategory,
-		txts: getTxts
 	},
-	prs: {
-		calc:Match2 // pgsTxt, my23Txt
-	}
+	txts: getTxts
+};
+
+const prs = {
+	calc: Match2 // pgsTxt, my23Txt
 };
 
 // export {
@@ -2964,5 +2968,5 @@ const data = {
 // 	getPGSIds
 // } from "./src/sdk/getPgs.js";
 
-export { data, localforage };
+export { localforage, pgp, pgs, prs };
 //# sourceMappingURL=sdk.mjs.map

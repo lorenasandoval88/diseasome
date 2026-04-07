@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import * as clustjs from "https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs";
 import {
 	fetch23andMeParticipants, fetchProfile,load23andMeFile
 } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
@@ -15,22 +16,26 @@ import {
 }
 from "./src/sdk/prs.js";
 
-export const data = {
-	pgp: {
-		profile: fetchProfile,
-		users:fetch23andMeParticipants,
-		txt: load23andMeFile
-	},
-	pgs: {
+export const pgp = {
+	data: fetch23andMeParticipants,
+	txt: load23andMeFile,
+	profile: fetchProfile,
+};
+
+export const pgs = {
+	data: {
 		summary: loadTraitStats,
 		traits: getScoresPerTrait,
 		categories: getScoresPerCategory,
-		txts: getTxts
 	},
-	prs: {
-		calc:Match2 // pgsTxt, my23Txt
-	}
+	txts: getTxts
 };
+
+export const prs = {
+	calc: Match2 // pgsTxt, my23Txt
+};
+
+export {clustjs}
 
 export {
 	localforage

@@ -12,7 +12,8 @@ import {
 } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
 
 import {
-	Match2
+	Match2,
+	Match3		
 }
 from "./src/sdk/prs.js";
 
@@ -32,7 +33,8 @@ export const pgs = {
 };
 
 export const prs = {
-	calc: Match2 // pgsTxt, my23Txt
+	calc: Match2, // pgsTxt, my23Txt
+	calc2: Match3 // pgsTxt, my23Txt
 };
 
 export {clustjs}

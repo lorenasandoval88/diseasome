@@ -1,6 +1,6 @@
 /**
- * Ask AI Module - Local AI inference using Transformers.js
- * Runs a small language model in the browser for PRS result analysis
+ * Transformers.js Module - Local AI inference using Transformers.js
+ * Runs Flan-T5 language model in the browser for PRS result analysis
  */
 
 import { pipeline, env } from '@xenova/transformers';
@@ -166,8 +166,8 @@ Provide a brief, helpful response:`;
 /**
  * Render the Ask AI tab content
  */
-function renderAskAI() {
-    const container = document.getElementById('askAIDiv');
+function rendertransformersjs() {
+    const container = document.getElementById('transformersjsDiv');
     if (!container) return;
     
     const prsResults = window.prsResults ?? [];
@@ -194,7 +194,7 @@ function renderAskAI() {
             </div>
             <button id="loadModelBtn" class="btn btn-primary btn-sm">
                 <span id="loadModelSpinner" class="spinner-border spinner-border-sm me-1" style="display:none;"></span>
-                Load AI Model
+                Load Flan-T5 Model
             </button>
             <small class="text-muted ms-2">~250MB download, runs locally in browser</small>
         </div>
@@ -228,23 +228,23 @@ function renderAskAI() {
         ` : ''}
         
         <div class="mb-3">
-            <label for="aiQuestionInput" class="form-label"><strong>Ask a question about your PRS results:</strong></label>
+            <label for="aiQuestionInput" class="form-label"><strong>Ask Flan-T5 about your PRS results:</strong></label>
             <textarea id="aiQuestionInput" class="form-control" rows="3" 
                 placeholder="Enter your question here..."
                 ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Which variants contribute most to the score?</textarea>
         </div>
         
         <div class="mb-3">
-            <button id="askAIBtn" class="btn btn-success" ${!hasResults ? 'disabled' : ''}>
-                <span id="askAISpinner" class="spinner-border spinner-border-sm me-1" style="display:none;"></span>
-                Ask AI
+            <button id="transformersjsBtn" class="btn btn-success" ${!hasResults ? 'disabled' : ''}>
+                <span id="transformersjsSpinner" class="spinner-border spinner-border-sm me-1" style="display:none;"></span>
+                Ask Flan-T5
             </button>
             <button id="clearResponseBtn" class="btn btn-outline-secondary ms-2" style="display:none;">Clear</button>
         </div>
         
         <div id="aiResponseDiv" class="mt-3" style="display:none;">
             <div class="card">
-                <div class="card-header"><strong>AI Response</strong></div>
+                <div class="card-header"><strong>Flan-T5 Response</strong></div>
                 <div class="card-body">
                     <div id="aiResponseText"></div>
                 </div>
@@ -252,8 +252,9 @@ function renderAskAI() {
         </div>
         
         <div class="mt-4 small text-muted">
-            <strong>Note:</strong> This AI runs entirely in your browser using 
-            <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a>. 
+            <strong>Note:</strong> This uses 
+            <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a> 
+            to run Google's Flan-T5 model locally in your browser.
             No data is sent to external servers. The model provides general information and should not 
             be considered medical advice.
         </div>
@@ -268,15 +269,15 @@ function renderAskAI() {
  */
 function attachAIEventHandlers() {
     const loadModelBtn = document.getElementById('loadModelBtn');
-    const askAIBtn = document.getElementById('askAIBtn');
+    const transformersjsBtn = document.getElementById('transformersjsBtn');
     const clearResponseBtn = document.getElementById('clearResponseBtn');
     
     if (loadModelBtn) {
         loadModelBtn.onclick = handleLoadModel;
     }
     
-    if (askAIBtn) {
-        askAIBtn.onclick = handleAskAI;
+    if (transformersjsBtn) {
+        transformersjsBtn.onclick = handletransformersjs;
     }
     
     if (clearResponseBtn) {
@@ -343,10 +344,10 @@ async function handleLoadModel() {
 /**
  * Handle asking AI a question
  */
-async function handleAskAI() {
+async function handletransformersjs() {
     const questionInput = document.getElementById('aiQuestionInput');
-    const askAIBtn = document.getElementById('askAIBtn');
-    const askAISpinner = document.getElementById('askAISpinner');
+    const transformersjsBtn = document.getElementById('transformersjsBtn');
+    const transformersjsSpinner = document.getElementById('transformersjsSpinner');
     const responseDiv = document.getElementById('aiResponseDiv');
     const responseText = document.getElementById('aiResponseText');
     const clearResponseBtn = document.getElementById('clearResponseBtn');
@@ -358,12 +359,12 @@ async function handleAskAI() {
     }
     
     if (!modelLoaded) {
-        alert('Please load the AI model first.');
+        alert('Please load the Flan-T5 model first.');
         return;
     }
     
-    askAIBtn.disabled = true;
-    askAISpinner.style.display = '';
+    transformersjsBtn.disabled = true;
+    transformersjsSpinner.style.display = '';
     responseDiv.style.display = '';
     responseText.innerHTML = '<div class="text-muted"><em>Generating response...</em></div>';
     
@@ -383,16 +384,16 @@ async function handleAskAI() {
         responseText.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
     }
     
-    askAIBtn.disabled = false;
-    askAISpinner.style.display = 'none';
+    transformersjsBtn.disabled = false;
+    transformersjsSpinner.style.display = 'none';
 }
 
 // Expose functions globally
-window.renderAskAI = renderAskAI;
+window.rendertransformersjs = rendertransformersjs;
 window.initAIModel = initModel;
 
 export {
-    renderAskAI,
+    rendertransformersjs,
     initModel,
     generateResponse,
     buildPRSPrompt

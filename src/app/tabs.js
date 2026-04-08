@@ -29,6 +29,9 @@ function tabFunction(evt, openTab, subTab) {
         if (openTab === 'AskAI' && typeof window.renderAskAI === 'function') {
             try { window.renderAskAI(); } catch (e) { console.error('renderAskAI error', e); }
         }
+        if (openTab === 'WebLLM' && typeof window.renderWebLLM === 'function') {
+            try { window.renderWebLLM(); } catch (e) { console.error('renderWebLLM error', e); }
+        }
 
 }
 

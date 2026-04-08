@@ -94,7 +94,8 @@
         <button id="prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
-        <button id="askAIButton" class="tablinks" onclick="tabFunction(event, 'AskAI')">Ask AI</button>
+        <button id="transformersjsButton" class="tablinks" onclick="tabFunction(event, 'transformersjs')">Transformers.js</button>
+        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')">WebLLM</button>
     </div>
     <div id="selection"></div>
 
@@ -123,11 +124,18 @@
                     <div id="clusterDiv"></div>
                 </div>
 
-                <!-- Ask AI tab -->
-                <div id="AskAI" class="tabcontent">
-                    <h3>Ask AI</h3>
-                    <p>Use a local AI model to analyze and understand your PRS results.</p>
-                    <div id="askAIDiv"></div>
+                <!-- Transformers.js tab -->
+                <div id="transformersjs" class="tabcontent">
+                    <h3>Transformers.js (Flan-T5)</h3>
+                    <p>Use Transformers.js with Flan-T5 model running locally to analyze your PRS results.</p>
+                    <div id="transformersjsDiv"></div>
+                </div>
+
+                <!-- WebLLM tab -->
+                <div id="WebLLM" class="tabcontent">
+                    <h3>WebLLM (Phi-3 Mini)</h3>
+                    <p>Use Microsoft's Phi-3 Mini model running locally via WebGPU to analyze your PRS results.</p>
+                    <div id="webLLMDiv"></div>
                 </div>
 
                 <!-- PRS ------------------------------------------>

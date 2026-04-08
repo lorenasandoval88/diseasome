@@ -168,13 +168,13 @@ function Match2(mypgs, my23){
         status: "nomatch",
         pgs: pgsRow,
         my23: "nomatch",
-        alleleCount: 0,
-        riskScore: 0
+        alleleCount: "nomatch",
+        riskScore: "nomatch"
       });
 
       // optional: keep unmatched rows in score arrays too
-      calcRiskScore.push(0);
-      alleles.push(0);
+      calcRiskScore.push("nomatch");
+      alleles.push("nomatch");
     }
   }
 

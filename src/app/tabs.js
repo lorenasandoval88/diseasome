@@ -26,8 +26,8 @@ function tabFunction(evt, openTab, subTab) {
         if (openTab === 'Cluster' && typeof window.renderCluster === 'function') {
             try { window.renderCluster(); } catch (e) { console.error('renderCluster error', e); }
         }
-        if (openTab === 'AskAI' && typeof window.renderAskAI === 'function') {
-            try { window.renderAskAI(); } catch (e) { console.error('renderAskAI error', e); }
+        if (openTab === 'transformersjs' && typeof window.rendertransformersjs === 'function') {
+            try { window.rendertransformersjs(); } catch (e) { console.error('rendertransformersjs error', e); }
         }
         if (openTab === 'WebLLM' && typeof window.renderWebLLM === 'function') {
             try { window.renderWebLLM(); } catch (e) { console.error('renderWebLLM error', e); }

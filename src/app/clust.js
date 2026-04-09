@@ -39,177 +39,120 @@ function getUniquePgsIds(rawResults) {
 }
 
 /**
+ * Get total variant count for a PGS ID
+ */
+function getTotalVariants(rawResults, pgsId) {
+  const result = rawResults?.find(r => r.pgsId === pgsId);
+  return result?.pgs?.dt?.length ?? 0;
+}
+
+/**
  * Build allele matrix for clustering users by variants for a specific PGS entry.
  * Each row is a user, each column is a variant (rsid or chr:pos), values are allele counts (0, 1, 2).
- * For non-matches, uses -1 as a marker value.
+ * For non-matches, uses missingValue as a marker.
  * Returns array of objects suitable for hclust_plot: [{label, variant1: alleleCount, variant2: alleleCount, ...}, ...]
- * @param {boolean} includeNonMatches - If true, include non-matched variants with -1 value
+ * @param {string} mode - "all" (all PGS variants), "overlapping" (matched in ≥1 user), "shared" (matched in ALL users)
+ * @param {number} missingValue - Value to use for missing/non-matched variants (default: -1)
  */
-function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
+function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', missingValue = -1 } = {}) {
   if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
 
-  const variantSet = new Set();
-  const userVariantMap = [];
+  // First pass: collect all user data and per-user matched variants
+  const usersData = [];
+  let pgsDataRef = null;
 
-  // Collect all variants and user data for the target PGS
   for (const result of rawResults) {
-    console.log(  "Processing result for userId:", result.userId, "pgsId:", result.pgsId, result);
     if (result.pgsId !== targetPgsId) continue;
     if (!result.pgsMatchMy23 || !result.alleles) continue;
 
     const label = result.userName ?? result.userId ?? 'Unknown';
-    const row = { label };
-
-    // Get column indices from PGS data
     const pgsData = result.pgs;
     if (!pgsData || !pgsData.cols) continue;
+
+    pgsDataRef = pgsDataRef || pgsData;
 
     const indChr = pgsData.cols.indexOf('hm_chr');
     const indPos = pgsData.cols.indexOf('hm_pos');
     const indRsid = pgsData.cols.indexOf('rsID');
 
-    // Helper to get variant ID
     const getVariantId = (variant, idx) => {
-      if (indRsid >= 0 && variant[indRsid]) {
-        return variant[indRsid];
-      } else if (indChr >= 0 && indPos >= 0) {
-        return `${variant[indChr]}:${variant[indPos]}`;
-      }
+      if (indRsid >= 0 && variant[indRsid]) return variant[indRsid];
+      if (indChr >= 0 && indPos >= 0) return `${variant[indChr]}:${variant[indPos]}`;
       return `var_${idx}`;
     };
 
-    // Build set of matched variant IDs for lookup
-    const matchedVariantIds = new Set();
-    
-    // Map matched variants to allele counts
+    const matchedVariants = new Map(); // variantId -> alleleCount
+
     result.pgsMatchMy23.forEach((matchEntry, idx) => {
-      // Extract the PGS variant (last element in the match array)
       const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
       if (!pgsVariant) return;
 
       const variantId = getVariantId(pgsVariant, idx);
-      // console.log("Processing match for user:", label, "variantId:", variantId, "pgsVariant:", pgsVariant);
-      matchedVariantIds.add(variantId);
-      variantSet.add(variantId);
-      // Ensure numeric value
-      const alleleCount = Number(result.alleles[idx]) ?? 0;
-      // console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
-      // console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
-      row[variantId] = alleleCount;
+      const val = Number(result.alleles[idx]);
+      const alleleCount = Number.isFinite(val) ? val : missingValue;
+      matchedVariants.set(variantId, alleleCount);
     });
 
-    // Add non-matched variants if requested
-    if (includeNonMatches && pgsData.dt) {
-      pgsData.dt.forEach((variant, idx) => {
-        const variantId = getVariantId(variant, idx);
-        if (!matchedVariantIds.has(variantId)) {
-          variantSet.add(variantId);
-          row[variantId] =  -1; // Non-match marker (will be displayed differently)
+    usersData.push({ label, matchedVariants, pgsData, getVariantId });
+  }
+
+  if (usersData.length < 2) return null;
+
+  // Determine which variants to include based on mode
+  let targetVariants;
+
+  if (mode === 'all') {
+    // All variants in PGS file
+    targetVariants = new Set();
+    if (pgsDataRef?.dt) {
+      const indChr = pgsDataRef.cols.indexOf('hm_chr');
+      const indPos = pgsDataRef.cols.indexOf('hm_pos');
+      const indRsid = pgsDataRef.cols.indexOf('rsID');
+      pgsDataRef.dt.forEach((variant, idx) => {
+        if (indRsid >= 0 && variant[indRsid]) {
+          targetVariants.add(variant[indRsid]);
+        } else if (indChr >= 0 && indPos >= 0) {
+          targetVariants.add(`${variant[indChr]}:${variant[indPos]}`);
+        } else {
+          targetVariants.add(`var_${idx}`);
         }
       });
     }
-
-    if (Object.keys(row).length > 1) {
-      userVariantMap.push(row);
+  } else if (mode === 'shared') {
+    // Only variants matched in ALL users
+    targetVariants = null;
+    for (const user of usersData) {
+      const userVariants = new Set(user.matchedVariants.keys());
+      if (targetVariants === null) {
+        targetVariants = userVariants;
+      } else {
+        targetVariants = new Set([...targetVariants].filter(v => userVariants.has(v)));
+      }
+    }
+    targetVariants = targetVariants || new Set();
+  } else {
+    // 'overlapping' - variants matched in at least one user (union)
+    targetVariants = new Set();
+    for (const user of usersData) {
+      for (const v of user.matchedVariants.keys()) {
+        targetVariants.add(v);
+      }
     }
   }
 
-  if (userVariantMap.length < 2) return null;
+  if (targetVariants.size === 0) return null;
 
-  // Ensure all users have all variants (fill missing with -1 for non-matches mode, 0 otherwise)
-  const allVariants = Array.from(variantSet);
-  for (const row of userVariantMap) {
+  // Build final matrix
+  const allVariants = Array.from(targetVariants);
+  const userVariantMap = usersData.map(user => {
+    const row = { label: user.label };
     for (const v of allVariants) {
-      if (row[v] === undefined) {
-        row[v] = includeNonMatches ? -1 : 0;
-      }
+      row[v] = user.matchedVariants.has(v) ? user.matchedVariants.get(v) : missingValue;
     }
-  }
-  console.log("buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants",userVariantMap);
+    return row;
+  });
 
-  return userVariantMap;
-}
-function buildAlleleMatrix_display(rawResults, targetPgsId, includeNonMatches = false) {
-  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
-
-  const variantSet = new Set();
-  const userVariantMap = [];
-
-  // Collect all variants and user data for the target PGS
-  for (const result of rawResults) {
-    console.log(  "Processing result for userId:", result.userId, "pgsId:", result.pgsId, result);
-    if (result.pgsId !== targetPgsId) continue;
-    if (!result.pgsMatchMy23 || !result.alleles) continue;
-
-    const label = result.userName ?? result.userId ?? 'Unknown';
-    const row = { label };
-
-    // Get column indices from PGS data
-    const pgsData = result.pgs;
-    if (!pgsData || !pgsData.cols) continue;
-
-    const indChr = pgsData.cols.indexOf('hm_chr');
-    const indPos = pgsData.cols.indexOf('hm_pos');
-    const indRsid = pgsData.cols.indexOf('rsID');
-
-    // Helper to get variant ID
-    const getVariantId = (variant, idx) => {
-      if (indRsid >= 0 && variant[indRsid]) {
-        return variant[indRsid];
-      } else if (indChr >= 0 && indPos >= 0) {
-        return `${variant[indChr]}:${variant[indPos]}`;
-      }
-      return `var_${idx}`;
-    };
-
-    // Build set of matched variant IDs for lookup
-    const matchedVariantIds = new Set();
-    
-    // Map matched variants to allele counts
-    result.pgsMatchMy23.forEach((matchEntry, idx) => {
-      // Extract the PGS variant (last element in the match array)
-      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
-      if (!pgsVariant) return;
-
-      const variantId = getVariantId(pgsVariant, idx);
-      // console.log("Processing match for user:", label, "variantId:", variantId, "pgsVariant:", pgsVariant);
-      matchedVariantIds.add(variantId);
-      variantSet.add(variantId);
-      // Ensure numeric value
-      const alleleCount = Number(result.alleles[idx]) ?? -1;
-      // console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
-      // console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
-      row[variantId] = alleleCount;
-    });
-
-    // Add non-matched variants if requested
-    if (includeNonMatches && pgsData.dt) {
-      pgsData.dt.forEach((variant, idx) => {
-        const variantId = getVariantId(variant, idx);
-        if (!matchedVariantIds.has(variantId)) {
-          variantSet.add(variantId);
-          row[variantId] =  -1; // Non-match marker (will be displayed differently)
-        }
-      });
-    }
-
-    if (Object.keys(row).length > 1) {
-      userVariantMap.push(row);
-    }
-  }
-
-  if (userVariantMap.length < 2) return null;
-
-  // Ensure all users have all variants (fill missing with -1 for non-matches mode, 0 otherwise)
-  const allVariants = Array.from(variantSet);
-  for (const row of userVariantMap) {
-    for (const v of allVariants) {
-      if (row[v] === undefined) {
-        row[v] = includeNonMatches ? -1 : -1;
-      }
-    }
-  }
-  console.log("DISPLAY buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants",userVariantMap);
+  console.log(`buildAlleleMatrix (${mode}):`, userVariantMap.length, "users,", allVariants.length, "variants, missingValue:", missingValue);
 
   return userVariantMap;
 }
@@ -221,7 +164,7 @@ async function renderCluster() {
 
   const pivoted = pivotPrsResults(window.prsResults);
   const pgsIds = getUniquePgsIds(window.prsResults);
-  console.log("Pivoted PRS results for clustering:", pivoted);
+  //console.log("Pivoted PRS results for clustering:", pivoted);
   // Show message if no PRS results available
   if (pivoted === null) {
     clusterContainer.innerHTML = `
@@ -239,11 +182,25 @@ async function renderCluster() {
   const selectedPgsId = window.clusterOptions?.selectedPgsId ?? pgsIds[0] ?? '';
   const clusterAlleleRows = window.clusterOptions?.clusterAlleleRows ?? true;
   const clusterAlleleCols = window.clusterOptions?.clusterAlleleCols ?? true;
-  const includeNonMatches = window.clusterOptions?.includeNonMatches ?? false;
 
-  // Build allele matrix for selected PGS
-  const alleleMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, includeNonMatches) : null;
- const alleleMatrix_display = selectedPgsId ? buildAlleleMatrix_display(window.prsResults, selectedPgsId, includeNonMatches) : null;
+  // Build allele matrices for selected PGS - three views
+  const allMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 }) : null;
+  const allMatrixDisplay = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1 }) : null;
+  
+  const overlapMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: 0 }) : null;
+  const overlapMatrixDisplay = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: -1 }) : null;
+  
+  const sharedMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: 0 }) : null;
+  const sharedMatrixDisplay = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: -1 }) : null;
+
+  const totalVariants = getTotalVariants(window.prsResults, selectedPgsId);
+  const allCount = allMatrix ? Object.keys(allMatrix[0]).length - 1 : 0;
+  const overlapCount = overlapMatrix ? Object.keys(overlapMatrix[0]).length - 1 : 0;
+  const sharedCount = sharedMatrix ? Object.keys(sharedMatrix[0]).length - 1 : 0;
+  const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
+  const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
+
+ console.log("window.prsResults",window.prsResults)
 
   clusterContainer.innerHTML = `
     <h5>PRS Clustering (Users × PGS Scores)</h5>
@@ -264,37 +221,56 @@ async function renderCluster() {
 
     <h5>Allele Clustering (Users × Variants for Single PGS)</h5>
     <p class="text-muted small mb-2">
-      Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in gray.
+      Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in black.
     </p>
     <div class="mb-3">
       <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Entry:</strong></label>
-      <select id="pgsSelectDropdown" class="form-select" style="max-width: 300px;">
-        ${pgsIds.map(id => `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id}</option>`).join('')}
+      <select id="pgsSelectDropdown" class="form-select" style="max-width: 400px;">
+        ${pgsIds.map(id => `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id} (${getTotalVariants(window.prsResults, id)} variants)</option>`).join('')}
       </select>
     </div>
+
     <div class="mb-3">
-      <button id="toggleNonMatchesBtn" class="btn btn-sm ${includeNonMatches ? 'btn-warning' : 'btn-outline-warning'}">
-        ${includeNonMatches ? '✓ Showing Non-Matches (gray)' : 'Show Non-Matches'}
-      </button>
+      <strong>Cluster by:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="clusterAlleleRowsBtn" class="btn btn-sm ${clusterAlleleRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (Users)</button>
+        <button id="clusterAlleleColsBtn" class="btn btn-sm ${clusterAlleleCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (Variants)</button>
+        <button id="clusterAlleleBothBtn" class="btn btn-sm ${clusterAlleleRows && clusterAlleleCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
     </div>
-    ${alleleMatrix ? `
-      <p class="text-muted small mb-3">
-        Clustering ${alleleMatrix.length} users × ${Object.keys(alleleMatrix[0]).length - 1} variants${includeNonMatches ? ' (including non-matches)' : ' (matches only)'}.
-      </p>
-      <div class="mb-3">
-        <strong>Cluster by:</strong>
-        <div class="btn-group ms-2" role="group">
-          <button id="clusterAlleleRowsBtn" class="btn btn-sm ${clusterAlleleRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (Users)</button>
-          <button id="clusterAlleleColsBtn" class="btn btn-sm ${clusterAlleleCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (Variants)</button>
-          <button id="clusterAlleleBothBtn" class="btn btn-sm ${clusterAlleleRows && clusterAlleleCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
-        </div>
+
+    <!-- 1. All Variants -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>1. All Variants</strong> <span class="text-muted small">— Broad view, includes non-matches (black = missing)</span></div>
+      <div class="card-body">
+        ${allMatrix ? `
+          <p class="text-muted small mb-2">${allMatrix.length} users × ${allCount} variants (of ${totalVariants} total in PGS)</p>
+          <div id="allVariantsPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Not enough data for all-variants view.</div>`}
       </div>
-      <div id="allelePlotMount"></div>
-    ` : `
-      <div class="alert alert-warning">
-        ${selectedPgsId ? `Not enough data to cluster for ${selectedPgsId}. Need at least 2 users with matched variants.` : 'Select a PGS entry to view allele clustering.'}
+    </div>
+
+    <!-- 2. Overlapping Matches -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>2. Overlapping Matches</strong> <span class="text-muted small">— SNPs matched in ≥1 user (cleaner view)</span></div>
+      <div class="card-body">
+        ${overlapMatrix ? `
+          <p class="text-muted small mb-2">${overlapMatrix.length} users × ${overlapCount} variants (${overlapPct}% of total)</p>
+          <div id="overlapPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Not enough overlapping matches.</div>`}
       </div>
-    `}
+    </div>
+
+    <!-- 3. Shared Matched SNPs -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>3. Shared Matched SNPs</strong> <span class="text-muted small">— SNPs matched in ALL users (best for direct comparison)</span></div>
+      <div class="card-body">
+        ${sharedMatrix ? `
+          <p class="text-muted small mb-2">${sharedMatrix.length} users × ${sharedCount} variants (${sharedPct}% of total)</p>
+          <div id="sharedPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">No variants shared across all users.</div>`}
+      </div>
+    </div>
   `;
 
   // Attach button handlers for PRS clustering
@@ -318,31 +294,23 @@ async function renderCluster() {
     renderCluster();
   };
 
-  // Attach toggle non-matches button handler
-  document.getElementById('toggleNonMatchesBtn').onclick = () => {
-    window.clusterOptions = { ...window.clusterOptions, includeNonMatches: !includeNonMatches };
+  // Attach allele clustering button handlers
+  document.getElementById('clusterAlleleRowsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows: !clusterAlleleRows, clusterAlleleCols };
+    renderCluster();
+  };
+  document.getElementById('clusterAlleleColsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows, clusterAlleleCols: !clusterAlleleCols };
+    renderCluster();
+  };
+  document.getElementById('clusterAlleleBothBtn').onclick = () => {
+    const bothOn = clusterAlleleRows && clusterAlleleCols;
+    window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows: !bothOn, clusterAlleleCols: !bothOn };
     renderCluster();
   };
 
-  // Attach allele clustering button handlers
-  if (alleleMatrix) {
-    document.getElementById('clusterAlleleRowsBtn').onclick = () => {
-      window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows: !clusterAlleleRows, clusterAlleleCols };
-      renderCluster();
-    };
-    document.getElementById('clusterAlleleColsBtn').onclick = () => {
-      window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows, clusterAlleleCols: !clusterAlleleCols };
-      renderCluster();
-    };
-    document.getElementById('clusterAlleleBothBtn').onclick = () => {
-      const bothOn = clusterAlleleRows && clusterAlleleCols;
-      window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows: !bothOn, clusterAlleleCols: !bothOn };
-      renderCluster();
-    };
-  }
-
   // Render PRS cluster plot
-  console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
+  // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
   await clust.hclust_plot({
     divid: "clusterPlotMount",
     data: pivoted,
@@ -352,20 +320,51 @@ async function renderCluster() {
     clusterCols: clusterCols
   });
 
-  // Render allele cluster plot if data available
-  if (alleleMatrix) {
-    console.log("allele cluster data:", alleleMatrix, "clusterRows:", clusterAlleleRows, "clusterCols:", clusterAlleleCols, "includeNonMatches:", includeNonMatches);
+  const colorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
+
+  // Render 1. All Variants plot
+  if (allMatrix) {
     await clust.hclust_plot({
-      divid: "allelePlotMount",
-      data: alleleMatrix,
-      displayData: alleleMatrix_display,
+      divid: "allVariantsPlot",
+      data: allMatrix,
+      displayData: allMatrixDisplay,
       width: 900,
       height: 520,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2])  .range(["#f7fbff", "#6baed6", "#103a79"])
-      //heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2]).range(["#fffffd", "#edc72f", "#f34320"])
+      heatmapColorScale: colorScale
     });
+  }
+
+  // Render 2. Overlapping Matches plot
+  if (overlapMatrix) {
+    await clust.hclust_plot({
+      divid: "overlapPlot",
+      data: overlapMatrix,
+      displayData: overlapMatrixDisplay,
+      width: 900,
+      height: 520,
+      clusterRows: clusterAlleleRows,
+      clusterCols: clusterAlleleCols,
+      heatmapColorScale: colorScale
+    });
+  }
+
+  // Render 3. Shared Matched SNPs plot
+  if (sharedMatrix && Object.keys(sharedMatrix[0]).length > 1) {
+    await clust.hclust_plot({
+      divid: "sharedPlot",
+      data: sharedMatrix,
+      displayData: sharedMatrixDisplay,
+      width: 900,
+      height: 520,
+      clusterRows: clusterAlleleRows,
+      clusterCols: clusterAlleleCols,
+      heatmapColorScale: colorScale
+    });
+  } else if (document.getElementById("sharedPlot")) {
+    document.getElementById("sharedPlot").innerHTML =
+      `<div class="alert alert-info">No SNPs shared across all users.</div>`;
   }
 }
 

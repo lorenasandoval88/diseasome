@@ -47,9 +47,11 @@ function getUniquePgsIds(rawResults) {
 /**
  * Build allele matrix for clustering users by variants for a specific PGS entry.
  * Each row is a user, each column is a variant (rsid or chr:pos), values are allele counts (0, 1, 2).
+ * For non-matches, uses -1 as a marker value.
  * Returns array of objects suitable for hclust_plot: [{label, variant1: alleleCount, variant2: alleleCount, ...}, ...]
+ * @param {boolean} includeNonMatches - If true, include non-matched variants with -1 value
  */
-function buildAlleleMatrix(rawResults, targetPgsId) {
+function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
   if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
 
   const variantSet = new Set();
@@ -71,25 +73,43 @@ function buildAlleleMatrix(rawResults, targetPgsId) {
     const indPos = pgsData.cols.indexOf('hm_pos');
     const indRsid = pgsData.cols.indexOf('rsID');
 
+    // Helper to get variant ID
+    const getVariantId = (variant, idx) => {
+      if (indRsid >= 0 && variant[indRsid]) {
+        return variant[indRsid];
+      } else if (indChr >= 0 && indPos >= 0) {
+        return `${variant[indChr]}:${variant[indPos]}`;
+      }
+      return `var_${idx}`;
+    };
+
+    // Build set of matched variant IDs for lookup
+    const matchedVariantIds = new Set();
+    
     // Map matched variants to allele counts
     result.pgsMatchMy23.forEach((matchEntry, idx) => {
       // Extract the PGS variant (last element in the match array)
       const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
       if (!pgsVariant) return;
 
-      // Create variant identifier (prefer rsid, fallback to chr:pos)
-      let variantId;
-      if (indRsid >= 0 && pgsVariant[indRsid]) {
-        variantId = pgsVariant[indRsid];
-      } else if (indChr >= 0 && indPos >= 0) {
-        variantId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
-      } else {
-        variantId = `var_${idx}`;
-      }
-
+      const variantId = getVariantId(pgsVariant, idx);
+      matchedVariantIds.add(variantId);
       variantSet.add(variantId);
-      row[variantId] = result.alleles[idx] ?? 0;
+      // Ensure numeric value
+      const alleleCount = Number(result.alleles[idx]) || 0;
+      row[variantId] = alleleCount;
     });
+
+    // Add non-matched variants if requested
+    if (includeNonMatches && pgsData.dt) {
+      pgsData.dt.forEach((variant, idx) => {
+        const variantId = getVariantId(variant, idx);
+        if (!matchedVariantIds.has(variantId)) {
+          variantSet.add(variantId);
+          row[variantId] = -1; // Non-match marker (will be displayed differently)
+        }
+      });
+    }
 
     if (Object.keys(row).length > 1) {
       userVariantMap.push(row);
@@ -97,6 +117,19 @@ function buildAlleleMatrix(rawResults, targetPgsId) {
   }
 
   if (userVariantMap.length < 2) return null;
+
+  // Ensure all users have all variants (fill missing with -1 for non-matches mode, 0 otherwise)
+  const allVariants = Array.from(variantSet);
+  for (const row of userVariantMap) {
+    for (const v of allVariants) {
+      if (row[v] === undefined) {
+        row[v] = includeNonMatches ? -1 : 0;
+      }
+    }
+  }
+
+  console.log("buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants");
+  console.log("Sample row:", userVariantMap[0]);
 
   return userVariantMap;
 }
@@ -125,9 +158,10 @@ async function renderCluster() {
   const selectedPgsId = window.clusterOptions?.selectedPgsId ?? pgsIds[0] ?? '';
   const clusterAlleleRows = window.clusterOptions?.clusterAlleleRows ?? true;
   const clusterAlleleCols = window.clusterOptions?.clusterAlleleCols ?? true;
+  const includeNonMatches = window.clusterOptions?.includeNonMatches ?? false;
 
   // Build allele matrix for selected PGS
-  const alleleMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId) : null;
+  const alleleMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, includeNonMatches) : null;
 
   clusterContainer.innerHTML = `
     <h5>PRS Clustering (Users × PGS Scores)</h5>
@@ -148,7 +182,7 @@ async function renderCluster() {
 
     <h5>Allele Clustering (Users × Variants for Single PGS)</h5>
     <p class="text-muted small mb-2">
-      Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry.
+      Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in gray.
     </p>
     <div class="mb-3">
       <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Entry:</strong></label>
@@ -156,9 +190,14 @@ async function renderCluster() {
         ${pgsIds.map(id => `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id}</option>`).join('')}
       </select>
     </div>
+    <div class="mb-3">
+      <button id="toggleNonMatchesBtn" class="btn btn-sm ${includeNonMatches ? 'btn-warning' : 'btn-outline-warning'}">
+        ${includeNonMatches ? '✓ Showing Non-Matches (gray)' : 'Show Non-Matches'}
+      </button>
+    </div>
     ${alleleMatrix ? `
       <p class="text-muted small mb-3">
-        Clustering ${alleleMatrix.length} users × ${Object.keys(alleleMatrix[0]).length - 1} variants.
+        Clustering ${alleleMatrix.length} users × ${Object.keys(alleleMatrix[0]).length - 1} variants${includeNonMatches ? ' (including non-matches)' : ' (matches only)'}.
       </p>
       <div class="mb-3">
         <strong>Cluster by:</strong>
@@ -197,6 +236,12 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // Attach toggle non-matches button handler
+  document.getElementById('toggleNonMatchesBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, includeNonMatches: !includeNonMatches };
+    renderCluster();
+  };
+
   // Attach allele clustering button handlers
   if (alleleMatrix) {
     document.getElementById('clusterAlleleRowsBtn').onclick = () => {
@@ -227,7 +272,7 @@ async function renderCluster() {
 
   // Render allele cluster plot if data available
   if (alleleMatrix) {
-    console.log("allele cluster data:", alleleMatrix, "clusterRows:", clusterAlleleRows, "clusterCols:", clusterAlleleCols);
+    console.log("allele cluster data:", alleleMatrix, "clusterRows:", clusterAlleleRows, "clusterCols:", clusterAlleleCols, "includeNonMatches:", includeNonMatches);
     await clust.hclust_plot({
       divid: "allelePlotMount",
       data: alleleMatrix,

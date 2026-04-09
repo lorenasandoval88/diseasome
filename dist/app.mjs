@@ -6230,12 +6230,6 @@ console.log("clustjs version:", clust.version);
 
 const clusterContainerId = "clusterDiv";
 
-// const sampleClusterData = [
-//   { prs_breast_cancer: 1.2, prs_diabetes: 0.8, prs_cad: 1.1, label: "User A" },
-//   { prs_breast_cancer: 1.1, prs_diabetes: 0.9, prs_cad: 1.0, label: "User B" },
-//   { prs_breast_cancer: 2.4, prs_diabetes: 1.9, prs_cad: 2.1, label: "User C" },
-//   { prs_breast_cancer: 2.5, prs_diabetes: 2.0, prs_cad: 2.2, label: "User D" }
-// ];
 
 /**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
@@ -6324,10 +6318,9 @@ function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
       matchedVariantIds.add(variantId);
       variantSet.add(variantId);
       // Ensure numeric value
-      console.log("Alleles for variantId:", variantId, "raw value:", result.alleles[idx]);
       const alleleCount = Number(result.alleles[idx]) ?? 0;
-      console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
-      console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
+      // console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
+      // console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
       row[variantId] = alleleCount;
     });
 
@@ -6409,10 +6402,9 @@ function buildAlleleMatrix_display(rawResults, targetPgsId, includeNonMatches = 
       matchedVariantIds.add(variantId);
       variantSet.add(variantId);
       // Ensure numeric value
-      console.log("Alleles for variantId:", variantId, "raw value:", result.alleles[idx]);
       const alleleCount = Number(result.alleles[idx]) ?? -1;
-      console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
-      console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
+      // console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
+      // console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
       row[variantId] = alleleCount;
     });
 
@@ -6447,13 +6439,15 @@ function buildAlleleMatrix_display(rawResults, targetPgsId, includeNonMatches = 
 
   return userVariantMap;
 }
+
+
 async function renderCluster() {
   const clusterContainer = document.getElementById(clusterContainerId);
   if (!clusterContainer) return;
 
   const pivoted = pivotPrsResults(window.prsResults);
   const pgsIds = getUniquePgsIds(window.prsResults);
-  
+  console.log("Pivoted PRS results for clustering:", pivoted);
   // Show message if no PRS results available
   if (pivoted === null) {
     clusterContainer.innerHTML = `
@@ -6595,8 +6589,8 @@ async function renderCluster() {
       height: 520,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      //heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2])  .range(["#f7fbff", "#6baed6", "#08306b"])
-      heatmapColorScale : clust.d3.scaleLinear().domain([0, 2]).range(["pink", "red"])
+      heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2])  .range(["#f7fbff", "#6baed6", "#103a79"])
+      //heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2]).range(["#fffffd", "#edc72f", "#f34320"])
     });
   }
 }

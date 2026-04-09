@@ -167,12 +167,10 @@ async function renderCluster() {
   //console.log("Pivoted PRS results for clustering:", pivoted);
   // Show message if no PRS results available
   if (pivoted === null) {
-    clusterContainer.innerHTML = `
-      <div class="alert alert-info">
+    clusterContainer.innerHTML = `<div class="alert alert-info">
         <strong>No PRS results available.</strong><br>
-        Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
-      </div>
-    `;
+        Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation. <a href="#" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Go to Calculate PRS →</a>
+    </div>`;
     return;
   }
 

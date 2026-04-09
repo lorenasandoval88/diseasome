@@ -180,7 +180,7 @@ function rendertransformersjs() {
         ${!hasResults ? `
             <div class="alert alert-info">
                 <strong>No PRS results available.</strong><br>
-                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation.
+                Please go to the <strong>Calculate PRS</strong> tab first and run a PRS calculation. <a href="#" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Go to Calculate PRS →</a>
             </div>
         ` : ''}
         

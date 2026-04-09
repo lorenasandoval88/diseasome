@@ -91,7 +91,7 @@
     <div class="tab">
         <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Polygenic Scores</button>
         <button class="tablinks" onclick="tabFunction(event, 'LocalData')">23andMe Data</button>
-        <button id="prsButton" class="tablinks" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
+        <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
         <button id="transformersjsButton" class="tablinks" onclick="tabFunction(event, 'transformersjs')">Transformers.js</button>
@@ -140,7 +140,7 @@
 
                 <!-- PRS ------------------------------------------>
 
-                <div id="PRS" class="tabcontent">
+                <div id="PRS" class="tabcontent" style="display: block;">
                     <h3>PRS</h3>
                     <p>Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining
                         the

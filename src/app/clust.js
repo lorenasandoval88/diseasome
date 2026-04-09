@@ -59,6 +59,7 @@ function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
 
   // Collect all variants and user data for the target PGS
   for (const result of rawResults) {
+    console.log(  "Processing result for userId:", result.userId, "pgsId:", result.pgsId, result);
     if (result.pgsId !== targetPgsId) continue;
     if (!result.pgsMatchMy23 || !result.alleles) continue;
 
@@ -93,10 +94,14 @@ function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
       if (!pgsVariant) return;
 
       const variantId = getVariantId(pgsVariant, idx);
+      // console.log("Processing match for user:", label, "variantId:", variantId, "pgsVariant:", pgsVariant);
       matchedVariantIds.add(variantId);
       variantSet.add(variantId);
       // Ensure numeric value
-      const alleleCount = Number(result.alleles[idx]) || 0;
+      console.log("Alleles for variantId:", variantId, "raw value:", result.alleles[idx]);
+      const alleleCount = Number(result.alleles[idx]) ?? 0;
+      console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
+      console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
       row[variantId] = alleleCount;
     });
 
@@ -106,7 +111,7 @@ function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
         const variantId = getVariantId(variant, idx);
         if (!matchedVariantIds.has(variantId)) {
           variantSet.add(variantId);
-          row[variantId] = -1; // Non-match marker (will be displayed differently)
+          row[variantId] =  -1; // Non-match marker (will be displayed differently)
         }
       });
     }
@@ -127,13 +132,95 @@ function buildAlleleMatrix(rawResults, targetPgsId, includeNonMatches = false) {
       }
     }
   }
-
-  console.log("buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants");
-  console.log("Sample row:", userVariantMap[0]);
+  console.log("buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants",userVariantMap);
 
   return userVariantMap;
 }
+function buildAlleleMatrix_display(rawResults, targetPgsId, includeNonMatches = false) {
+  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
 
+  const variantSet = new Set();
+  const userVariantMap = [];
+
+  // Collect all variants and user data for the target PGS
+  for (const result of rawResults) {
+    console.log(  "Processing result for userId:", result.userId, "pgsId:", result.pgsId, result);
+    if (result.pgsId !== targetPgsId) continue;
+    if (!result.pgsMatchMy23 || !result.alleles) continue;
+
+    const label = result.userName ?? result.userId ?? 'Unknown';
+    const row = { label };
+
+    // Get column indices from PGS data
+    const pgsData = result.pgs;
+    if (!pgsData || !pgsData.cols) continue;
+
+    const indChr = pgsData.cols.indexOf('hm_chr');
+    const indPos = pgsData.cols.indexOf('hm_pos');
+    const indRsid = pgsData.cols.indexOf('rsID');
+
+    // Helper to get variant ID
+    const getVariantId = (variant, idx) => {
+      if (indRsid >= 0 && variant[indRsid]) {
+        return variant[indRsid];
+      } else if (indChr >= 0 && indPos >= 0) {
+        return `${variant[indChr]}:${variant[indPos]}`;
+      }
+      return `var_${idx}`;
+    };
+
+    // Build set of matched variant IDs for lookup
+    const matchedVariantIds = new Set();
+    
+    // Map matched variants to allele counts
+    result.pgsMatchMy23.forEach((matchEntry, idx) => {
+      // Extract the PGS variant (last element in the match array)
+      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+      if (!pgsVariant) return;
+
+      const variantId = getVariantId(pgsVariant, idx);
+      // console.log("Processing match for user:", label, "variantId:", variantId, "pgsVariant:", pgsVariant);
+      matchedVariantIds.add(variantId);
+      variantSet.add(variantId);
+      // Ensure numeric value
+      console.log("Alleles for variantId:", variantId, "raw value:", result.alleles[idx]);
+      const alleleCount = Number(result.alleles[idx]) ?? -1;
+      console.log("Number(result.alleles[idx]):",Number(result.alleles[idx]));
+      console.log("Processed allele count for variantId:", variantId, "alleleCount:", alleleCount);
+      row[variantId] = alleleCount;
+    });
+
+    // Add non-matched variants if requested
+    if (includeNonMatches && pgsData.dt) {
+      pgsData.dt.forEach((variant, idx) => {
+        const variantId = getVariantId(variant, idx);
+        if (!matchedVariantIds.has(variantId)) {
+          variantSet.add(variantId);
+          row[variantId] =  -1; // Non-match marker (will be displayed differently)
+        }
+      });
+    }
+
+    if (Object.keys(row).length > 1) {
+      userVariantMap.push(row);
+    }
+  }
+
+  if (userVariantMap.length < 2) return null;
+
+  // Ensure all users have all variants (fill missing with -1 for non-matches mode, 0 otherwise)
+  const allVariants = Array.from(variantSet);
+  for (const row of userVariantMap) {
+    for (const v of allVariants) {
+      if (row[v] === undefined) {
+        row[v] = includeNonMatches ? -1 : -1;
+      }
+    }
+  }
+  console.log("DISPLAY buildAlleleMatrix result:", userVariantMap.length, "users,", allVariants.length, "variants",userVariantMap);
+
+  return userVariantMap;
+}
 async function renderCluster() {
   const clusterContainer = document.getElementById(clusterContainerId);
   if (!clusterContainer) return;
@@ -162,6 +249,7 @@ async function renderCluster() {
 
   // Build allele matrix for selected PGS
   const alleleMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, includeNonMatches) : null;
+ const alleleMatrix_display = selectedPgsId ? buildAlleleMatrix_display(window.prsResults, selectedPgsId, includeNonMatches) : null;
 
   clusterContainer.innerHTML = `
     <h5>PRS Clustering (Users × PGS Scores)</h5>
@@ -276,10 +364,13 @@ async function renderCluster() {
     await clust.hclust_plot({
       divid: "allelePlotMount",
       data: alleleMatrix,
+      displayData: alleleMatrix_display,
       width: 900,
       height: 520,
       clusterRows: clusterAlleleRows,
-      clusterCols: clusterAlleleCols
+      clusterCols: clusterAlleleCols,
+      //heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2])  .range(["#f7fbff", "#6baed6", "#08306b"])
+      heatmapColorScale : clust.d3.scaleLinear().domain([0, 1, 2]).range(["#a1d99b", "#ffffcc", "#e31a1c"])
     });
   }
 }

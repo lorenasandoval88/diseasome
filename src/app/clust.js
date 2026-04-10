@@ -201,7 +201,7 @@ async function renderCluster() {
  console.log("window.prsResults",window.prsResults)
 
   clusterContainer.innerHTML = `
-    <h5>PRS Clustering (Users × PGS Scores)</h5>
+    <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
     <p class="text-muted small mb-3">
       Hierarchical clustering of PRS results (${pivoted.length} users × ${Object.keys(pivoted[0]).length - 1} PGS entries).
     </p>
@@ -217,7 +217,7 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>Allele Clustering (Users × Variants for Single PGS)</h5>
+    <h5>Allele Clustering (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
     <p class="text-muted small mb-2">
       Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in black.
     </p>

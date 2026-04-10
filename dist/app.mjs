@@ -30964,7 +30964,7 @@ async function generateResponse$1(prompt, maxLength = 256) {
  * Step 3: Final prompt (You are an expert in genomics...) with question for AI
  */
 function buildPRSPrompt$1(results, question) {
-    console.log("Building AI prompt with PRS results:", results);
+    //console.log("Building AI prompt with PRS results:", results);
     if (!results || results.length === 0) {
         return `Question about polygenic risk scores: ${question}\n\nAnswer:`;
     }

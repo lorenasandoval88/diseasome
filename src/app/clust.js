@@ -47,6 +47,17 @@ function getTotalVariants(rawResults, pgsId) {
 }
 
 /**
+ * Get publication year for a PGS ID from citation metadata
+ */
+function getPublicationYear(rawResults, pgsId) {
+  const result = rawResults?.find(r => r.pgsId === pgsId);
+  const citation = result?.pgs?.meta?.citation ?? '';
+  // Extract year from citation format "Author et al. Journal (YYYY). doi:..."
+  const match = citation.match(/\((\d{4})\)/);
+  return match ? match[1] : '';
+}
+
+/**
  * Build allele matrix for clustering users by variants for a specific PGS entry.
  * Each row is a user, each column is a variant (rsid or chr:pos), values are allele counts (0, 1, 2).
  * For non-matches, uses missingValue as a marker.
@@ -198,7 +209,7 @@ async function renderCluster() {
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
 
- console.log("window.prsResults",window.prsResults)
+//  console.log("window.prsResults",window.prsResults)
 
   clusterContainer.innerHTML = `
     <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
@@ -224,7 +235,11 @@ async function renderCluster() {
     <div class="mb-3">
       <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Entry:</strong></label>
       <select id="pgsSelectDropdown" class="form-select" style="max-width: 400px;">
-        ${pgsIds.map(id => `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id} (${getTotalVariants(window.prsResults, id)} variants)</option>`).join('')}
+        ${pgsIds.map(id => {
+          const year = getPublicationYear(window.prsResults, id);
+          const yearStr = year ? ` (${year})` : '';
+          return `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id}${yearStr} — ${getTotalVariants(window.prsResults, id)} variants</option>`;
+        }).join('')}
       </select>
     </div>
 

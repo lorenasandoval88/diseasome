@@ -19,6 +19,9 @@ const MODEL_ID = 'Xenova/flan-t5-base';
 
 /**
  * Initialize the text generation pipeline
+ * loads model once
+ * prevents duplicate loading
+ * shows progress
  */
 async function initModel(progressCallback) {
     if (modelLoaded && generator) return generator;
@@ -60,8 +63,12 @@ async function generateResponse(prompt, maxLength = 256) {
 /**
  * Build a prompt from PRS results for AI analysis
  * Uses detailed matched data from window.matchedResults when available
+ * Step 1: Summarize PRS results (top 5)
+ * Step 2: Feature engineering for LLMs - Add detailed genomics data (allele distributions, top variants, beta sums) if available
+ * Step 3: Final prompt (You are an expert in genomics...) with question for AI
  */
 function buildPRSPrompt(results, question) {
+    console.log("Building AI prompt with PRS results:", results);
     if (!results || results.length === 0) {
         return `Question about polygenic risk scores: ${question}\n\nAnswer:`;
     }
@@ -171,7 +178,6 @@ function rendertransformersjs() {
     if (!container) return;
     
     const prsResults = window.prsResults ?? [];
-    console.log("Rendering Ask AI tab with PRS results:", prsResults);
     const hasResults = prsResults.length > 0;
     const matchedResults = window.matchedResults ?? {};
     const hasMatchedResults = Object.keys(matchedResults).length > 0;
@@ -231,7 +237,7 @@ function rendertransformersjs() {
             <label for="aiQuestionInput" class="form-label"><strong>Ask Flan-T5 about your PRS results:</strong></label>
             <textarea id="aiQuestionInput" class="form-control" rows="3" 
                 placeholder="Enter your question here..."
-                ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Which variants contribute most to the score?</textarea>
+                ${!hasResults ? 'disabled' : ''}> Which variants contribute most to the score?</textarea>
         </div>
         
         <div class="mb-3">
@@ -257,6 +263,26 @@ function rendertransformersjs() {
             to run Google's Flan-T5 model locally in your browser.
             No data is sent to external servers. The model provides general information and should not 
             be considered medical advice.
+        </div>
+
+        <hr class="my-4" />
+        <div class="card">
+            <div class="card-header"><strong>Pipeline: PRS Analysis with Transformers.js</strong></div>
+            <div class="card-body text-center">
+                <div class="d-flex flex-column align-items-center" style="font-family: monospace; font-size: 0.9rem;">
+                    <div class="badge bg-primary px-3 py-2">PRS Results + Variant Data</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-secondary px-3 py-2">buildPRSPrompt()</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-info px-3 py-2">Natural language prompt</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-warning text-dark px-3 py-2">Transformers.js (Flan-T5)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-success px-3 py-2">Generated explanation</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-dark px-3 py-2">UI display</div>
+                </div>
+            </div>
         </div>
     `;
     
@@ -371,8 +397,9 @@ async function handletransformersjs() {
     try {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt(prsResults, question);
-        
-        console.log('AI Prompt:', prompt);
+        console.log("Building AI prompt based on PRS results:", prsResults);
+
+        console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
         const response = await generateResponse(prompt);
         console.log('AI Response:', response);
         

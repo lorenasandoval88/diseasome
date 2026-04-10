@@ -6273,6 +6273,17 @@ function getTotalVariants(rawResults, pgsId) {
 }
 
 /**
+ * Get publication year for a PGS ID from citation metadata
+ */
+function getPublicationYear(rawResults, pgsId) {
+  const result = rawResults?.find(r => r.pgsId === pgsId);
+  const citation = result?.pgs?.meta?.citation ?? '';
+  // Extract year from citation format "Author et al. Journal (YYYY). doi:..."
+  const match = citation.match(/\((\d{4})\)/);
+  return match ? match[1] : '';
+}
+
+/**
  * Build allele matrix for clustering users by variants for a specific PGS entry.
  * Each row is a user, each column is a variant (rsid or chr:pos), values are allele counts (0, 1, 2).
  * For non-matches, uses missingValue as a marker.
@@ -6424,7 +6435,7 @@ async function renderCluster() {
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
 
- console.log("window.prsResults",window.prsResults);
+//  console.log("window.prsResults",window.prsResults)
 
   clusterContainer.innerHTML = `
     <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
@@ -6450,7 +6461,11 @@ async function renderCluster() {
     <div class="mb-3">
       <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Entry:</strong></label>
       <select id="pgsSelectDropdown" class="form-select" style="max-width: 400px;">
-        ${pgsIds.map(id => `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id} (${getTotalVariants(window.prsResults, id)} variants)</option>`).join('')}
+        ${pgsIds.map(id => {
+          const year = getPublicationYear(window.prsResults, id);
+          const yearStr = year ? ` (${year})` : '';
+          return `<option value="${id}" ${id === selectedPgsId ? 'selected' : ''}>${id}${yearStr} — ${getTotalVariants(window.prsResults, id)} variants</option>`;
+        }).join('')}
       </select>
     </div>
 
@@ -30780,6 +30795,9 @@ const MODEL_ID$1 = 'Xenova/flan-t5-base';
 
 /**
  * Initialize the text generation pipeline
+ * loads model once
+ * prevents duplicate loading
+ * shows progress
  */
 async function initModel$1(progressCallback) {
     if (modelLoaded$1 && generator) return generator;
@@ -30821,8 +30839,12 @@ async function generateResponse$1(prompt, maxLength = 256) {
 /**
  * Build a prompt from PRS results for AI analysis
  * Uses detailed matched data from window.matchedResults when available
+ * Step 1: Summarize PRS results (top 5)
+ * Step 2: Feature engineering for LLMs - Add detailed genomics data (allele distributions, top variants, beta sums) if available
+ * Step 3: Final prompt (You are an expert in genomics...) with question for AI
  */
 function buildPRSPrompt$1(results, question) {
+    console.log("Building AI prompt with PRS results:", results);
     if (!results || results.length === 0) {
         return `Question about polygenic risk scores: ${question}\n\nAnswer:`;
     }
@@ -30932,7 +30954,6 @@ function rendertransformersjs() {
     if (!container) return;
     
     const prsResults = window.prsResults ?? [];
-    console.log("Rendering Ask AI tab with PRS results:", prsResults);
     const hasResults = prsResults.length > 0;
     const matchedResults = window.matchedResults ?? {};
     const hasMatchedResults = Object.keys(matchedResults).length > 0;
@@ -30992,7 +31013,7 @@ function rendertransformersjs() {
             <label for="aiQuestionInput" class="form-label"><strong>Ask Flan-T5 about your PRS results:</strong></label>
             <textarea id="aiQuestionInput" class="form-control" rows="3" 
                 placeholder="Enter your question here..."
-                ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Which variants contribute most to the score?</textarea>
+                ${!hasResults ? 'disabled' : ''}> Which variants contribute most to the score?</textarea>
         </div>
         
         <div class="mb-3">
@@ -31018,6 +31039,26 @@ function rendertransformersjs() {
             to run Google's Flan-T5 model locally in your browser.
             No data is sent to external servers. The model provides general information and should not 
             be considered medical advice.
+        </div>
+
+        <hr class="my-4" />
+        <div class="card">
+            <div class="card-header"><strong>Pipeline: PRS Analysis with Transformers.js</strong></div>
+            <div class="card-body text-center">
+                <div class="d-flex flex-column align-items-center" style="font-family: monospace; font-size: 0.9rem;">
+                    <div class="badge bg-primary px-3 py-2">PRS Results + Variant Data</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-secondary px-3 py-2">buildPRSPrompt()</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-info px-3 py-2">Natural language prompt</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-warning text-dark px-3 py-2">Transformers.js (Flan-T5)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-success px-3 py-2">Generated explanation</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-dark px-3 py-2">UI display</div>
+                </div>
+            </div>
         </div>
     `;
     
@@ -31132,8 +31173,9 @@ async function handletransformersjs() {
     try {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt$1(prsResults, question);
-        
-        console.log('AI Prompt:', prompt);
+        console.log("Building AI prompt based on PRS results:", prsResults);
+
+        console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
         const response = await generateResponse$1(prompt);
         console.log('AI Response:', response);
         
@@ -31412,6 +31454,28 @@ function renderWebLLM() {
             to run Microsoft's Phi-3 Mini model locally in your browser via WebGPU. 
             No data is sent to external servers. The model provides general information and should not 
             be considered medical advice.
+        </div>
+
+        <hr class="my-4" />
+        <div class="card">
+            <div class="card-header"><strong>Pipeline: PRS Analysis with WebLLM</strong></div>
+            <div class="card-body text-center">
+                <div class="d-flex flex-column align-items-center" style="font-family: monospace; font-size: 0.9rem;">
+                    <div class="badge bg-primary px-3 py-2">PRS Results + Variant Data</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-secondary px-3 py-2">buildPRSPrompt()</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-info px-3 py-2">Natural language prompt</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-purple px-3 py-2" style="background-color: #6f42c1 !important;">Chat message format (system + user)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-warning text-dark px-3 py-2">WebLLM (Phi-3 Mini via WebGPU)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-success px-3 py-2">Streaming or full response</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-dark px-3 py-2">UI display</div>
+                </div>
+            </div>
         </div>
     `;
     

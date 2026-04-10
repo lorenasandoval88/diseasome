@@ -259,6 +259,28 @@ function renderWebLLM() {
             No data is sent to external servers. The model provides general information and should not 
             be considered medical advice.
         </div>
+
+        <hr class="my-4" />
+        <div class="card">
+            <div class="card-header"><strong>Pipeline: PRS Analysis with WebLLM</strong></div>
+            <div class="card-body text-center">
+                <div class="d-flex flex-column align-items-center" style="font-family: monospace; font-size: 0.9rem;">
+                    <div class="badge bg-primary px-3 py-2">PRS Results + Variant Data</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-secondary px-3 py-2">buildPRSPrompt()</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-info px-3 py-2">Natural language prompt</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-purple px-3 py-2" style="background-color: #6f42c1 !important;">Chat message format (system + user)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-warning text-dark px-3 py-2">WebLLM (Phi-3 Mini via WebGPU)</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-success px-3 py-2">Streaming or full response</div>
+                    <div class="text-muted my-1">↓</div>
+                    <div class="badge bg-dark px-3 py-2">UI display</div>
+                </div>
+            </div>
+        </div>
     `;
     
     // Attach event handlers

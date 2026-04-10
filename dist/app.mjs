@@ -6394,6 +6394,103 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
   return userVariantMap;
 }
 
+/**
+ * Get unique user IDs from prsResults
+ */
+function getUniqueUserIds(rawResults) {
+  if (!Array.isArray(rawResults)) return [];
+  const users = new Map();
+  for (const r of rawResults) {
+    if (r.userId && !users.has(r.userId)) {
+      users.set(r.userId, r.userName ?? r.userId);
+    }
+  }
+  return Array.from(users.entries()).map(([id, name]) => ({ id, name }));
+}
+
+/**
+ * Build matrix for clustering PGS entries (rows) by SNPs (columns) for a single user.
+ * Each row is a PGS entry, each column is a SNP (rsid or chr:pos), values are allele counts.
+ * @param {Array} rawResults - window.prsResults
+ * @param {string} targetUserId - The user ID to filter by
+ * @param {Object} options - { missingValue: -1 }
+ */
+function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1 } = {}) {
+  const userResults = rawResults.filter(r => r.userId === targetUserId);
+
+  if (!userResults.length || userResults.length < 2) return null;
+
+  const allSnps = new Set();
+
+  // Collect all SNPs across all PGS entries for this user
+  for (const r of userResults) {
+    if (!r.pgsMatchMy23 || !r.pgs?.cols) continue;
+
+    const pgsData = r.pgs;
+    const indChr = pgsData.cols.indexOf('hm_chr');
+    const indPos = pgsData.cols.indexOf('hm_pos');
+    const indRsid = pgsData.cols.indexOf('rsID');
+
+    r.pgsMatchMy23.forEach((matchEntry, idx) => {
+      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+      if (!pgsVariant) return;
+
+      let snpId;
+      if (indRsid >= 0 && pgsVariant[indRsid]) {
+        snpId = pgsVariant[indRsid];
+      } else if (indChr >= 0 && indPos >= 0) {
+        snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+      } else {
+        snpId = `var_${idx}`;
+      }
+      allSnps.add(snpId);
+    });
+  }
+
+  if (allSnps.size === 0) return null;
+
+  const snpList = Array.from(allSnps);
+  const matrix = [];
+
+  for (const r of userResults) {
+    const row = { label: r.pgsId };
+    const snpMap = new Map();
+
+    if (r.pgsMatchMy23 && r.alleles && r.pgs?.cols) {
+      const pgsData = r.pgs;
+      const indChr = pgsData.cols.indexOf('hm_chr');
+      const indPos = pgsData.cols.indexOf('hm_pos');
+      const indRsid = pgsData.cols.indexOf('rsID');
+
+      r.pgsMatchMy23.forEach((matchEntry, idx) => {
+        const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+        if (!pgsVariant) return;
+
+        let snpId;
+        if (indRsid >= 0 && pgsVariant[indRsid]) {
+          snpId = pgsVariant[indRsid];
+        } else if (indChr >= 0 && indPos >= 0) {
+          snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+        } else {
+          snpId = `var_${idx}`;
+        }
+
+        const val = Number(r.alleles[idx]);
+        snpMap.set(snpId, Number.isFinite(val) ? val : missingValue);
+      });
+    }
+
+    for (const snp of snpList) {
+      row[snp] = snpMap.has(snp) ? snpMap.get(snp) : missingValue;
+    }
+
+    matrix.push(row);
+  }
+
+  console.log(`buildPgsVsSnpsMatrix: ${matrix.length} PGS entries × ${snpList.length} SNPs for user ${targetUserId}`);
+  return matrix;
+}
+
 
 async function renderCluster() {
   const clusterContainer = document.getElementById(clusterContainerId);
@@ -6401,6 +6498,7 @@ async function renderCluster() {
 
   const pivoted = pivotPrsResults(window.prsResults);
   const pgsIds = getUniquePgsIds(window.prsResults);
+  const userIds = getUniqueUserIds(window.prsResults);
   //console.log("Pivoted PRS results for clustering:", pivoted);
   // Show message if no PRS results available
   if (pivoted === null) {
@@ -6423,6 +6521,11 @@ async function renderCluster() {
   const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
   const alleleClusterMethod = window.clusterOptions?.alleleClusterMethod ?? 'complete';
   const alleleClusterDistance = window.clusterOptions?.alleleClusterDistance ?? 'euclidean';
+  
+  // PGS vs SNPs clustering options (single user view)
+  const selectedUserId = window.clusterOptions?.selectedUserId ?? (userIds[0]?.id ?? '');
+  const pgsVsSnpsClusterRows = window.clusterOptions?.pgsVsSnpsClusterRows ?? true;
+  const pgsVsSnpsClusterCols = window.clusterOptions?.pgsVsSnpsClusterCols ?? false;
 
   // Build allele matrices for selected PGS - three views
   const allMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 }) : null;
@@ -6440,6 +6543,13 @@ async function renderCluster() {
   const sharedCount = sharedMatrix ? Object.keys(sharedMatrix[0]).length - 1 : 0;
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
+
+  // Build PGS vs SNPs matrix for selected user
+  const pgsVsSnpsMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0 }) : null;
+  const pgsVsSnpsMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1 }) : null;
+  const pgsVsSnpsCount = pgsVsSnpsMatrix ? Object.keys(pgsVsSnpsMatrix[0]).length - 1 : 0;
+  const pgsVsSnpsPgsCount = pgsVsSnpsMatrix ? pgsVsSnpsMatrix.length : 0;
+  const selectedUserName = userIds.find(u => u.id === selectedUserId)?.name ?? selectedUserId;
 
 //  console.log("window.prsResults",window.prsResults)
 
@@ -6550,6 +6660,43 @@ async function renderCluster() {
         ` : `<div class="alert alert-warning mb-0">No variants shared across all users.</div>`}
       </div>
     </div>
+
+    <hr class="my-4" />
+
+    <h5>PGS vs SNPs Clustering (${pgsVsSnpsPgsCount} PGS Entries × ${pgsVsSnpsCount} SNPs for ${selectedUserName})</h5>
+    <p class="text-muted small mb-2">
+      Cluster PGS entries by their matched SNP allele patterns for a single user. Rows = PGS entries, Columns = SNPs.
+    </p>
+    <div class="mb-3">
+      <label for="userSelectDropdown" class="form-label"><strong>Select User:</strong></label>
+      <select id="userSelectDropdown" class="form-select" style="max-width: 400px;">
+        ${userIds.map(u => {
+          const displayName = u.name !== u.id ? `${u.id} (${u.name})` : u.id;
+          return `<option value="${u.id}" ${u.id === selectedUserId ? 'selected' : ''}>${displayName}</option>`;
+        }).join('')}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <strong>Cluster by:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="pgsVsSnpsRowsBtn" class="btn btn-sm ${pgsVsSnpsClusterRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (PGS)</button>
+        <button id="pgsVsSnpsColsBtn" class="btn btn-sm ${pgsVsSnpsClusterCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (SNPs)</button>
+        <button id="pgsVsSnpsBothBtn" class="btn btn-sm ${pgsVsSnpsClusterRows && pgsVsSnpsClusterCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
+      <span class="text-muted small ms-2">(Note: Column clustering may be slow with many SNPs)</span>
+    </div>
+
+    <!-- PGS vs SNPs Plot -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>PGS Entry Similarity by SNPs</strong> <span class="text-muted small">— How similar are PGS entries based on matched variants?</span></div>
+      <div class="card-body">
+        ${pgsVsSnpsMatrix ? `
+          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsCount} SNPs for user ${selectedUserName}</p>
+          <div id="pgsVsSnpsPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Not enough PGS entries (need ≥2) or no matched SNPs for this user.</div>`}
+      </div>
+    </div>
   `;
 
   // Attach button handlers for PRS clustering
@@ -6599,9 +6746,30 @@ async function renderCluster() {
     renderCluster();
   };
 
-  // Attach dropdown handler
+  // Attach dropdown handler for PGS selection
   document.getElementById('pgsSelectDropdown').onchange = (e) => {
     window.clusterOptions = { ...window.clusterOptions, selectedPgsId: e.target.value };
+    renderCluster();
+  };
+
+  // Attach dropdown handler for user selection (PGS vs SNPs)
+  document.getElementById('userSelectDropdown').onchange = (e) => {
+    window.clusterOptions = { ...window.clusterOptions, selectedUserId: e.target.value };
+    renderCluster();
+  };
+
+  // PGS vs SNPs clustering button handlers
+  document.getElementById('pgsVsSnpsRowsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows: !pgsVsSnpsClusterRows, pgsVsSnpsClusterCols };
+    renderCluster();
+  };
+  document.getElementById('pgsVsSnpsColsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows, pgsVsSnpsClusterCols: !pgsVsSnpsClusterCols };
+    renderCluster();
+  };
+  document.getElementById('pgsVsSnpsBothBtn').onclick = () => {
+    const bothOn = pgsVsSnpsClusterRows && pgsVsSnpsClusterCols;
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows: !bothOn, pgsVsSnpsClusterCols: !bothOn };
     renderCluster();
   };
 
@@ -6724,6 +6892,24 @@ async function renderCluster() {
   } else if (document.getElementById("sharedPlot")) {
     document.getElementById("sharedPlot").innerHTML =
       `<div class="alert alert-info">No SNPs shared across all users.</div>`;
+  }
+
+  // Render PGS vs SNPs plot
+  if (pgsVsSnpsMatrix && pgsVsSnpsMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsVsSnpsPlot",
+      data: pgsVsSnpsMatrix,
+      displayData: pgsVsSnpsMatrixDisplay,
+      width: 900,
+      height: 350,
+      clusterRows: pgsVsSnpsClusterRows,
+      clusterCols: pgsVsSnpsClusterCols,
+      heatmapColorScale: colorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
+    });
   }
 }
 

@@ -168,6 +168,318 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
   return userVariantMap;
 }
 
+/**
+ * Get unique user IDs from prsResults
+ */
+function getUniqueUserIds(rawResults) {
+  if (!Array.isArray(rawResults)) return [];
+  const users = new Map();
+  for (const r of rawResults) {
+    if (r.userId && !users.has(r.userId)) {
+      users.set(r.userId, r.userName ?? r.userId);
+    }
+  }
+  return Array.from(users.entries()).map(([id, name]) => ({ id, name }));
+}
+
+/**
+ * Build matrix for clustering PGS entries (rows) by SNPs (columns) for a single user.
+ * Each row is a PGS entry, each column is a SNP (rsid or chr:pos), values are allele counts.
+ * @param {Array} rawResults - window.prsResults
+ * @param {string} targetUserId - The user ID to filter by
+ * @param {Object} options - { missingValue: -1 }
+ */
+function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1 } = {}) {
+  const userResults = rawResults.filter(r => r.userId === targetUserId);
+
+  if (!userResults.length || userResults.length < 2) return null;
+
+  const allSnps = new Set();
+
+  // Collect all SNPs across all PGS entries for this user
+  for (const r of userResults) {
+    if (!r.pgsMatchMy23 || !r.pgs?.cols) continue;
+
+    const pgsData = r.pgs;
+    const indChr = pgsData.cols.indexOf('hm_chr');
+    const indPos = pgsData.cols.indexOf('hm_pos');
+    const indRsid = pgsData.cols.indexOf('rsID');
+
+    r.pgsMatchMy23.forEach((matchEntry, idx) => {
+      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+      if (!pgsVariant) return;
+
+      let snpId;
+      if (indRsid >= 0 && pgsVariant[indRsid]) {
+        snpId = pgsVariant[indRsid];
+      } else if (indChr >= 0 && indPos >= 0) {
+        snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+      } else {
+        snpId = `var_${idx}`;
+      }
+      allSnps.add(snpId);
+    });
+  }
+
+  if (allSnps.size === 0) return null;
+
+  const snpList = Array.from(allSnps);
+  const matrix = [];
+
+  for (const r of userResults) {
+    const row = { label: r.pgsId };
+    const snpMap = new Map();
+
+    if (r.pgsMatchMy23 && r.alleles && r.pgs?.cols) {
+      const pgsData = r.pgs;
+      const indChr = pgsData.cols.indexOf('hm_chr');
+      const indPos = pgsData.cols.indexOf('hm_pos');
+      const indRsid = pgsData.cols.indexOf('rsID');
+
+      r.pgsMatchMy23.forEach((matchEntry, idx) => {
+        const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+        if (!pgsVariant) return;
+
+        let snpId;
+        if (indRsid >= 0 && pgsVariant[indRsid]) {
+          snpId = pgsVariant[indRsid];
+        } else if (indChr >= 0 && indPos >= 0) {
+          snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+        } else {
+          snpId = `var_${idx}`;
+        }
+
+        const val = Number(r.alleles[idx]);
+        snpMap.set(snpId, Number.isFinite(val) ? val : missingValue);
+      });
+    }
+
+    for (const snp of snpList) {
+      row[snp] = snpMap.has(snp) ? snpMap.get(snp) : missingValue;
+    }
+
+    matrix.push(row);
+  }
+
+  console.log(`buildPgsVsSnpsMatrix: ${matrix.length} PGS entries × ${snpList.length} SNPs for user ${targetUserId}`);
+  return matrix;
+}
+
+/** PGS x PGS similarity matrices *
+ * Extract SNP data from a PGS entry.
+ * Returns a Map of snpId -> { weight, effectAllele }
+ */
+function extractPgsSnpData(pgs) {
+  if (!pgs?.dt || !pgs?.cols) return new Map();
+  
+  const indChr = pgs.cols.indexOf('hm_chr');
+  const indPos = pgs.cols.indexOf('hm_pos');
+  const indRsid = pgs.cols.indexOf('rsID');
+  const indWeight = pgs.cols.indexOf('effect_weight');
+  const indEffectAllele = pgs.cols.indexOf('effect_allele');
+  
+  const snpData = new Map();
+  
+  for (const variant of pgs.dt) {
+    let snpId;
+    if (indRsid >= 0 && variant[indRsid]) {
+      snpId = variant[indRsid];
+    } else if (indChr >= 0 && indPos >= 0) {
+      snpId = `${variant[indChr]}:${variant[indPos]}`;
+    }
+    if (!snpId) continue;
+    
+    const weight = indWeight >= 0 ? parseFloat(variant[indWeight]) : 0;
+    const effectAllele = indEffectAllele >= 0 ? variant[indEffectAllele] : '';
+    
+    snpData.set(snpId, { weight, effectAllele });
+  }
+  
+  return snpData;
+}
+
+/**
+ * Build PGS-to-PGS Jaccard similarity matrix based on SNP overlap only.
+ * Jaccard = |intersection| / |union|
+ * Ignores effect weights - just checks if SNPs are shared.
+ */
+function buildPgsJaccardMatrix(rawResults) {
+  // Get unique PGS entries (one per pgsId)
+  const pgsMap = new Map();
+  for (const r of rawResults) {
+    if (r.pgsId && r.pgs?.dt && !pgsMap.has(r.pgsId)) {
+      pgsMap.set(r.pgsId, r.pgs);
+    }
+  }
+  
+  const pgsIds = Array.from(pgsMap.keys());
+  if (pgsIds.length < 2) return null;
+  
+  // Extract SNP sets for each PGS
+  const snpSets = new Map();
+  for (const [pgsId, pgs] of pgsMap) {
+    const snpData = extractPgsSnpData(pgs);
+    snpSets.set(pgsId, new Set(snpData.keys()));
+  }
+  
+  // Build similarity matrix
+  const matrix = [];
+  for (const pgsI of pgsIds) {
+    const row = { label: pgsI };
+    const setI = snpSets.get(pgsI);
+    
+    for (const pgsJ of pgsIds) {
+      const setJ = snpSets.get(pgsJ);
+      const intersection = new Set([...setI].filter(x => setJ.has(x)));
+      const union = new Set([...setI, ...setJ]);
+      const jaccard = union.size > 0 ? intersection.size / union.size : 0;
+      row[pgsJ] = jaccard; // similarity 0-1
+    }
+    matrix.push(row);
+  }
+  
+  console.log(`buildPgsJaccardMatrix: ${matrix.length} PGS entries`);
+  return matrix;
+}
+
+/**
+ * Build PGS-to-PGS similarity matrix based on SNP overlap + effect direction.
+ * Considers: shared SNPs AND whether effect weights have the same sign.
+ * Score = (same_direction_count) / (shared_snps_count)
+ */
+function buildPgsDirectionMatrix(rawResults) {
+  const pgsMap = new Map();
+  for (const r of rawResults) {
+    if (r.pgsId && r.pgs?.dt && !pgsMap.has(r.pgsId)) {
+      pgsMap.set(r.pgsId, r.pgs);
+    }
+  }
+  
+  const pgsIds = Array.from(pgsMap.keys());
+  if (pgsIds.length < 2) return null;
+  
+  // Extract SNP data (id -> {weight, effectAllele}) for each PGS
+  const snpDataMap = new Map();
+  for (const [pgsId, pgs] of pgsMap) {
+    snpDataMap.set(pgsId, extractPgsSnpData(pgs));
+  }
+  
+  // Build similarity matrix
+  const matrix = [];
+  for (const pgsI of pgsIds) {
+    const row = { label: pgsI };
+    const dataI = snpDataMap.get(pgsI);
+    
+    for (const pgsJ of pgsIds) {
+      if (pgsI === pgsJ) {
+        row[pgsJ] = 1; // perfect similarity with self
+        continue;
+      }
+      
+      const dataJ = snpDataMap.get(pgsJ);
+      
+      // Find shared SNPs
+      const sharedSnps = [...dataI.keys()].filter(snp => dataJ.has(snp));
+      
+      if (sharedSnps.length === 0) {
+        row[pgsJ] = 0;
+        continue;
+      }
+      
+      // Count SNPs with same direction (same sign of weight)
+      let sameDirection = 0;
+      for (const snp of sharedSnps) {
+        const wI = dataI.get(snp).weight;
+        const wJ = dataJ.get(snp).weight;
+        if ((wI >= 0 && wJ >= 0) || (wI < 0 && wJ < 0)) {
+          sameDirection++;
+        }
+      }
+      
+      // Similarity = fraction of shared SNPs with same direction
+      // Weighted by overlap fraction
+      const directionAgreement = sameDirection / sharedSnps.length;
+      const overlapFraction = sharedSnps.length / Math.max(dataI.size, dataJ.size);
+      row[pgsJ] = directionAgreement * overlapFraction;
+    }
+    matrix.push(row);
+  }
+  
+  console.log(`buildPgsDirectionMatrix: ${matrix.length} PGS entries`);
+  return matrix;
+}
+
+/**
+ * Build PGS-to-PGS similarity matrix using effect weights as feature vectors.
+ * Uses cosine similarity over the union of SNPs.
+ * SNP not in a score → 0; SNP in score → effect weight
+ */
+function buildPgsWeightedMatrix(rawResults) {
+  const pgsMap = new Map();
+  for (const r of rawResults) {
+    if (r.pgsId && r.pgs?.dt && !pgsMap.has(r.pgsId)) {
+      pgsMap.set(r.pgsId, r.pgs);
+    }
+  }
+  
+  const pgsIds = Array.from(pgsMap.keys());
+  if (pgsIds.length < 2) return null;
+  
+  // Extract SNP data for each PGS
+  const snpDataMap = new Map();
+  const allSnps = new Set();
+  
+  for (const [pgsId, pgs] of pgsMap) {
+    const data = extractPgsSnpData(pgs);
+    snpDataMap.set(pgsId, data);
+    for (const snp of data.keys()) {
+      allSnps.add(snp);
+    }
+  }
+  
+  const snpList = Array.from(allSnps);
+  
+  // Build weight vectors for each PGS
+  const vectors = new Map();
+  for (const pgsId of pgsIds) {
+    const data = snpDataMap.get(pgsId);
+    const vec = snpList.map(snp => data.has(snp) ? data.get(snp).weight : 0);
+    vectors.set(pgsId, vec);
+  }
+  
+  // Cosine similarity helper
+  function cosineSim(a, b) {
+    let dot = 0, magA = 0, magB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      magA += a[i] * a[i];
+      magB += b[i] * b[i];
+    }
+    magA = Math.sqrt(magA);
+    magB = Math.sqrt(magB);
+    if (magA === 0 || magB === 0) return 0;
+    return dot / (magA * magB);
+  }
+  
+  // Build similarity matrix
+  const matrix = [];
+  for (const pgsI of pgsIds) {
+    const row = { label: pgsI };
+    const vecI = vectors.get(pgsI);
+    
+    for (const pgsJ of pgsIds) {
+      const vecJ = vectors.get(pgsJ);
+      const sim = cosineSim(vecI, vecJ);
+      // Normalize to 0-1 range (cosine can be -1 to 1)
+      row[pgsJ] = (sim + 1) / 2;
+    }
+    matrix.push(row);
+  }
+  
+  console.log(`buildPgsWeightedMatrix: ${matrix.length} PGS entries, ${snpList.length} total SNPs`);
+  return matrix;
+}
+
 
 async function renderCluster() {
   const clusterContainer = document.getElementById(clusterContainerId);
@@ -175,6 +487,7 @@ async function renderCluster() {
 
   const pivoted = pivotPrsResults(window.prsResults);
   const pgsIds = getUniquePgsIds(window.prsResults);
+  const userIds = getUniqueUserIds(window.prsResults);
   //console.log("Pivoted PRS results for clustering:", pivoted);
   // Show message if no PRS results available
   if (pivoted === null) {
@@ -197,6 +510,11 @@ async function renderCluster() {
   const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
   const alleleClusterMethod = window.clusterOptions?.alleleClusterMethod ?? 'complete';
   const alleleClusterDistance = window.clusterOptions?.alleleClusterDistance ?? 'euclidean';
+  
+  // PGS vs SNPs clustering options (single user view)
+  const selectedUserId = window.clusterOptions?.selectedUserId ?? (userIds[0]?.id ?? '');
+  const pgsVsSnpsClusterRows = window.clusterOptions?.pgsVsSnpsClusterRows ?? true;
+  const pgsVsSnpsClusterCols = window.clusterOptions?.pgsVsSnpsClusterCols ?? false;
 
   // Build allele matrices for selected PGS - three views
   const allMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 }) : null;
@@ -214,6 +532,19 @@ async function renderCluster() {
   const sharedCount = sharedMatrix ? Object.keys(sharedMatrix[0]).length - 1 : 0;
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
+
+  // Build PGS vs SNPs matrix for selected user
+  const pgsVsSnpsMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0 }) : null;
+  const pgsVsSnpsMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1 }) : null;
+  const pgsVsSnpsCount = pgsVsSnpsMatrix ? Object.keys(pgsVsSnpsMatrix[0]).length - 1 : 0;
+  const pgsVsSnpsPgsCount = pgsVsSnpsMatrix ? pgsVsSnpsMatrix.length : 0;
+  const selectedUserName = userIds.find(u => u.id === selectedUserId)?.name ?? selectedUserId;
+
+  // Build PGS-to-PGS similarity matrices
+  const jaccardMatrix = buildPgsJaccardMatrix(window.prsResults);
+  const directionMatrix = buildPgsDirectionMatrix(window.prsResults);
+  const weightedMatrix = buildPgsWeightedMatrix(window.prsResults);
+  const pgsSimilarityCount = jaccardMatrix ? jaccardMatrix.length : 0;
 
 //  console.log("window.prsResults",window.prsResults)
 
@@ -324,6 +655,83 @@ async function renderCluster() {
         ` : `<div class="alert alert-warning mb-0">No variants shared across all users.</div>`}
       </div>
     </div>
+
+    <hr class="my-4" />
+
+    <h5>PGS vs SNPs Clustering (${pgsVsSnpsPgsCount} PGS Entries × ${pgsVsSnpsCount} SNPs for ${selectedUserName})</h5>
+    <p class="text-muted small mb-2">
+      Cluster PGS entries by their matched SNP allele patterns for a single user. Rows = PGS entries, Columns = SNPs.
+    </p>
+    <div class="mb-3">
+      <label for="userSelectDropdown" class="form-label"><strong>Select User:</strong></label>
+      <select id="userSelectDropdown" class="form-select" style="max-width: 400px;">
+        ${userIds.map(u => {
+          const displayName = u.name !== u.id ? `${u.id} (${u.name})` : u.id;
+          return `<option value="${u.id}" ${u.id === selectedUserId ? 'selected' : ''}>${displayName}</option>`;
+        }).join('')}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <strong>Cluster by:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="pgsVsSnpsRowsBtn" class="btn btn-sm ${pgsVsSnpsClusterRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (PGS)</button>
+        <button id="pgsVsSnpsColsBtn" class="btn btn-sm ${pgsVsSnpsClusterCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (SNPs)</button>
+        <button id="pgsVsSnpsBothBtn" class="btn btn-sm ${pgsVsSnpsClusterRows && pgsVsSnpsClusterCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
+      <span class="text-muted small ms-2">(Note: Column clustering may be slow with many SNPs)</span>
+    </div>
+
+    <!-- PGS vs SNPs Plot -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>PGS Entry Similarity by SNPs</strong> <span class="text-muted small">— How similar are PGS entries based on matched variants?</span></div>
+      <div class="card-body">
+        ${pgsVsSnpsMatrix ? `
+          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsCount} SNPs for user ${selectedUserName}</p>
+          <div id="pgsVsSnpsPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Not enough PGS entries (need ≥2) or no matched SNPs for this user.</div>`}
+      </div>
+    </div>
+
+    <hr class="my-4" />
+
+    <h5>PGS-to-PGS Similarity Network (${pgsSimilarityCount} × ${pgsSimilarityCount})</h5>
+    <p class="text-muted small mb-2">
+      Compare PGS entries to each other based on their SNP composition. Higher values (darker) = more similar.
+    </p>
+
+    <!-- 1. Jaccard Similarity -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>1. Jaccard Similarity (SNP Overlap)</strong> <span class="text-muted small">— Simple overlap: shared SNPs / total unique SNPs</span></div>
+      <div class="card-body">
+        ${jaccardMatrix ? `
+          <p class="text-muted small mb-2">Ignores effect weights. Good for checking redundancy between PGS entries.</p>
+          <div id="jaccardPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Need at least 2 PGS entries.</div>`}
+      </div>
+    </div>
+
+    <!-- 2. Direction Similarity -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>2. Effect Direction Agreement</strong> <span class="text-muted small">— Shared SNPs × same effect direction</span></div>
+      <div class="card-body">
+        ${directionMatrix ? `
+          <p class="text-muted small mb-2">Considers both overlap AND whether effect weights point in the same direction (+ or -).</p>
+          <div id="directionPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Need at least 2 PGS entries.</div>`}
+      </div>
+    </div>
+
+    <!-- 3. Weighted Cosine Similarity -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>3. Weighted Similarity (Cosine)</strong> <span class="text-muted small">— Effect weight vectors over union of SNPs</span></div>
+      <div class="card-body">
+        ${weightedMatrix ? `
+          <p class="text-muted small mb-2">Cosine similarity of effect weight vectors. SNP not in score = 0, otherwise = effect weight.</p>
+          <div id="weightedPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Need at least 2 PGS entries.</div>`}
+      </div>
+    </div>
   `;
 
   // Attach button handlers for PRS clustering
@@ -373,9 +781,30 @@ async function renderCluster() {
     renderCluster();
   };
 
-  // Attach dropdown handler
+  // Attach dropdown handler for PGS selection
   document.getElementById('pgsSelectDropdown').onchange = (e) => {
     window.clusterOptions = { ...window.clusterOptions, selectedPgsId: e.target.value };
+    renderCluster();
+  };
+
+  // Attach dropdown handler for user selection (PGS vs SNPs)
+  document.getElementById('userSelectDropdown').onchange = (e) => {
+    window.clusterOptions = { ...window.clusterOptions, selectedUserId: e.target.value };
+    renderCluster();
+  };
+
+  // PGS vs SNPs clustering button handlers
+  document.getElementById('pgsVsSnpsRowsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows: !pgsVsSnpsClusterRows, pgsVsSnpsClusterCols };
+    renderCluster();
+  };
+  document.getElementById('pgsVsSnpsColsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows, pgsVsSnpsClusterCols: !pgsVsSnpsClusterCols };
+    renderCluster();
+  };
+  document.getElementById('pgsVsSnpsBothBtn').onclick = () => {
+    const bothOn = pgsVsSnpsClusterRows && pgsVsSnpsClusterCols;
+    window.clusterOptions = { ...window.clusterOptions, pgsVsSnpsClusterRows: !bothOn, pgsVsSnpsClusterCols: !bothOn };
     renderCluster();
   };
 
@@ -498,6 +927,78 @@ async function renderCluster() {
   } else if (document.getElementById("sharedPlot")) {
     document.getElementById("sharedPlot").innerHTML =
       `<div class="alert alert-info">No SNPs shared across all users.</div>`;
+  }
+
+  // Render PGS vs SNPs plot
+  if (pgsVsSnpsMatrix && pgsVsSnpsMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsVsSnpsPlot",
+      data: pgsVsSnpsMatrix,
+      displayData: pgsVsSnpsMatrixDisplay,
+      width: 900,
+      height: 350,
+      clusterRows: pgsVsSnpsClusterRows,
+      clusterCols: pgsVsSnpsClusterCols,
+      heatmapColorScale: colorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
+    });
+  }
+
+  // Color scale for similarity matrices (0-1 range, blue gradient)
+  const simColorScale = clust.d3.scaleLinear().domain([0, 0.5, 1]).range(["#f7fbff", "#6baed6", "#08306b"]);
+
+  // Render 1. Jaccard Similarity plot
+  if (jaccardMatrix && jaccardMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "jaccardPlot",
+      data: jaccardMatrix,
+      width: 500,
+      height: 350,
+      clusterRows: true,
+      clusterCols: true,
+      heatmapColorScale: simColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
+  }
+
+  // Render 2. Direction Agreement plot
+  if (directionMatrix && directionMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "directionPlot",
+      data: directionMatrix,
+      width: 500,
+      height: 350,
+      clusterRows: true,
+      clusterCols: true,
+      heatmapColorScale: simColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
+  }
+
+  // Render 3. Weighted Cosine Similarity plot
+  if (weightedMatrix && weightedMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "weightedPlot",
+      data: weightedMatrix,
+      width: 500,
+      height: 350,
+      clusterRows: true,
+      clusterCols: true,
+      heatmapColorScale: simColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
   }
 }
 

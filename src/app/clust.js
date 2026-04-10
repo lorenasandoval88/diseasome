@@ -191,6 +191,12 @@ async function renderCluster() {
   const selectedPgsId = window.clusterOptions?.selectedPgsId ?? pgsIds[0] ?? '';
   const clusterAlleleRows = window.clusterOptions?.clusterAlleleRows ?? true;
   const clusterAlleleCols = window.clusterOptions?.clusterAlleleCols ?? true;
+  
+  // Clustering algorithm options
+  const clusterMethod = window.clusterOptions?.clusterMethod ?? 'complete';
+  const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
+  const alleleClusterMethod = window.clusterOptions?.alleleClusterMethod ?? 'complete';
+  const alleleClusterDistance = window.clusterOptions?.alleleClusterDistance ?? 'euclidean';
 
   // Build allele matrices for selected PGS - three views
   const allMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 }) : null;
@@ -216,12 +222,29 @@ async function renderCluster() {
     <p class="text-muted small mb-3">
       Hierarchical clustering of PRS results (${pivoted.length} users × ${Object.keys(pivoted[0]).length - 1} PGS entries).
     </p>
-    <div class="mb-3">
+    <div class="mb-2">
       <strong>Cluster by:</strong>
       <div class="btn-group ms-2" role="group">
         <button id="clusterRowsBtn" class="btn btn-sm ${clusterRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (Users)</button>
         <button id="clusterColsBtn" class="btn btn-sm ${clusterCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (PGS)</button>
         <button id="clusterBothBtn" class="btn btn-sm ${clusterRows && clusterCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
+    </div>
+    <div class="mb-2">
+      <strong>Linkage:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="clusterMethodComplete" class="btn btn-sm ${clusterMethod === 'complete' ? 'btn-secondary' : 'btn-outline-secondary'}">Complete</button>
+        <button id="clusterMethodSingle" class="btn btn-sm ${clusterMethod === 'single' ? 'btn-secondary' : 'btn-outline-secondary'}">Single</button>
+        <button id="clusterMethodAverage" class="btn btn-sm ${clusterMethod === 'average' ? 'btn-secondary' : 'btn-outline-secondary'}">Average</button>
+        <button id="clusterMethodWard" class="btn btn-sm ${clusterMethod === 'ward' ? 'btn-secondary' : 'btn-outline-secondary'}">Ward</button>
+      </div>
+    </div>
+    <div class="mb-3">
+      <strong>Distance:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="clusterDistEuclidean" class="btn btn-sm ${clusterDistance === 'euclidean' ? 'btn-info' : 'btn-outline-info'}">Euclidean</button>
+        <button id="clusterDistManhattan" class="btn btn-sm ${clusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
+        <button id="clusterDistCosine" class="btn btn-sm ${clusterDistance === 'cosine' ? 'btn-info' : 'btn-outline-info'}">Cosine</button>
       </div>
     </div>
     <div id="clusterPlotMount"></div>
@@ -243,12 +266,29 @@ async function renderCluster() {
       </select>
     </div>
 
-    <div class="mb-3">
+    <div class="mb-2">
       <strong>Cluster by:</strong>
       <div class="btn-group ms-2" role="group">
         <button id="clusterAlleleRowsBtn" class="btn btn-sm ${clusterAlleleRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (Users)</button>
         <button id="clusterAlleleColsBtn" class="btn btn-sm ${clusterAlleleCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (Variants)</button>
         <button id="clusterAlleleBothBtn" class="btn btn-sm ${clusterAlleleRows && clusterAlleleCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
+    </div>
+    <div class="mb-2">
+      <strong>Linkage:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="alleleMethodComplete" class="btn btn-sm ${alleleClusterMethod === 'complete' ? 'btn-secondary' : 'btn-outline-secondary'}">Complete</button>
+        <button id="alleleMethodSingle" class="btn btn-sm ${alleleClusterMethod === 'single' ? 'btn-secondary' : 'btn-outline-secondary'}">Single</button>
+        <button id="alleleMethodAverage" class="btn btn-sm ${alleleClusterMethod === 'average' ? 'btn-secondary' : 'btn-outline-secondary'}">Average</button>
+        <button id="alleleMethodWard" class="btn btn-sm ${alleleClusterMethod === 'ward' ? 'btn-secondary' : 'btn-outline-secondary'}">Ward</button>
+      </div>
+    </div>
+    <div class="mb-3">
+      <strong>Distance:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="alleleDistEuclidean" class="btn btn-sm ${alleleClusterDistance === 'euclidean' ? 'btn-info' : 'btn-outline-info'}">Euclidean</button>
+        <button id="alleleDistManhattan" class="btn btn-sm ${alleleClusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
+        <button id="alleleDistCosine" class="btn btn-sm ${alleleClusterDistance === 'cosine' ? 'btn-info' : 'btn-outline-info'}">Cosine</button>
       </div>
     </div>
 
@@ -301,6 +341,38 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // PRS clustering method handlers
+  document.getElementById('clusterMethodComplete').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterMethod: 'complete' };
+    renderCluster();
+  };
+  document.getElementById('clusterMethodSingle').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterMethod: 'single' };
+    renderCluster();
+  };
+  document.getElementById('clusterMethodAverage').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterMethod: 'average' };
+    renderCluster();
+  };
+  document.getElementById('clusterMethodWard').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterMethod: 'ward' };
+    renderCluster();
+  };
+
+  // PRS clustering distance handlers
+  document.getElementById('clusterDistEuclidean').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterDistance: 'euclidean' };
+    renderCluster();
+  };
+  document.getElementById('clusterDistManhattan').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterDistance: 'manhattan' };
+    renderCluster();
+  };
+  document.getElementById('clusterDistCosine').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, clusterDistance: 'cosine' };
+    renderCluster();
+  };
+
   // Attach dropdown handler
   document.getElementById('pgsSelectDropdown').onchange = (e) => {
     window.clusterOptions = { ...window.clusterOptions, selectedPgsId: e.target.value };
@@ -322,15 +394,51 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // Allele clustering method handlers
+  document.getElementById('alleleMethodComplete').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterMethod: 'complete' };
+    renderCluster();
+  };
+  document.getElementById('alleleMethodSingle').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterMethod: 'single' };
+    renderCluster();
+  };
+  document.getElementById('alleleMethodAverage').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterMethod: 'average' };
+    renderCluster();
+  };
+  document.getElementById('alleleMethodWard').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterMethod: 'ward' };
+    renderCluster();
+  };
+
+  // Allele clustering distance handlers
+  document.getElementById('alleleDistEuclidean').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterDistance: 'euclidean' };
+    renderCluster();
+  };
+  document.getElementById('alleleDistManhattan').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterDistance: 'manhattan' };
+    renderCluster();
+  };
+  document.getElementById('alleleDistCosine').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleClusterDistance: 'cosine' };
+    renderCluster();
+  };
+
   // Render PRS cluster plot
   // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
   await clust.hclust_plot({
     divid: "clusterPlotMount",
     data: pivoted,
-    width: 700,
-    height: 520,
+   // width: 500,
+    height: 350,
     clusterRows: clusterRows,
-    clusterCols: clusterCols
+    clusterCols: clusterCols,
+    clusteringMethodRows: clusterMethod,
+    clusteringMethodCols: clusterMethod,
+    clusteringDistanceRows: clusterDistance,
+    clusteringDistanceCols: clusterDistance
   });
 
   const colorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
@@ -342,10 +450,14 @@ async function renderCluster() {
       data: allMatrix,
       displayData: allMatrixDisplay,
       width: 900,
-      height: 520,
+      height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale
+      heatmapColorScale: colorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
     });
   }
 
@@ -356,10 +468,14 @@ async function renderCluster() {
       data: overlapMatrix,
       displayData: overlapMatrixDisplay,
       width: 900,
-      height: 520,
+      height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale
+      heatmapColorScale: colorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
     });
   }
 
@@ -370,10 +486,14 @@ async function renderCluster() {
       data: sharedMatrix,
       displayData: sharedMatrixDisplay,
       width: 900,
-      height: 520,
+      height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale
+      heatmapColorScale: colorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
     });
   } else if (document.getElementById("sharedPlot")) {
     document.getElementById("sharedPlot").innerHTML =

@@ -6413,23 +6413,29 @@ function getUniqueUserIds(rawResults) {
  * Each row is a PGS entry, each column is a SNP (rsid or chr:pos), values are allele counts.
  * @param {Array} rawResults - window.prsResults
  * @param {string} targetUserId - The user ID to filter by
- * @param {Object} options - { missingValue: -1 }
+ * @param {Object} options - { missingValue: -1, mode: 'all' }
+ * @param {string} mode - "all" (union of SNPs), "overlapping" (in ≥2 PGS), "shared" (in ALL PGS)
  */
-function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1 } = {}) {
+function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mode = 'all' } = {}) {
   const userResults = rawResults.filter(r => r.userId === targetUserId);
 
   if (!userResults.length || userResults.length < 2) return null;
 
-  const allSnps = new Set();
+  // First pass: collect SNPs per PGS entry and count occurrences
+  const snpCounts = new Map(); // snpId -> count of PGS entries containing it
+  const pgsSnpMaps = new Map(); // pgsId -> snpMap: Map<snpId, alleleCount> (deduplicated)
 
-  // Collect all SNPs across all PGS entries for this user
   for (const r of userResults) {
     if (!r.pgsMatchMy23 || !r.pgs?.cols) continue;
+    if (pgsSnpMaps.has(r.pgsId)) continue; // Skip duplicates
 
     const pgsData = r.pgs;
     const indChr = pgsData.cols.indexOf('hm_chr');
     const indPos = pgsData.cols.indexOf('hm_pos');
     const indRsid = pgsData.cols.indexOf('rsID');
+
+    const snpMap = new Map();
+    const seenSnps = new Set();
 
     r.pgsMatchMy23.forEach((matchEntry, idx) => {
       const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
@@ -6443,52 +6449,284 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1 } = 
       } else {
         snpId = `var_${idx}`;
       }
-      allSnps.add(snpId);
+
+      const val = r.alleles ? Number(r.alleles[idx]) : missingValue;
+      snpMap.set(snpId, Number.isFinite(val) ? val : missingValue);
+
+      if (!seenSnps.has(snpId)) {
+        seenSnps.add(snpId);
+        snpCounts.set(snpId, (snpCounts.get(snpId) || 0) + 1);
+      }
     });
+
+    pgsSnpMaps.set(r.pgsId, snpMap);
+    //console.log(`Processed PGS ${r.pgsId} for user ${targetUserId}: ${snpMap.size} SNPs matched.`);
   }
 
-  if (allSnps.size === 0) return null;
+  if (pgsSnpMaps.size < 2) return null;
 
-  const snpList = Array.from(allSnps);
-  const matrix = [];
+  // Determine which SNPs to include based on mode
+  const numPgs = pgsSnpMaps.size;
+  let targetSnps;
 
-  for (const r of userResults) {
-    const row = { label: r.pgsId };
-    const snpMap = new Map();
+  if (mode === 'shared') {
+    // SNPs in ALL PGS entries
+    targetSnps = [...snpCounts.entries()]
+      .filter(([, count]) => count === numPgs)
+      .map(([snp]) => snp);
+  } else if (mode === 'overlapping') {
+    // SNPs in ≥2 PGS entries
+    targetSnps = [...snpCounts.entries()]
+      .filter(([, count]) => count >= 2)
+      .map(([snp]) => snp);
+  } else {
+    // 'all' - union of all SNPs
+    targetSnps = Array.from(snpCounts.keys());
+  }
 
-    if (r.pgsMatchMy23 && r.alleles && r.pgs?.cols) {
-      const pgsData = r.pgs;
-      const indChr = pgsData.cols.indexOf('hm_chr');
-      const indPos = pgsData.cols.indexOf('hm_pos');
-      const indRsid = pgsData.cols.indexOf('rsID');
+  if (targetSnps.length === 0) return null;
 
-      r.pgsMatchMy23.forEach((matchEntry, idx) => {
-        const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
-        if (!pgsVariant) return;
-
-        let snpId;
-        if (indRsid >= 0 && pgsVariant[indRsid]) {
-          snpId = pgsVariant[indRsid];
-        } else if (indChr >= 0 && indPos >= 0) {
-          snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
-        } else {
-          snpId = `var_${idx}`;
-        }
-
-        const val = Number(r.alleles[idx]);
-        snpMap.set(snpId, Number.isFinite(val) ? val : missingValue);
-      });
-    }
-
-    for (const snp of snpList) {
+  // Build matrix
+  const matrix = Array.from(pgsSnpMaps.entries()).map(([pgsId, snpMap]) => {
+    const row = { label: pgsId };
+    for (const snp of targetSnps) {
       row[snp] = snpMap.has(snp) ? snpMap.get(snp) : missingValue;
     }
+    return row;
+  });
 
-    matrix.push(row);
+  console.log(`buildPgsVsSnpsMatrix (${mode}): ${matrix.length} PGS entries × ${targetSnps.length} SNPs for user ${targetUserId}`);
+  return matrix;
+}
+
+// /** PGS x PGS matrix builder for clustering PGS entries by their SNP effect weights 
+//  * Extract SNP data from a PGS entry.
+//  * Returns a Map of snpId -> effect_weight
+//  */
+// function extractPgsSnpWeights(pgs) {
+//   if (!pgs?.dt || !pgs?.cols) return new Map();
+  
+//   const indChr = pgs.cols.indexOf('hm_chr');
+//   const indPos = pgs.cols.indexOf('hm_pos');
+//   const indRsid = pgs.cols.indexOf('rsID');
+//   const indWeight = pgs.cols.indexOf('effect_weight');
+  
+//   const snpData = new Map();
+  
+//   for (const variant of pgs.dt) {
+//     let snpId;
+//     if (indRsid >= 0 && variant[indRsid]) {
+//       snpId = variant[indRsid];
+//     } else if (indChr >= 0 && indPos >= 0) {
+//       snpId = `${variant[indChr]}:${variant[indPos]}`;
+//     }
+//     if (!snpId) continue;
+    
+//     const weight = indWeight >= 0 ? parseFloat(variant[indWeight]) : 0;
+//     if (Number.isFinite(weight)) {
+//       snpData.set(snpId, weight);
+//     }
+//   }
+  
+//   return snpData;
+// }
+/** PGS x PGS matrix builder for clustering PGS entries by their SNP effect weights
+ * Extract SNP effect weights from one PGS entry.
+ * Returns Map<snpId, effect_weight>
+ */
+function extractPgsSnpWeights(pgs) {
+  if (!pgs || !Array.isArray(pgs.dt) || !Array.isArray(pgs.cols)) {
+    return new Map();
   }
 
-  console.log(`buildPgsVsSnpsMatrix: ${matrix.length} PGS entries × ${snpList.length} SNPs for user ${targetUserId}`);
-  return matrix;
+  const indChr = pgs.cols.indexOf("hm_chr");
+  const indPos = pgs.cols.indexOf("hm_pos");
+  const indRsid = pgs.cols.indexOf("rsID");
+  const indWeight = pgs.cols.indexOf("effect_weight");
+
+  const snpData = new Map();
+
+  for (const variant of pgs.dt) {
+    if (!Array.isArray(variant)) continue;
+
+    let snpId = null;
+
+    if (indRsid >= 0) {
+      const rawRsid = variant[indRsid];
+      if (rawRsid != null) {
+        const rsid = String(rawRsid).trim();
+        if (rsid && rsid !== "." && rsid.toUpperCase() !== "NA") {
+          snpId = rsid;
+        }
+      }
+    }
+
+    if (!snpId && indChr >= 0 && indPos >= 0) {
+      const chr = variant[indChr];
+      const pos = variant[indPos];
+
+      if (chr != null && pos != null && String(chr).trim() && String(pos).trim()) {
+        snpId = `${String(chr).trim()}:${String(pos).trim()}`;
+      }
+    }
+
+    if (!snpId) continue;
+
+    if (indWeight < 0) continue;
+
+    const weight = parseFloat(variant[indWeight]);
+    if (!Number.isFinite(weight)) continue;
+
+    snpData.set(snpId, weight);
+  }
+
+  return snpData;
+}
+
+
+/**
+ * Count how many PGS entries contain each SNP
+ */
+function countSnpsAcrossPgs(rawResults) {
+  const counts = new Map();
+  const seenPgs = new Set();
+  
+  for (const r of rawResults) {
+    if (!r.pgsId || !r.pgs?.dt || seenPgs.has(r.pgsId)) continue;
+    seenPgs.add(r.pgsId);
+    
+    const snpWeights = extractPgsSnpWeights(r.pgs);
+    for (const snp of snpWeights.keys()) {
+      counts.set(snp, (counts.get(snp) || 0) + 1);
+    }
+  }
+  
+  return counts;
+}
+
+/**
+ * Get all unique SNPs across all PGS entries (union)
+ */
+function getAllSnpsFromPgs(rawResults) {
+  const counts = countSnpsAcrossPgs(rawResults);
+  return Array.from(counts.keys());
+}
+
+/**
+ * Get SNPs that appear in at least 2 PGS entries
+ */
+function getOverlappingSnpsFromPgs(rawResults) {
+  const counts = countSnpsAcrossPgs(rawResults);
+  return [...counts.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([snp]) => snp);
+}
+
+/**
+ * Get SNPs that appear in ALL PGS entries
+ */
+function getSharedSnpsFromPgs(rawResults) {
+  const counts = countSnpsAcrossPgs(rawResults);
+  const pgsCount = getUniquePgsIds(rawResults).length;
+  return [...counts.entries()]
+    .filter(([, count]) => count === pgsCount)
+    .map(([snp]) => snp);
+}
+
+/**
+ * Z-score normalize rows of a matrix
+ */
+function zscoreRows(matrix) {
+  return matrix.map(row => {
+    if (!row.length) return row;
+    const mean = row.reduce((a, b) => a + b, 0) / row.length;
+    const std = Math.sqrt(row.reduce((a, b) => a + (b - mean) ** 2, 0) / row.length);
+    return row.map(v => (v - mean) / (std || 1));
+  });
+}
+
+/**
+ * Build PGS × SNP effect weight matrix.
+ * Rows = PGS entries, Columns = SNPs, Values = effect_weight (z-scored)
+ * Returns object with { data, displayData, snpCount, pgsCount } for hclust_plot
+ * - data: z-scored values with 0 for missing (for clustering)
+ * - displayData: raw values with -1 for missing (for display, shows as black)
+ */
+function buildPgsEffectWeightMatrix(rawResults, snpList) {
+  if (!snpList || snpList.length === 0) return null;
+  
+  // Get unique PGS entries
+  const pgsMap = new Map();
+  for (const r of rawResults) {
+    if (r.pgsId && r.pgs?.dt && !pgsMap.has(r.pgsId)) {
+      pgsMap.set(r.pgsId, r.pgs);
+    }
+  }
+  
+  const pgsIds = Array.from(pgsMap.keys());
+  if (pgsIds.length < 2) return null;
+  
+  // Build raw matrix (rows = PGS, cols = SNPs)
+  // Track which cells are missing (SNP not in that PGS)
+  const rawMatrix = [];
+  const missingMask = []; // true if missing
+  for (const pgsId of pgsIds) {
+    const pgs = pgsMap.get(pgsId);
+    const snpWeights = extractPgsSnpWeights(pgs);
+    const row = [];
+    const maskRow = [];
+    for (const snp of snpList) {
+      if (snpWeights.has(snp)) {
+        row.push(snpWeights.get(snp));
+        maskRow.push(false);
+      } else {
+        row.push(0); // Use 0 for clustering
+        maskRow.push(true);
+      }
+    }
+    rawMatrix.push(row);
+    missingMask.push(maskRow);
+  }
+  
+  // Remove constant columns (all same value)
+  const keepCols = [];
+  for (let j = 0; j < snpList.length; j++) {
+    const col = rawMatrix.map(row => row[j]);
+    const mean = col.reduce((a, b) => a + b, 0) / col.length;
+    const variance = col.reduce((a, b) => a + (b - mean) ** 2, 0) / col.length;
+    if (variance > 1e-10) keepCols.push(j);
+  }
+  
+  const filteredSnps = keepCols.map(j => snpList[j]);
+  const filteredMatrix = rawMatrix.map(row => keepCols.map(j => row[j]));
+  const filteredMask = missingMask.map(row => keepCols.map(j => row[j]));
+  
+  if (filteredSnps.length === 0) return null;
+  
+  // Z-score normalize rows
+  const zMatrix = zscoreRows(filteredMatrix);
+  
+  // Convert to hclust_plot format: [{label, snp1: val, snp2: val, ...}, ...]
+  const data = pgsIds.map((pgsId, i) => {
+    const row = { label: pgsId };
+    filteredSnps.forEach((snp, j) => {
+      row[snp] = zMatrix[i][j];
+    });
+    return row;
+  });
+  
+  // Build display data with -1 for missing (shows as black)
+  const displayData = pgsIds.map((pgsId, i) => {
+    const row = { label: pgsId };
+    filteredSnps.forEach((snp, j) => {
+      row[snp] = filteredMask[i][j] ? -1 : filteredMatrix[i][j];
+    });
+    return row;
+  });
+  
+  console.log(`buildPgsEffectWeightMatrix: ${pgsIds.length} PGS × ${filteredSnps.length} SNPs (from ${snpList.length} input)`);
+  
+  return { data, displayData, snpCount: filteredSnps.length, pgsCount: pgsIds.length };
 }
 
 
@@ -6527,6 +6765,10 @@ async function renderCluster() {
   const pgsVsSnpsClusterRows = window.clusterOptions?.pgsVsSnpsClusterRows ?? true;
   const pgsVsSnpsClusterCols = window.clusterOptions?.pgsVsSnpsClusterCols ?? false;
 
+  // PGS × SNP Effect Weight clustering options
+  const effectClusterRows = window.clusterOptions?.effectClusterRows ?? true;
+  const effectClusterCols = window.clusterOptions?.effectClusterCols ?? false;
+
   // Build allele matrices for selected PGS - three views
   const allMatrix = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 }) : null;
   const allMatrixDisplay = selectedPgsId ? buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1 }) : null;
@@ -6544,12 +6786,32 @@ async function renderCluster() {
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
 
-  // Build PGS vs SNPs matrix for selected user
-  const pgsVsSnpsMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0 }) : null;
-  const pgsVsSnpsMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1 }) : null;
-  const pgsVsSnpsCount = pgsVsSnpsMatrix ? Object.keys(pgsVsSnpsMatrix[0]).length - 1 : 0;
-  const pgsVsSnpsPgsCount = pgsVsSnpsMatrix ? pgsVsSnpsMatrix.length : 0;
+  // Build PGS vs SNPs matrices for selected user - three views
+  const pgsVsSnpsAllMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'all' }) : null;
+  const pgsVsSnpsAllMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1, mode: 'all' }) : null;
+  
+  const pgsVsSnpsOverlapMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'overlapping' }) : null;
+  const pgsVsSnpsOverlapMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1, mode: 'overlapping' }) : null;
+  
+  const pgsVsSnpsSharedMatrix = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'shared' }) : null;
+  const pgsVsSnpsSharedMatrixDisplay = selectedUserId ? buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1, mode: 'shared' }) : null;
+  
+  const pgsVsSnpsAllCount = pgsVsSnpsAllMatrix ? Object.keys(pgsVsSnpsAllMatrix[0]).length - 1 : 0;
+  const pgsVsSnpsOverlapCount = pgsVsSnpsOverlapMatrix ? Object.keys(pgsVsSnpsOverlapMatrix[0]).length - 1 : 0;
+  const pgsVsSnpsSharedCount = pgsVsSnpsSharedMatrix ? Object.keys(pgsVsSnpsSharedMatrix[0]).length - 1 : 0;
+  const pgsVsSnpsPgsCount = pgsVsSnpsAllMatrix ? pgsVsSnpsAllMatrix.length : 0;
   const selectedUserName = userIds.find(u => u.id === selectedUserId)?.name ?? selectedUserId;
+
+  // Build PGS × SNP effect weight matrices (three views)
+  const allSnpsList = getAllSnpsFromPgs(window.prsResults);
+  const overlapSnpsList = getOverlappingSnpsFromPgs(window.prsResults);
+  const sharedSnpsList = getSharedSnpsFromPgs(window.prsResults);
+  
+  const pgsEffectAll = buildPgsEffectWeightMatrix(window.prsResults, allSnpsList);
+  const pgsEffectOverlap = buildPgsEffectWeightMatrix(window.prsResults, overlapSnpsList);
+  const pgsEffectShared = buildPgsEffectWeightMatrix(window.prsResults, sharedSnpsList);
+  
+  const pgsEffectPgsCount = pgsEffectAll?.pgsCount ?? 0;
 
 //  console.log("window.prsResults",window.prsResults)
 
@@ -6663,7 +6925,7 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>PGS vs SNPs Clustering (${pgsVsSnpsPgsCount} PGS Entries × ${pgsVsSnpsCount} SNPs for ${selectedUserName})</h5>
+    <h5>PGS vs SNPs Clustering (${pgsVsSnpsPgsCount} PGS Entries for ${selectedUserName})</h5>
     <p class="text-muted small mb-2">
       Cluster PGS entries by their matched SNP allele patterns for a single user. Rows = PGS entries, Columns = SNPs.
     </p>
@@ -6687,14 +6949,102 @@ async function renderCluster() {
       <span class="text-muted small ms-2">(Note: Column clustering may be slow with many SNPs)</span>
     </div>
 
-    <!-- PGS vs SNPs Plot -->
+    <div class="mb-3">
+      <p class="small">
+        <strong>All SNPs:</strong> ${pgsVsSnpsAllCount} | 
+        <strong>Overlapping (≥2 PGS):</strong> ${pgsVsSnpsOverlapCount} | 
+        <strong>Shared (all PGS):</strong> ${pgsVsSnpsSharedCount}
+      </p>
+    </div>
+
+    <!-- 1. All SNPs -->
     <div class="card mb-4">
-      <div class="card-header"><strong>PGS Entry Similarity by SNPs</strong> <span class="text-muted small">— How similar are PGS entries based on matched variants?</span></div>
+      <div class="card-header"><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all matched SNPs across PGS entries</span></div>
       <div class="card-body">
-        ${pgsVsSnpsMatrix ? `
-          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsCount} SNPs for user ${selectedUserName}</p>
-          <div id="pgsVsSnpsPlot"></div>
+        ${pgsVsSnpsAllMatrix ? `
+          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsAllCount} SNPs</p>
+          <div id="pgsVsSnpsAllPlot"></div>
         ` : `<div class="alert alert-warning mb-0">Not enough PGS entries (need ≥2) or no matched SNPs for this user.</div>`}
+      </div>
+    </div>
+
+    <!-- 2. Overlapping SNPs -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs matched in ≥2 PGS entries</span></div>
+      <div class="card-body">
+        ${pgsVsSnpsOverlapMatrix ? `
+          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsOverlapCount} SNPs</p>
+          <div id="pgsVsSnpsOverlapPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">No overlapping SNPs found across PGS entries for this user.</div>`}
+      </div>
+    </div>
+
+    <!-- 3. Shared SNPs -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs matched in ALL PGS entries</span></div>
+      <div class="card-body">
+        ${pgsVsSnpsSharedMatrix ? `
+          <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsSharedCount} SNPs</p>
+          <div id="pgsVsSnpsSharedPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">No SNPs shared across all PGS entries for this user.</div>`}
+      </div>
+    </div>
+
+    <hr class="my-4" />
+
+    <h5>PGS × SNP Effect Weight Profiles (${pgsEffectPgsCount} PGS Entries)</h5>
+    <p class="text-muted small mb-2">
+      Cluster PGS entries by their SNP effect weights (z-scored). Rows = PGS, Columns = SNPs, Values = effect_weight.
+    </p>
+
+    <div class="mb-3">
+      <strong>Cluster by:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="effectClusterRowsBtn" class="btn btn-sm ${effectClusterRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (PGS)</button>
+        <button id="effectClusterColsBtn" class="btn btn-sm ${effectClusterCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (SNPs)</button>
+        <button id="effectClusterBothBtn" class="btn btn-sm ${effectClusterRows && effectClusterCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+      </div>
+      <span class="text-muted small ms-2">(Column clustering may be slow with many SNPs)</span>
+    </div>
+
+    <div class="mb-3">
+      <p class="small">
+        <strong>All SNPs:</strong> ${allSnpsList.length} | 
+        <strong>Overlapping (≥2 PGS):</strong> ${overlapSnpsList.length} | 
+        <strong>Shared (all PGS):</strong> ${sharedSnpsList.length}
+      </p>
+    </div>
+
+    <!-- 1. All SNPs Effect Weight -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all SNPs across PGS entries</span></div>
+      <div class="card-body">
+        ${pgsEffectAll ? `
+          <p class="text-muted small mb-2">${pgsEffectAll.pgsCount} PGS × ${pgsEffectAll.snpCount} SNPs (after removing constant columns)</p>
+          <div id="pgsEffectAllPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">Not enough PGS entries or no variable SNPs.</div>`}
+      </div>
+    </div>
+
+    <!-- 2. Overlapping SNPs Effect Weight -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs found in ≥2 PGS entries</span></div>
+      <div class="card-body">
+        ${pgsEffectOverlap ? `
+          <p class="text-muted small mb-2">${pgsEffectOverlap.pgsCount} PGS × ${pgsEffectOverlap.snpCount} SNPs</p>
+          <div id="pgsEffectOverlapPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">No overlapping SNPs found across PGS entries.</div>`}
+      </div>
+    </div>
+
+    <!-- 3. Shared SNPs Effect Weight -->
+    <div class="card mb-4">
+      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs found in every PGS entry</span></div>
+      <div class="card-body">
+        ${pgsEffectShared ? `
+          <p class="text-muted small mb-2">${pgsEffectShared.pgsCount} PGS × ${pgsEffectShared.snpCount} SNPs</p>
+          <div id="pgsEffectSharedPlot"></div>
+        ` : `<div class="alert alert-warning mb-0">No SNPs shared across all PGS entries.</div>`}
       </div>
     </div>
   `;
@@ -6773,6 +7123,21 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // PGS × SNP Effect Weight clustering button handlers
+  document.getElementById('effectClusterRowsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, effectClusterRows: !effectClusterRows, effectClusterCols };
+    renderCluster();
+  };
+  document.getElementById('effectClusterColsBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, effectClusterRows, effectClusterCols: !effectClusterCols };
+    renderCluster();
+  };
+  document.getElementById('effectClusterBothBtn').onclick = () => {
+    const bothOn = effectClusterRows && effectClusterCols;
+    window.clusterOptions = { ...window.clusterOptions, effectClusterRows: !bothOn, effectClusterCols: !bothOn };
+    renderCluster();
+  };
+
   // Attach allele clustering button handlers
   document.getElementById('clusterAlleleRowsBtn').onclick = () => {
     window.clusterOptions = { ...window.clusterOptions, clusterAlleleRows: !clusterAlleleRows, clusterAlleleCols };
@@ -6836,6 +7201,7 @@ async function renderCluster() {
   });
 
   const colorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
+  const greenColorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fcf5", "#74c476", "#006d2c"]);
 
   // Render 1. All Variants plot
   if (allMatrix) {
@@ -6894,21 +7260,142 @@ async function renderCluster() {
       `<div class="alert alert-info">No SNPs shared across all users.</div>`;
   }
 
-  // Render PGS vs SNPs plot
-  if (pgsVsSnpsMatrix && pgsVsSnpsMatrix.length >= 2) {
+  // Render PGS vs SNPs plots (three views)
+  if (pgsVsSnpsAllMatrix && pgsVsSnpsAllMatrix.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsVsSnpsPlot",
-      data: pgsVsSnpsMatrix,
-      displayData: pgsVsSnpsMatrixDisplay,
+      divid: "pgsVsSnpsAllPlot",
+      data: pgsVsSnpsAllMatrix,
+      displayData: pgsVsSnpsAllMatrixDisplay,
       width: 900,
       height: 350,
       clusterRows: pgsVsSnpsClusterRows,
       clusterCols: pgsVsSnpsClusterCols,
-      heatmapColorScale: colorScale,
+      heatmapColorScale: greenColorScale,
       clusteringMethodRows: alleleClusterMethod,
       clusteringMethodCols: alleleClusterMethod,
       clusteringDistanceRows: alleleClusterDistance,
       clusteringDistanceCols: alleleClusterDistance
+    });
+  }
+
+  if (pgsVsSnpsOverlapMatrix && pgsVsSnpsOverlapMatrix.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsVsSnpsOverlapPlot",
+      data: pgsVsSnpsOverlapMatrix,
+      displayData: pgsVsSnpsOverlapMatrixDisplay,
+      width: 900,
+      height: 350,
+      clusterRows: pgsVsSnpsClusterRows,
+      clusterCols: pgsVsSnpsClusterCols,
+      heatmapColorScale: greenColorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
+    });
+  }
+
+  if (pgsVsSnpsSharedMatrix && pgsVsSnpsSharedMatrix.length >= 2 && Object.keys(pgsVsSnpsSharedMatrix[0]).length > 1) {
+    await clust.hclust_plot({
+      divid: "pgsVsSnpsSharedPlot",
+      data: pgsVsSnpsSharedMatrix,
+      displayData: pgsVsSnpsSharedMatrixDisplay,
+      width: 900,
+      height: 350,
+      clusterRows: pgsVsSnpsClusterRows,
+      clusterCols: pgsVsSnpsClusterCols,
+      heatmapColorScale: greenColorScale,
+      clusteringMethodRows: alleleClusterMethod,
+      clusteringMethodCols: alleleClusterMethod,
+      clusteringDistanceRows: alleleClusterDistance,
+      clusteringDistanceCols: alleleClusterDistance
+    });
+  }
+
+  // Color scale for effect weights (diverging: negative = blue, zero = white, positive = red)
+  // Dynamically calculate domain based on actual data range
+  const extractValues = (dataArr) => {
+    if (!dataArr) return [];
+    return dataArr.flatMap(row => 
+      Object.entries(row).filter(([k]) => k !== 'label').map(([, v]) => v)
+    );
+  };
+  const allEffectValues = [
+    ...extractValues(pgsEffectAll?.data),
+    ...extractValues(pgsEffectOverlap?.data),
+    ...extractValues(pgsEffectShared?.data)
+  ].filter(Number.isFinite);
+  
+
+  // max absolute effect size across your data (using tighter percentiles for better contrast)
+  const percentile = (arr, p) => {
+    if (!arr.length) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(Math.floor(p * sorted.length), sorted.length - 1);
+    return sorted[idx];
+  };
+
+  const effectExtent = allEffectValues.length > 0
+    ? Math.max(
+        Math.abs(percentile(allEffectValues, 0.15)),
+        Math.abs(percentile(allEffectValues, 0.85)),
+        0.1
+      )
+    : 2;
+
+  const effectColorScale = clust.d3.scaleLinear()
+    .domain([-effectExtent, 0, effectExtent])
+    .range(["#2166ac", "#f7f7f7", "#b2182b"]);
+    
+  // Render PGS Effect Weight plots (All, Overlapping, Shared)
+  if (pgsEffectAll && pgsEffectAll.data.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsEffectAllPlot",
+      data: pgsEffectAll.data,
+      displayData: pgsEffectAll.displayData,
+      width: 900,
+      height: 350,
+      clusterRows: effectClusterRows,
+      clusterCols: effectClusterCols,
+      heatmapColorScale: effectColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
+  }
+
+  if (pgsEffectOverlap && pgsEffectOverlap.data.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsEffectOverlapPlot",
+      data: pgsEffectOverlap.data,
+      displayData: pgsEffectOverlap.displayData,
+      width: 900,
+      height: 350,
+      clusterRows: effectClusterRows,
+      clusterCols: effectClusterCols,
+      heatmapColorScale: effectColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
+  }
+
+  if (pgsEffectShared && pgsEffectShared.data.length >= 2) {
+    await clust.hclust_plot({
+      divid: "pgsEffectSharedPlot",
+      data: pgsEffectShared.data,
+      displayData: pgsEffectShared.displayData,
+      width: 900,
+      height: 350,
+      clusterRows: effectClusterRows,
+      clusterCols: effectClusterCols,
+      heatmapColorScale: effectColorScale,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
     });
   }
 }

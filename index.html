@@ -235,22 +235,18 @@
                     <div id="my23Status" class="small text-muted mb-2"></div>
                     <hr class="my-3" />
 
-                    <h6 style="color: rgb(6, 137, 231);">Use 5 Local 23andMe files or
-                        choose up to 6 files subset year below:</h6>
-                    <ol>
-                        <li>PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt</li>
-                        <li>PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt</li>
-                        <li>PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt</li>
-                        <li>PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt</li>
-                        <li>PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt</li>
-                    </ol>
+                    <h6 style="color: rgb(6, 137, 231);">Choose up to 6 participants below:
+                        <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
+                            Or load fallback users →
+                        </a>
+                    </h6>
                     <hr class="my-3" />
                     <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
                     <div class="my-3">
-                        <label for="participantsYearSelect" class="form-label"><b>Year</b></label>
-                        <select id="participantsYearSelect" class="form-select" style="max-width: 220px;"
-                            onchange="onParticipantsYearChange(this.value)">
-                            <option value="">All Years</option>
+                        <label for="participantsVersionSelect" class="form-label"><b>23andMe Version</b></label>
+                        <select id="participantsVersionSelect" class="form-select" style="max-width: 180px;"
+                            onchange="onParticipantsVersionChange(this.value)">
+                            <option value="">All Versions</option>
                         </select>
                     </div>
                     <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3">Fetch Users</button>
@@ -267,19 +263,14 @@
                         metadata;including scoring files (variants, effect alleles/weights).</p>
                     <h3>Data Selection</h3>
 
-                    <h6 style="color: rgb(6, 137, 231);">Local PGS files automatically configured. You can also choose
-                        files below:</h6>
-                    <ol>
-                        <li>PGS000001_hmPOS_GRCh37.txt (Breast cancer - 77 variants)</li>
-                        <li>PGS000004_hmPOS_GRCh37.txt (Breast carcinoma - 313 variants)</li>
-                        <li>PGS000055_hmPOS_GRCh37.txt (Colorectal cancer - 76 variants)</li>
-                        <li>PGS000740_hmPOS_GRCh37.txt (Lung cancer - 128 variants)</li>
-                        <li>PGS001808_hmPOS_GRCh37.txt (Brain cancer - 117 variants)</li>
-                    </ol>
                     <hr class="my-3" />
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
-                        <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b></label>
+                        <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b>
+                            <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackScoresBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
+                                Or load fallback scores →
+                            </a>
+                        </label>
                         <div class="mb-2">
                             <button id="traitBtn" class="btn btn-sm btn-primary">By Trait</button>
                             <button id="categoryBtn" class="btn btn-sm btn-outline-primary ms-2">By Category</button>

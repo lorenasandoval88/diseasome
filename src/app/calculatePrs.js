@@ -634,12 +634,6 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 }
 window.fetchUsers = fetchUsers;
 
-// Wire up the fetch scores button
-const fetchScoresBtn = document.getElementById("fetchScoresBtn");
-if (fetchScoresBtn) {
-	fetchScoresBtn.addEventListener("click", fetchScores);
-}
-
 // Wire up the fetch users button
 const fetchUsersBtn = document.getElementById("fetchUsersBtn");
 if (fetchUsersBtn) {
@@ -955,27 +949,50 @@ async function calculatePRS() {
                 </table>`;
         }
 
-        // Load PGS txt files (try local first, then remote)
-        // if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
+        // Load PGS txt files (use pre-loaded from Polygenic Scores tab, or fetch)
         if (statusEl) statusEl.textContent = `Calculating PRS....`;
 
-        const pgsTxts = [];
-        for (const score of selectedScoresList) {
-            try {
-                if (score.local_file) {
-                    // Load from local file
-                    const parsed = await loadLocalPGSFile(score.id, score.local_file);
-                    pgsTxts.push(parsed);
-                    console.log(`Loaded local PGS file: ${score.local_file}`);
-                } else {
-                    // Fetch from remote
-                    const remote = await getTxts([score.id]);
-                    pgsTxts.push(...remote);
+        let pgsTxts = [];
+        
+        // Check if PGS files were pre-loaded in the Polygenic Scores tab
+        const preloadedTxts = window.loadedPgsTxts ?? [];
+        if (preloadedTxts.length > 0) {
+            // Filter to only selected IDs
+            pgsTxts = preloadedTxts.filter(pgs => {
+                const pgsId = pgs?.id ?? pgs?.meta?.pgs_id;
+                return selectedIds.includes(pgsId);
+            });
+            console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Polygenic Scores tab`);
+        }
+        
+        // If not enough pre-loaded files, fetch missing ones
+        if (pgsTxts.length < selectedIds.length) {
+            const loadedIds = new Set(pgsTxts.map(p => p?.id ?? p?.meta?.pgs_id));
+            const missingScores = selectedScoresList.filter(s => !loadedIds.has(s.id));
+            
+            if (missingScores.length > 0) {
+                console.log(`Fetching ${missingScores.length} missing PGS files...`);
+                if (statusEl) statusEl.textContent = `Fetching ${missingScores.length} missing PGS file(s)...`;
+                
+                for (const score of missingScores) {
+                    try {
+                        if (score.local_file) {
+                            // Load from local file
+                            const parsed = await loadLocalPGSFile(score.id, score.local_file);
+                            pgsTxts.push(parsed);
+                            console.log(`Loaded local PGS file: ${score.local_file}`);
+                        } else {
+                            // Fetch from remote
+                            const remote = await getTxts([score.id]);
+                            pgsTxts.push(...remote);
+                        }
+                    } catch (err) {
+                        console.error(`Failed to load ${score.id}:`, err);
+                    }
                 }
-            } catch (err) {
-                console.error(`Failed to load ${score.id}:`, err);
             }
         }
+        
         console.log("PGS txts for calculation:", pgsTxts);
         
         // Run PRS calculation for each user x score combination

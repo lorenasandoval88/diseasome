@@ -134,6 +134,8 @@ window.clearSelectedScores = () => {
 	selectedScoresMap.clear();
 	updateGlobalSelectionCount$1();
 	console.log("Cleared all selected scores");
+	// Notify participants table of PGS selection change
+	window.onPgsSelectionChange?.();
 };
 
 /** Update the global selection count display. */
@@ -362,6 +364,8 @@ function renderPgsTable(scores, targetId, title, key) {
 				}
 				renderPage();
 				updateGlobalSelectionCount$1();
+				// Notify participants table of PGS selection change
+				window.onPgsSelectionChange?.();
 			});
 		}
 
@@ -388,6 +392,8 @@ function renderPgsTable(scores, targetId, title, key) {
 					selectedPgsSummary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION$1}`;
 				}
 				updateGlobalSelectionCount$1();
+				// Notify participants table of PGS selection change
+				window.onPgsSelectionChange?.();
 			});
 		});
 
@@ -694,11 +700,381 @@ if (categoryBtn) {
 	categoryBtn.addEventListener("click", () => { currentMode = "Category"; });
 }
 
+// --- Fetch and parse PGS scoring files (text files with variants) ---
+
+// Store loaded PGS text files globally for PRS calculation
+window.loadedPgsTxts = [];
+
+/**
+ * Fetch and parse selected PGS scoring files.
+ * The parsed files are stored in window.loadedPgsTxts for use by calculatePRS.
+ */
+async function fetchScoresTxts() {
+	const statusEl = document.getElementById("fetchScoresStatus");
+	const txtsDiv = document.getElementById("scoreTxtsDiv");
+	
+	try {
+		const selectedIds = window.getSelectedPgsIds?.() ?? [];
+		const selectedScores = window.getSelectedScores?.() ?? [];
+		
+		if (selectedIds.length === 0) {
+			if (statusEl) statusEl.textContent = "Please select at least one scoring file from the table.";
+			return;
+		}
+		
+		if (statusEl) statusEl.textContent = `Fetching ${selectedIds.length} PGS file(s)...`;
+		if (txtsDiv) txtsDiv.style.display = "block";
+		
+		// Fetch PGS text files using the SDK
+		console.log(`Fetching ${selectedIds.length} PGS files:`, selectedIds);
+		const pgsTxts = await getTxts(selectedIds);
+		
+		window.loadedPgsTxts = pgsTxts;
+		
+		if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} of ${selectedIds.length} PGS file(s).`;
+		
+		// Compare loaded PGS files with 23andMe SNPs (v4, v5, both)
+		const pgsMatchStats = comparePgsWithOverlap(pgsTxts);
+		
+		// Show summary of loaded files with match percentages
+		renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats);
+		
+		// Also update the Calculate PRS tab's "1.) Select Weight Files" section
+		updatePrsScoresDisplay(pgsTxts, selectedScores);
+		
+		console.log("Loaded PGS files:", pgsTxts);
+		
+	} catch (err) {
+		console.error("fetchScoresTxts error:", err);
+		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+	}
+}
+
+// Current filter settings for PGS match percentage
+let pgsMatchFilter = { type: 'both', metric: 'weight', minPercent: 0 };
+
+/**
+ * Render loaded PGS table with match percentages and filter controls.
+ */
+function renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats) {
+	if (!txtsDiv) return;
+	
+	// Filter PGS files based on current filter settings
+	const filteredPgs = pgsTxts.filter(pgs => {
+		const pgsId = pgs?.id ?? pgs?.meta?.pgs_id ?? "";
+		const stats = pgsMatchStats[pgsId];
+		if (!stats) return true;
+		
+		let matchPercent;
+		const useWeight = pgsMatchFilter.metric === 'weight';
+		
+		if (pgsMatchFilter.type === 'v4') {
+			matchPercent = useWeight ? stats.v4WeightPercent : stats.v4Percent;
+		} else if (pgsMatchFilter.type === 'v5') {
+			matchPercent = useWeight ? stats.v5WeightPercent : stats.v5Percent;
+		} else {
+			matchPercent = useWeight ? stats.bothWeightPercent : stats.bothPercent;
+		}
+		
+		return matchPercent >= pgsMatchFilter.minPercent;
+	});
+	
+	const rows = filteredPgs.map((pgs, idx) => {
+		const id = escapeHtml$2(pgs?.id ?? pgs?.meta?.pgs_id ?? "");
+		const variantCount = pgs?.dt?.length ?? 0;
+		const score = selectedScores.find(s => s.id === pgs.id);
+		const trait = escapeHtml$2(score?.trait_reported ?? "");
+		const stats = pgsMatchStats[id] ?? {};
+		
+		return `
+			<tr>
+				<td>${idx + 1}</td>
+				<td>${id}</td>
+				<td title="${escapeHtml$2(score?.trait_reported ?? '')}">${trait.length > 20 ? trait.slice(0,20) + '...' : trait}</td>
+				<td>${variantCount.toLocaleString()}</td>
+				<td>${stats.v4Percent?.toFixed(1) ?? '-'}%</td>
+				<td>${stats.v5Percent?.toFixed(1) ?? '-'}%</td>
+				<td>${stats.bothPercent?.toFixed(1) ?? '-'}%</td>
+				<td>${stats.v4WeightPercent?.toFixed(1) ?? '-'}%</td>
+				<td>${stats.v5WeightPercent?.toFixed(1) ?? '-'}%</td>
+				<td>${stats.bothWeightPercent?.toFixed(1) ?? '-'}%</td>
+			</tr>`;
+	}).join("");
+	
+	txtsDiv.innerHTML = `
+		<h6 class="mt-3">Loaded PGS Scoring Files</h6>
+		<div class="mb-2 d-flex flex-wrap align-items-center gap-2">
+			<label class="form-label mb-0 small"><b>Filter by:</b></label>
+			<select id="pgsMatchMetricFilter" class="form-select form-select-sm" style="width: auto;">
+				<option value="weight" ${pgsMatchFilter.metric === 'weight' ? 'selected' : ''}>Effect Weight %</option>
+				<option value="snp" ${pgsMatchFilter.metric === 'snp' ? 'selected' : ''}>SNP Count %</option>
+			</select>
+			<select id="pgsMatchTypeFilter" class="form-select form-select-sm" style="width: auto;">
+				<option value="both" ${pgsMatchFilter.type === 'both' ? 'selected' : ''}>Both (v4 ∩ v5)</option>
+				<option value="v4" ${pgsMatchFilter.type === 'v4' ? 'selected' : ''}>v4 only</option>
+				<option value="v5" ${pgsMatchFilter.type === 'v5' ? 'selected' : ''}>v5 only</option>
+			</select>
+			<label class="form-label mb-0 small">Min %:</label>
+			<input type="number" id="pgsMatchMinPercent" class="form-control form-control-sm" style="width: 80px;" 
+				   value="${pgsMatchFilter.minPercent}" min="0" max="100" step="5" />
+			<button id="applyPgsMatchFilter" class="btn btn-sm btn-primary">Apply</button>
+			<span class="small text-muted">(${filteredPgs.length} of ${pgsTxts.length} shown)</span>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm table-striped">
+				<thead class="table-dark">
+					<tr>
+						<th rowspan="2">#</th>
+						<th rowspan="2">PGS ID</th>
+						<th rowspan="2">Trait</th>
+						<th rowspan="2">Variants</th>
+						<th colspan="3" class="text-center">SNP Count %</th>
+						<th colspan="3" class="text-center">Effect Weight %</th>
+					</tr>
+					<tr>
+						<th>23andMe_v4</th>
+						<th>23andMe_v5</th>
+						<th>Both</th>
+						<th>23andMe_v4</th>
+						<th>23andMe_v5</th>
+						<th>Both</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>
+		</div>
+		<p class="small text-muted">Files ready for PRS calculation. Go to Calculate PRS tab and click "Calculate PRS".</p>`;
+	
+	// Wire up filter controls
+	const metricSelect = document.getElementById('pgsMatchMetricFilter');
+	const typeSelect = document.getElementById('pgsMatchTypeFilter');
+	const minInput = document.getElementById('pgsMatchMinPercent');
+	const applyBtn = document.getElementById('applyPgsMatchFilter');
+	
+	if (applyBtn) {
+		applyBtn.addEventListener('click', () => {
+			pgsMatchFilter.metric = metricSelect?.value ?? 'weight';
+			pgsMatchFilter.type = typeSelect?.value ?? 'both';
+			pgsMatchFilter.minPercent = parseFloat(minInput?.value ?? 0);
+			renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats);
+		});
+	}
+}
+
+/**
+ * Compare loaded PGS files with 23andMe SNPs (v4, v5, and overlap).
+ * Returns match statistics for each PGS file including effect weight percentages.
+ * @param {Array} pgsTxts - Loaded PGS text files
+ * @returns {Object} Map of pgsId -> { v4Percent, v5Percent, bothPercent, v4WeightPercent, v5WeightPercent, bothWeightPercent, ... }
+ */
+function comparePgsWithOverlap(pgsTxts) {
+	console.log("comparePgsWithOverlap called with", pgsTxts?.length, "PGS files");
+	
+	const v4Array = window.v4_23andme ?? [];
+	const v5Array = window.v5_23andme ?? [];
+	const bothArray = window.v4_v5_23andme ?? [];
+	
+	const v4Set = new Set(v4Array);
+	const v5Set = new Set(v5Array);
+	const bothSet = new Set(bothArray);
+	
+	console.log(`23andMe SNP sets: v4=${v4Set.size}, v5=${v5Set.size}, both=${bothSet.size}`);
+	
+	if (v4Set.size === 0 && v5Set.size === 0) {
+		console.warn("23andMe SNP sets not computed yet. Run computeV4V5Overlap() first.");
+		return {};
+	}
+	
+	// Store results globally
+	window.pgsOverlapResults = {};
+	const stats = {};
+	
+	console.log(`\n=== PGS vs 23andMe SNP Match Analysis ===`);
+	
+	for (const pgs of pgsTxts) {
+		const pgsId = pgs?.id ?? pgs?.meta?.pgs_id ?? "unknown";
+		const cols = pgs?.cols ?? [];
+		const dt = pgs?.dt ?? [];
+		
+		// Find column indices
+		const hmChrIdx = cols.indexOf('hm_chr');
+		const hmPosIdx = cols.indexOf('hm_pos');
+		const effectWeightIdx = cols.indexOf('effect_weight');
+		
+		if (hmChrIdx < 0 || hmPosIdx < 0) {
+			console.warn(`${pgsId}: Missing hm_chr or hm_pos columns.`);
+			stats[pgsId] = { 
+				v4Percent: 0, v5Percent: 0, bothPercent: 0, 
+				v4WeightPercent: 0, v5WeightPercent: 0, bothWeightPercent: 0,
+				v4Rows: [], v5Rows: [], bothRows: [] 
+			};
+			continue;
+		}
+		
+		// Calculate total effect weight (use absolute values)
+		let totalWeight = 0;
+		let v4Weight = 0;
+		let v5Weight = 0;
+		let bothWeight = 0;
+		
+		// Find matching rows for each set
+		const v4Rows = [];
+		const v5Rows = [];
+		const bothRows = [];
+		
+		for (const row of dt) {
+			const chr = row[hmChrIdx];
+			const pos = row[hmPosIdx];
+			const key = `${chr}:${pos}`;
+			const weight = effectWeightIdx >= 0 ? Math.abs(parseFloat(row[effectWeightIdx]) || 0) : 0;
+			
+			totalWeight += weight;
+			
+			// Build row object with column names
+			const rowObj = {};
+			cols.forEach((col, i) => {
+				rowObj[col] = row[i];
+			});
+			rowObj._chrPosKey = key;
+			rowObj._absWeight = weight;
+			
+			if (v4Set.has(key)) {
+				v4Rows.push(rowObj);
+				v4Weight += weight;
+			}
+			if (v5Set.has(key)) {
+				v5Rows.push(rowObj);
+				v5Weight += weight;
+			}
+			if (bothSet.has(key)) {
+				bothRows.push(rowObj);
+				bothWeight += weight;
+			}
+		}
+		
+		const totalVariants = dt.length;
+		
+		// SNP count percentages
+		const v4Percent = totalVariants > 0 ? (v4Rows.length / totalVariants) * 100 : 0;
+		const v5Percent = totalVariants > 0 ? (v5Rows.length / totalVariants) * 100 : 0;
+		const bothPercent = totalVariants > 0 ? (bothRows.length / totalVariants) * 100 : 0;
+		
+		// Effect weight percentages
+		const v4WeightPercent = totalWeight > 0 ? (v4Weight / totalWeight) * 100 : 0;
+		const v5WeightPercent = totalWeight > 0 ? (v5Weight / totalWeight) * 100 : 0;
+		const bothWeightPercent = totalWeight > 0 ? (bothWeight / totalWeight) * 100 : 0;
+		
+		stats[pgsId] = { 
+			v4Percent, v5Percent, bothPercent, 
+			v4WeightPercent, v5WeightPercent, bothWeightPercent,
+			v4Rows, v5Rows, bothRows, 
+			totalVariants, totalWeight,
+			v4Weight, v5Weight, bothWeight
+		};
+		
+		// Store in global results (keep bothRows for backward compatibility)
+		window.pgsOverlapResults[pgsId] = bothRows;
+		
+		console.log(`${pgsId}: ${totalVariants} variants | SNP%: v4=${v4Percent.toFixed(1)}%, v5=${v5Percent.toFixed(1)}%, both=${bothPercent.toFixed(1)}% | Weight%: v4=${v4WeightPercent.toFixed(1)}%, v5=${v5WeightPercent.toFixed(1)}%, both=${bothWeightPercent.toFixed(1)}%`);
+	}
+	
+	// Store full stats globally
+	window.pgsMatchStats = stats;
+	
+	console.log(`\n=== Results saved to window.pgsMatchStats ===`);
+	return stats;
+}
+
+window.comparePgsWithOverlap = comparePgsWithOverlap;
+
+/**
+ * Update the Calculate PRS tab's weight files display.
+ * @param {Array} pgsTxts - Loaded PGS text files
+ * @param {Array} selectedScores - Selected score metadata
+ */
+function updatePrsScoresDisplay(pgsTxts, selectedScores) {
+	const prsScoresDiv = document.getElementById("prsScoresDiv");
+	const prsScoresAction = document.getElementById("prsScoresAction");
+	
+	if (prsScoresDiv) {
+		prsScoresDiv.textContent = `Loaded ${pgsTxts.length} scoring file(s) from Polygenic Scores tab.`;
+	}
+	
+	if (prsScoresAction && pgsTxts.length > 0) {
+		const rows = pgsTxts.map((pgs, idx) => {
+			const id = escapeHtml$2(pgs?.id ?? pgs?.meta?.pgs_id ?? "");
+			const variantCount = pgs?.dt?.length ?? 0;
+			const score = selectedScores?.find(s => s.id === pgs.id) ?? {};
+			const name = escapeHtml$2(score?.name ?? "");
+			const trait = escapeHtml$2(score?.trait_reported ?? "");
+			const date = escapeHtml$2(score?.date_release ?? "");
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${trait}</td>
+					<td>${variantCount.toLocaleString()}</td>
+					<td>${date}</td>
+				</tr>`;
+		}).join("");
+		
+		prsScoresAction.innerHTML = `
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>PGS ID</th>
+						<th>Name</th>
+						<th>Trait</th>
+						<th>Variants</th>
+						<th>Date</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
+}
+
+window.updatePrsScoresDisplay = updatePrsScoresDisplay;
+window.fetchScoresTxts = fetchScoresTxts;
+
+// Wire up the Fetch Files button in the Polygenic Scores tab
+const fetchScoresBtn = document.getElementById("fetchScoresBtn");
+if (fetchScoresBtn) {
+	fetchScoresBtn.addEventListener("click", fetchScoresTxts);
+}
+
 console.log("displayUsers.js loaded");
 console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
-const data = await fetch23andMeParticipants();
+
+// Show loading indicator while fetching participants
+const loadingContainer = document.getElementById('localUsersDiv');
+if (loadingContainer) {
+	loadingContainer.style.display = 'block';
+	loadingContainer.innerHTML = `
+		<div class="d-flex flex-column align-items-center my-4">
+			<div class="spinner-border text-primary my-3" role="status">
+				<span class="visually-hidden">Loading...</span>
+			</div>
+			<div class="progress w-50" style="height: 6px;">
+				<div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+			</div>
+			<small class="text-muted mt-2">Loading participants...</small>
+		</div>
+	`;
+}
+
+// const data = await fetch23andMeParticipants_fast();
+// const data = await fetch23andMeParticipants();
+const INITIAL_LIMIT = 20;
+const data = await fetch23andMeParticipants(INITIAL_LIMIT);
+
 // console.log("Fetched 23andMe participants:", data);
-const participants = data ?? [];
+let participants = data ?? [];
+let currentLimit = INITIAL_LIMIT; // Track current fetch limit
 
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10;
@@ -752,16 +1128,17 @@ function escapeHtml$1(value) {
  * @param {Array} genotypes
  * @returns {string}
  */
-function formatGenotypes(genotypes) {
-	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
-	return genotypes
-		.map((g) => {
-			const name = g.filename ?? g.file ?? g.download_url ?? g.filetype ?? "(file)";
-			const type = g.filetype ?? "";
-			return `${escapeHtml$1(name)} ${type ? `(${escapeHtml$1(type)})` : ""}`;
-		})
-		.join("<br>");
-}
+// function formatGenotypes(genotypes) {
+// 	console.log("Formatting genotypes:", genotypes);
+// 	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
+// 	return genotypes
+// 		.map((g) => {
+// 			const name = g.filename ?? g.file ?? g.download_url ?? g.filetype ?? "(file)";
+// 			const type = g.filetype ?? "";
+// 			return `${escapeHtml(name)} ${type ? `(${escapeHtml(type)})` : ""}`;
+// 		})
+// 		.join("<br>");
+// }
 
 /**
  * sanitizeKey(value)
@@ -777,55 +1154,122 @@ function sanitizeKey(value) {
 }
 
 /**
- * extractYear(item)
- * Extract a 4-digit year from common published/date fields on a participant.
- * @param {Object} item
- * @returns {string|null}
+ * extractVersion(item)
+ * Extract the 23andMe chip version (e.g., "v4", "v5") from genotype filenames.
+ * @param {Object} item - Participant object with genotypes array
+ * @returns {string|null} Version string like "v4", "v5", or null if not found
  */
-function extractYear(item) {
-	const pub = item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "";
-	const s = String(pub ?? "");
-	const m = s.match(/^(\d{4})/);
-	if (m) return m[1];
-	const d = new Date(s);
-	if (!Number.isNaN(d.getFullYear()) && d.getFullYear() > 0) return String(d.getFullYear());
+function extractVersion(item) {
+	const filename = item.fileName ?? item.name ?? '';
+	console.log("Extracting version from filename:", filename,item);
+	// Match patterns like _v4_, _v5_, v4_Full, v5_Full, etc.
+	const match = String(filename).match(/_v(\d+)_|v(\d+)_Full/i);
+	if (match) {
+		const version = match[1] ?? match[2];
+		console.log("Found version:", version);
+		return `v${version}`;
+	}
 	return null;
 }
 
 /**
- * Populate the `participantsYearSelect` dropdown with available years.
+ * Populate the `participantsVersionSelect` dropdown with available 23andMe chip versions.
  * @returns {void}
  */
-function populateYearSelect() {
-	const sel = document.getElementById('participantsYearSelect');
+function populateVersionSelect() {
+	const sel = document.getElementById('participantsVersionSelect');
 	if (!sel) return;
 	const counts = new Map();
 	participants.forEach((p) => {
-		const y = extractYear(p);
-		const key = y ?? 'Unknown';
+		const v = extractVersion(p);
+		const key = v ?? 'Unknown';
 		counts.set(key, (counts.get(key) || 0) + 1);
 	});
-	const years = Array.from(counts.keys()).filter(k => k !== 'Unknown').sort((a, b) => Number(b) - Number(a));
-	const opts = [`<option value="">All Years (${participants.length} rows)</option>`].concat(years.map(y => `<option value="${y}">${y} (${counts.get(y)} rows)</option>`));
-	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')} rows)</option>`);
+	// Sort versions numerically (v3, v4, v5, etc.)
+	const versions = Array.from(counts.keys()).filter(k => k !== 'Unknown').sort((a, b) => {
+		const numA = parseInt(a.replace('v', ''));
+		const numB = parseInt(b.replace('v', ''));
+		return numA - numB;
+	});
+	const opts = [`<option value="">All Versions (${participants.length})</option>`].concat(versions.map(v => `<option value="${v}">${v} (${counts.get(v)})</option>`));
+	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')})</option>`);
 	sel.innerHTML = opts.join('');
 }
+window.populateVersionSelect = populateVersionSelect;
 
 /**
- * Handler invoked when the year dropdown changes; filters participants and re-renders the table.
- * @param {string} selectedYear
+ * Apply version filter to participants and re-render the table.
  * @returns {void}
  */
-window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear) {
-	const sel = document.getElementById('participantsYearSelect');
-	const year = selectedYear ?? (sel && sel.value) ?? '';
-	const list = year && year !== ''
-		? participants.filter(p => (extractYear(p) ?? 'Unknown') === year)
-		: participants;
+function applyParticipantFilters() {
+	const versionSel = document.getElementById('participantsVersionSelect');
+	const version = versionSel?.value ?? '';
+	
+	let list = participants;
+	
+	if (version && version !== '') {
+		list = list.filter(p => (extractVersion(p) ?? 'Unknown') === version);
+	}
+	
 	const key = sanitizeKey('participants') || 'participants';
-	const yearLabel = year && year !== '' ? year : 'All Years';
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
+	const filterLabel = version && version !== '' ? version : 'All';
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
+}
+window.applyParticipantFilters = applyParticipantFilters;
+
+/**
+ * Handler invoked when the version dropdown changes; filters participants and re-renders the table.
+ * @param {string} selectedVersion
+ * @returns {void}
+ */
+window.onParticipantsVersionChange = function onParticipantsVersionChange(selectedVersion) {
+	const sel = document.getElementById('participantsVersionSelect');
+	if (sel && selectedVersion !== undefined) sel.value = selectedVersion;
+	applyParticipantFilters();
 };
+
+/**
+ * Callback invoked when PGS score selection changes.
+ * Re-renders the participants table to reflect the new selection.
+ * @returns {void}
+ */
+window.onPgsSelectionChange = function onPgsSelectionChange() {
+	console.log('PGS selection changed, re-rendering participants table');
+	applyParticipantFilters();
+};
+
+/**
+ * Load more participants by fetching additional rows.
+ * @param {number} count - Number of additional participants to load (default: 10)
+ * @returns {Promise<void>}
+ */
+async function loadMoreParticipants(count = 10) {
+	const newLimit = currentLimit + count;
+	
+	console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	try {
+		const newData = await fetch23andMeParticipants(newLimit);
+		console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
+		if (newData && newData.length > participants.length) {
+			participants = newData;
+			currentLimit = newLimit;
+			populateVersionSelect();
+			applyParticipantFilters();
+			console.log(`Loaded ${newData.length} participants total`);
+		} else if (newData && newData.length === participants.length && newData.length < newLimit) {
+			// All available participants already loaded
+			console.log('All available participants already loaded');
+			alert(`All ${participants.length} available participants are already loaded.`);
+		} else {
+			console.log('No additional participants available');
+			alert('No additional participants available.');
+		}
+	} catch (err) {
+		console.error('Error loading more participants:', err);
+		alert('Failed to load more participants.');
+	}
+}
+window.loadMoreParticipants = loadMoreParticipants;
 
 /**
  * Render a paginated participants table with selection and pagination controls.
@@ -855,9 +1299,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const rawName = String(p.name ?? "");
 			const name = escapeHtml$1(rawName);
 			const displayName = escapeHtml$1(rawName.length > 14 ? rawName.slice(0, 14) + '...' : rawName);
-			const genos = p.genotypes ?? [];
-			genos.length;
-			formatGenotypes(genos);
+			// const genos = p.genotypes ?? [];
+			// const genoCount = genos.length;
+			// const genoList = formatGenotypes(genos);
 
 			/**
 			 * getPublishedDate(item)
@@ -897,6 +1341,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const downloadUrl = getDownloadUrl(p);
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml$1(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml$1(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
+			const version = extractVersion(p) ?? '-';
 
 			return `
 				<tr>
@@ -904,6 +1349,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml$1(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
+					<td>${version}</td>
 					<td>${published}</td>
 					<td>${profileHtml}</td>
 					<td>${downloadHtml}</td>
@@ -927,6 +1373,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
+							<th>Version</th>
 							<th>Published Date</th>
 							<th>Profile</th>
 							<th>Download URL</th>
@@ -940,6 +1387,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			<div class="d-flex justify-content-between align-items-center mt-2">
 			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
+					<button id="loadMore_${key}" class="btn btn-sm btn-outline-primary">Load 10 more</button>
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
 					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
@@ -954,6 +1402,20 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+		const loadMoreBtn = document.getElementById(`loadMore_${key}`);
+
+		if (loadMoreBtn) {
+			loadMoreBtn.addEventListener('click', async () => {
+				loadMoreBtn.disabled = true;
+				loadMoreBtn.textContent = 'Loading...';
+				try {
+					await loadMoreParticipants(10);
+				} finally {
+					loadMoreBtn.disabled = false;
+					loadMoreBtn.textContent = 'Load 10 more';
+				}
+			});
+		}
 
 		if (selectAll) {
 			selectAll.addEventListener('change', () => {
@@ -1008,15 +1470,10 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 /**
  * renderLocalUsers()
- * Public entry point that renders the participants table (honoring any active year filter).
+ * Public entry point that renders the participants table (honoring any active year/version filters).
  */
 window.renderLocalUsers = () => {
-	const key = sanitizeKey('participants') || 'participants';
-	const sel = document.getElementById('participantsYearSelect');
-	const year = sel?.value ?? '';
-	const list = year && year !== '' ? participants.filter(p => (extractYear(p) ?? 'Unknown') === year) : participants;
-	const yearLabel = year && year !== '' ? year : 'All Years';
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
+	applyParticipantFilters();
 };
 
 // If the LocalData tab is already visible on load, render immediately
@@ -1024,8 +1481,8 @@ if (document.getElementById("LocalData")?.style.display === "block") {
 	window.renderLocalUsers();
 }
 
-// populate year select after definitions
-populateYearSelect();
+// populate version select after definitions
+populateVersionSelect();
 
 // --- Upload Your 23andMe File Button Handler ---
 
@@ -1159,6 +1616,106 @@ function parseLocalFile(txt, url) {
 	});
 	return obj;
 }
+
+// --- Compute overlapping SNPs between Joshua and Marika based on chr:position ---
+/**
+ * Build a set of chr:position keys from parsed 23andMe data.//113816
+ * @param {Object} parsed - Parsed 23andMe data with cols and dt
+ * @returns {Set<string>} Set of "chr:position" strings
+ */
+// function getChrPosSet(parsed) {
+// 	const chrIdx = parsed.cols.indexOf('chromosome');
+// 	const posIdx = parsed.cols.indexOf('position');
+// 	const set = new Set();
+// 	for (const row of parsed.dt) {
+// 		const chr = row[chrIdx];
+// 		const pos = row[posIdx];
+// 		if (chr && pos != null) {
+// 			set.add(`${chr}:${pos}`);
+// 		}
+// 	}
+// 	return set;
+// }
+function getChrPosSet(parsed) {
+  if (!parsed?.cols || !parsed?.dt) return new Set();
+
+  const chrIdx = parsed.cols.indexOf('chromosome');
+  const posIdx = parsed.cols.indexOf('position');
+
+  if (chrIdx < 0 || posIdx < 0) {
+    console.warn('Missing chromosome or position column', parsed.cols);
+    return new Set();
+  }
+
+  const set = new Set();
+
+  for (const row of parsed.dt) {
+    const chr = row[chrIdx];
+    const pos = row[posIdx];
+
+    if (chr != null && pos != null && chr !== '' && pos !== '') {
+      set.add(`${chr}:${pos}`);
+    }
+  }
+
+  return set;
+}
+
+
+
+
+/**
+ * Compute overlapping SNP positions between two 23andMe files.
+ */
+async function computeV4V5Overlap() {
+  try {
+    const joshuaUrl = 'data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt';
+    const marikaUrl = 'data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt';
+
+    const [joshuaRes, marikaRes] = await Promise.all([
+      fetch(joshuaUrl),
+      fetch(marikaUrl)
+    ]);
+
+    if (!joshuaRes.ok || !marikaRes.ok) {
+      throw new Error(`Fetch failed: Joshua=${joshuaRes.status}, Marika=${marikaRes.status}`);
+    }
+
+    const [joshuaTxt, marikaTxt] = await Promise.all([
+      joshuaRes.text(),
+      marikaRes.text()
+    ]);
+
+    const joshuaParsed = parseLocalFile(joshuaTxt, joshuaUrl);
+    const marikaParsed = parseLocalFile(marikaTxt, marikaUrl);
+
+    const joshuaSet = getChrPosSet(joshuaParsed);
+    const marikaSet = getChrPosSet(marikaParsed);
+
+    const overlap = [...joshuaSet].filter(key => marikaSet.has(key));
+
+    // Store individual sets and overlap globally
+    window.v5_23andme = [...joshuaSet];  // v5 SNPs (Joshua)
+    window.v4_23andme = [...marikaSet];  // v4 SNPs (Marika)
+    window.v4_v5_23andme = overlap;      // Overlap of both
+
+    console.log(`23andMe SNP sets computed:`);
+    console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
+    console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
+    console.log(`  Overlap: ${overlap.length} SNPs`);
+
+    return overlap;
+  } catch (err) {
+    console.error('Error computing v4_v5_23andme overlap:', err);
+    window.v5_23andme = [];
+    window.v4_23andme = [];
+    window.v4_v5_23andme = [];
+    return [];
+  }
+}
+
+// Initialize v4_v5_23andme on load
+computeV4V5Overlap();
 
 function Match2(mypgs, my23){
 	let data2 = {};
@@ -4745,12 +5302,6 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 }
 window.fetchUsers = fetchUsers;
 
-// Wire up the fetch scores button
-const fetchScoresBtn = document.getElementById("fetchScoresBtn");
-if (fetchScoresBtn) {
-	fetchScoresBtn.addEventListener("click", fetchScores);
-}
-
 // Wire up the fetch users button
 const fetchUsersBtn = document.getElementById("fetchUsersBtn");
 if (fetchUsersBtn) {
@@ -5066,27 +5617,50 @@ async function calculatePRS() {
                 </table>`;
         }
 
-        // Load PGS txt files (try local first, then remote)
-        // if (statusEl) statusEl.textContent = `Loading ${selectedIds.length} PGS file(s)...`;
+        // Load PGS txt files (use pre-loaded from Polygenic Scores tab, or fetch)
         if (statusEl) statusEl.textContent = `Calculating PRS....`;
 
-        const pgsTxts = [];
-        for (const score of selectedScoresList) {
-            try {
-                if (score.local_file) {
-                    // Load from local file
-                    const parsed = await loadLocalPGSFile(score.id, score.local_file);
-                    pgsTxts.push(parsed);
-                    console.log(`Loaded local PGS file: ${score.local_file}`);
-                } else {
-                    // Fetch from remote
-                    const remote = await getTxts([score.id]);
-                    pgsTxts.push(...remote);
+        let pgsTxts = [];
+        
+        // Check if PGS files were pre-loaded in the Polygenic Scores tab
+        const preloadedTxts = window.loadedPgsTxts ?? [];
+        if (preloadedTxts.length > 0) {
+            // Filter to only selected IDs
+            pgsTxts = preloadedTxts.filter(pgs => {
+                const pgsId = pgs?.id ?? pgs?.meta?.pgs_id;
+                return selectedIds.includes(pgsId);
+            });
+            console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Polygenic Scores tab`);
+        }
+        
+        // If not enough pre-loaded files, fetch missing ones
+        if (pgsTxts.length < selectedIds.length) {
+            const loadedIds = new Set(pgsTxts.map(p => p?.id ?? p?.meta?.pgs_id));
+            const missingScores = selectedScoresList.filter(s => !loadedIds.has(s.id));
+            
+            if (missingScores.length > 0) {
+                console.log(`Fetching ${missingScores.length} missing PGS files...`);
+                if (statusEl) statusEl.textContent = `Fetching ${missingScores.length} missing PGS file(s)...`;
+                
+                for (const score of missingScores) {
+                    try {
+                        if (score.local_file) {
+                            // Load from local file
+                            const parsed = await loadLocalPGSFile(score.id, score.local_file);
+                            pgsTxts.push(parsed);
+                            console.log(`Loaded local PGS file: ${score.local_file}`);
+                        } else {
+                            // Fetch from remote
+                            const remote = await getTxts([score.id]);
+                            pgsTxts.push(...remote);
+                        }
+                    } catch (err) {
+                        console.error(`Failed to load ${score.id}:`, err);
+                    }
                 }
-            } catch (err) {
-                console.error(`Failed to load ${score.id}:`, err);
             }
         }
+        
         console.log("PGS txts for calculation:", pgsTxts);
         
         // Run PRS calculation for each user x score combination

@@ -1,9 +1,32 @@
-import { cacheAndReturn, parse23Txt,load23andMeFile, fetch23andMeParticipants } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
+import { cacheAndReturn, parse23Txt,load23andMeFile, fetch23andMeParticipants_fast,fetch23andMeParticipants } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
 console.log("displayUsers.js loaded")
 console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
-const data = await fetch23andMeParticipants();
+
+// Show loading indicator while fetching participants
+const loadingContainer = document.getElementById('localUsersDiv');
+if (loadingContainer) {
+	loadingContainer.style.display = 'block';
+	loadingContainer.innerHTML = `
+		<div class="d-flex flex-column align-items-center my-4">
+			<div class="spinner-border text-primary my-3" role="status">
+				<span class="visually-hidden">Loading...</span>
+			</div>
+			<div class="progress w-50" style="height: 6px;">
+				<div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+			</div>
+			<small class="text-muted mt-2">Loading participants...</small>
+		</div>
+	`;
+}
+
+// const data = await fetch23andMeParticipants_fast();
+// const data = await fetch23andMeParticipants();
+const INITIAL_LIMIT = 20;
+const data = await fetch23andMeParticipants(INITIAL_LIMIT);
+
 // console.log("Fetched 23andMe participants:", data);
-const participants = data ?? [];
+let participants = data ?? [];
+let currentLimit = INITIAL_LIMIT; // Track current fetch limit
 
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10;
@@ -57,16 +80,17 @@ function escapeHtml(value) {
  * @param {Array} genotypes
  * @returns {string}
  */
-function formatGenotypes(genotypes) {
-	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
-	return genotypes
-		.map((g) => {
-			const name = g.filename ?? g.file ?? g.download_url ?? g.filetype ?? "(file)";
-			const type = g.filetype ?? "";
-			return `${escapeHtml(name)} ${type ? `(${escapeHtml(type)})` : ""}`;
-		})
-		.join("<br>");
-}
+// function formatGenotypes(genotypes) {
+// 	console.log("Formatting genotypes:", genotypes);
+// 	if (!Array.isArray(genotypes) || !genotypes.length) return "-";
+// 	return genotypes
+// 		.map((g) => {
+// 			const name = g.filename ?? g.file ?? g.download_url ?? g.filetype ?? "(file)";
+// 			const type = g.filetype ?? "";
+// 			return `${escapeHtml(name)} ${type ? `(${escapeHtml(type)})` : ""}`;
+// 		})
+// 		.join("<br>");
+// }
 
 /**
  * sanitizeKey(value)
@@ -82,55 +106,122 @@ function sanitizeKey(value) {
 }
 
 /**
- * extractYear(item)
- * Extract a 4-digit year from common published/date fields on a participant.
- * @param {Object} item
- * @returns {string|null}
+ * extractVersion(item)
+ * Extract the 23andMe chip version (e.g., "v4", "v5") from genotype filenames.
+ * @param {Object} item - Participant object with genotypes array
+ * @returns {string|null} Version string like "v4", "v5", or null if not found
  */
-function extractYear(item) {
-	const pub = item.publishedDate ?? item.published_date ?? item.date ?? item.created ?? "";
-	const s = String(pub ?? "");
-	const m = s.match(/^(\d{4})/);
-	if (m) return m[1];
-	const d = new Date(s);
-	if (!Number.isNaN(d.getFullYear()) && d.getFullYear() > 0) return String(d.getFullYear());
+function extractVersion(item) {
+	const filename = item.fileName ?? item.name ?? '';
+	console.log("Extracting version from filename:", filename,item);
+	// Match patterns like _v4_, _v5_, v4_Full, v5_Full, etc.
+	const match = String(filename).match(/_v(\d+)_|v(\d+)_Full/i);
+	if (match) {
+		const version = match[1] ?? match[2];
+		console.log("Found version:", version);
+		return `v${version}`;
+	}
 	return null;
 }
 
 /**
- * Populate the `participantsYearSelect` dropdown with available years.
+ * Populate the `participantsVersionSelect` dropdown with available 23andMe chip versions.
  * @returns {void}
  */
-function populateYearSelect() {
-	const sel = document.getElementById('participantsYearSelect');
+function populateVersionSelect() {
+	const sel = document.getElementById('participantsVersionSelect');
 	if (!sel) return;
 	const counts = new Map();
 	participants.forEach((p) => {
-		const y = extractYear(p);
-		const key = y ?? 'Unknown';
+		const v = extractVersion(p);
+		const key = v ?? 'Unknown';
 		counts.set(key, (counts.get(key) || 0) + 1);
 	});
-	const years = Array.from(counts.keys()).filter(k => k !== 'Unknown').sort((a, b) => Number(b) - Number(a));
-	const opts = [`<option value="">All Years (${participants.length} rows)</option>`].concat(years.map(y => `<option value="${y}">${y} (${counts.get(y)} rows)</option>`));
-	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')} rows)</option>`);
+	// Sort versions numerically (v3, v4, v5, etc.)
+	const versions = Array.from(counts.keys()).filter(k => k !== 'Unknown').sort((a, b) => {
+		const numA = parseInt(a.replace('v', ''));
+		const numB = parseInt(b.replace('v', ''));
+		return numA - numB;
+	});
+	const opts = [`<option value="">All Versions (${participants.length})</option>`].concat(versions.map(v => `<option value="${v}">${v} (${counts.get(v)})</option>`));
+	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')})</option>`);
 	sel.innerHTML = opts.join('');
 }
+window.populateVersionSelect = populateVersionSelect;
 
 /**
- * Handler invoked when the year dropdown changes; filters participants and re-renders the table.
- * @param {string} selectedYear
+ * Apply version filter to participants and re-render the table.
  * @returns {void}
  */
-window.onParticipantsYearChange = function onParticipantsYearChange(selectedYear) {
-	const sel = document.getElementById('participantsYearSelect');
-	const year = selectedYear ?? (sel && sel.value) ?? '';
-	const list = year && year !== ''
-		? participants.filter(p => (extractYear(p) ?? 'Unknown') === year)
-		: participants;
+function applyParticipantFilters() {
+	const versionSel = document.getElementById('participantsVersionSelect');
+	const version = versionSel?.value ?? '';
+	
+	let list = participants;
+	
+	if (version && version !== '') {
+		list = list.filter(p => (extractVersion(p) ?? 'Unknown') === version);
+	}
+	
 	const key = sanitizeKey('participants') || 'participants';
-	const yearLabel = year && year !== '' ? year : 'All Years';
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
+	const filterLabel = version && version !== '' ? version : 'All';
+	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
+}
+window.applyParticipantFilters = applyParticipantFilters;
+
+/**
+ * Handler invoked when the version dropdown changes; filters participants and re-renders the table.
+ * @param {string} selectedVersion
+ * @returns {void}
+ */
+window.onParticipantsVersionChange = function onParticipantsVersionChange(selectedVersion) {
+	const sel = document.getElementById('participantsVersionSelect');
+	if (sel && selectedVersion !== undefined) sel.value = selectedVersion;
+	applyParticipantFilters();
 };
+
+/**
+ * Callback invoked when PGS score selection changes.
+ * Re-renders the participants table to reflect the new selection.
+ * @returns {void}
+ */
+window.onPgsSelectionChange = function onPgsSelectionChange() {
+	console.log('PGS selection changed, re-rendering participants table');
+	applyParticipantFilters();
+};
+
+/**
+ * Load more participants by fetching additional rows.
+ * @param {number} count - Number of additional participants to load (default: 10)
+ * @returns {Promise<void>}
+ */
+async function loadMoreParticipants(count = 10) {
+	const newLimit = currentLimit + count;
+	
+	console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	try {
+		const newData = await fetch23andMeParticipants(newLimit);
+		console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
+		if (newData && newData.length > participants.length) {
+			participants = newData;
+			currentLimit = newLimit;
+			populateVersionSelect();
+			applyParticipantFilters();
+			console.log(`Loaded ${newData.length} participants total`);
+		} else if (newData && newData.length === participants.length && newData.length < newLimit) {
+			// All available participants already loaded
+			console.log('All available participants already loaded');
+			alert(`All ${participants.length} available participants are already loaded.`);
+		} else {
+			console.log('No additional participants available');
+			alert('No additional participants available.');
+		}
+	} catch (err) {
+		console.error('Error loading more participants:', err);
+		alert('Failed to load more participants.');
+	}
+}
+window.loadMoreParticipants = loadMoreParticipants;
 
 /**
  * Render a paginated participants table with selection and pagination controls.
@@ -160,9 +251,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const rawName = String(p.name ?? "");
 			const name = escapeHtml(rawName);
 			const displayName = escapeHtml(rawName.length > 14 ? rawName.slice(0, 14) + '...' : rawName);
-			const genos = p.genotypes ?? [];
-			const genoCount = genos.length;
-			const genoList = formatGenotypes(genos);
+			// const genos = p.genotypes ?? [];
+			// const genoCount = genos.length;
+			// const genoList = formatGenotypes(genos);
 
 			/**
 			 * getPublishedDate(item)
@@ -202,6 +293,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const downloadUrl = getDownloadUrl(p);
 			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
+			const version = extractVersion(p) ?? '-';
 
 			return `
 				<tr>
@@ -209,6 +301,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
+					<td>${version}</td>
 					<td>${published}</td>
 					<td>${profileHtml}</td>
 					<td>${downloadHtml}</td>
@@ -232,6 +325,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
+							<th>Version</th>
 							<th>Published Date</th>
 							<th>Profile</th>
 							<th>Download URL</th>
@@ -245,6 +339,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			<div class="d-flex justify-content-between align-items-center mt-2">
 			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
+					<button id="loadMore_${key}" class="btn btn-sm btn-outline-primary">Load 10 more</button>
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
 					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
@@ -259,6 +354,20 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+		const loadMoreBtn = document.getElementById(`loadMore_${key}`);
+
+		if (loadMoreBtn) {
+			loadMoreBtn.addEventListener('click', async () => {
+				loadMoreBtn.disabled = true;
+				loadMoreBtn.textContent = 'Loading...';
+				try {
+					await loadMoreParticipants(10);
+				} finally {
+					loadMoreBtn.disabled = false;
+					loadMoreBtn.textContent = 'Load 10 more';
+				}
+			});
+		}
 
 		if (selectAll) {
 			selectAll.addEventListener('change', () => {
@@ -313,15 +422,10 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 /**
  * renderLocalUsers()
- * Public entry point that renders the participants table (honoring any active year filter).
+ * Public entry point that renders the participants table (honoring any active year/version filters).
  */
 window.renderLocalUsers = () => {
-	const key = sanitizeKey('participants') || 'participants';
-	const sel = document.getElementById('participantsYearSelect');
-	const year = sel?.value ?? '';
-	const list = year && year !== '' ? participants.filter(p => (extractYear(p) ?? 'Unknown') === year) : participants;
-	const yearLabel = year && year !== '' ? year : 'All Years';
-	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${yearLabel}`, key);
+	applyParticipantFilters();
 };
 
 // If the LocalData tab is already visible on load, render immediately
@@ -329,8 +433,8 @@ if (document.getElementById("LocalData")?.style.display === "block") {
 	window.renderLocalUsers();
 }
 
-// populate year select after definitions
-populateYearSelect();
+// populate version select after definitions
+populateVersionSelect();
 
 // --- Upload Your 23andMe File Button Handler ---
 
@@ -464,3 +568,103 @@ function parseLocalFile(txt, url) {
 	});
 	return obj;
 }
+
+// --- Compute overlapping SNPs between Joshua and Marika based on chr:position ---
+/**
+ * Build a set of chr:position keys from parsed 23andMe data.//113816
+ * @param {Object} parsed - Parsed 23andMe data with cols and dt
+ * @returns {Set<string>} Set of "chr:position" strings
+ */
+// function getChrPosSet(parsed) {
+// 	const chrIdx = parsed.cols.indexOf('chromosome');
+// 	const posIdx = parsed.cols.indexOf('position');
+// 	const set = new Set();
+// 	for (const row of parsed.dt) {
+// 		const chr = row[chrIdx];
+// 		const pos = row[posIdx];
+// 		if (chr && pos != null) {
+// 			set.add(`${chr}:${pos}`);
+// 		}
+// 	}
+// 	return set;
+// }
+function getChrPosSet(parsed) {
+  if (!parsed?.cols || !parsed?.dt) return new Set();
+
+  const chrIdx = parsed.cols.indexOf('chromosome');
+  const posIdx = parsed.cols.indexOf('position');
+
+  if (chrIdx < 0 || posIdx < 0) {
+    console.warn('Missing chromosome or position column', parsed.cols);
+    return new Set();
+  }
+
+  const set = new Set();
+
+  for (const row of parsed.dt) {
+    const chr = row[chrIdx];
+    const pos = row[posIdx];
+
+    if (chr != null && pos != null && chr !== '' && pos !== '') {
+      set.add(`${chr}:${pos}`);
+    }
+  }
+
+  return set;
+}
+
+
+
+
+/**
+ * Compute overlapping SNP positions between two 23andMe files.
+ */
+async function computeV4V5Overlap() {
+  try {
+    const joshuaUrl = 'data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt';
+    const marikaUrl = 'data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt';
+
+    const [joshuaRes, marikaRes] = await Promise.all([
+      fetch(joshuaUrl),
+      fetch(marikaUrl)
+    ]);
+
+    if (!joshuaRes.ok || !marikaRes.ok) {
+      throw new Error(`Fetch failed: Joshua=${joshuaRes.status}, Marika=${marikaRes.status}`);
+    }
+
+    const [joshuaTxt, marikaTxt] = await Promise.all([
+      joshuaRes.text(),
+      marikaRes.text()
+    ]);
+
+    const joshuaParsed = parseLocalFile(joshuaTxt, joshuaUrl);
+    const marikaParsed = parseLocalFile(marikaTxt, marikaUrl);
+
+    const joshuaSet = getChrPosSet(joshuaParsed);
+    const marikaSet = getChrPosSet(marikaParsed);
+
+    const overlap = [...joshuaSet].filter(key => marikaSet.has(key));
+
+    // Store individual sets and overlap globally
+    window.v5_23andme = [...joshuaSet];  // v5 SNPs (Joshua)
+    window.v4_23andme = [...marikaSet];  // v4 SNPs (Marika)
+    window.v4_v5_23andme = overlap;      // Overlap of both
+
+    console.log(`23andMe SNP sets computed:`);
+    console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
+    console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
+    console.log(`  Overlap: ${overlap.length} SNPs`);
+
+    return overlap;
+  } catch (err) {
+    console.error('Error computing v4_v5_23andme overlap:', err);
+    window.v5_23andme = [];
+    window.v4_23andme = [];
+    window.v4_v5_23andme = [];
+    return [];
+  }
+}
+
+// Initialize v4_v5_23andme on load
+computeV4V5Overlap();

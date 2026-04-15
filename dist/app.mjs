@@ -74,12 +74,17 @@ window.tabFunction = tabFunction;
 */
 
 const pgsLoadingStatusEl = document.getElementById("pgsLoadingStatus");
+const pgsProgressBar = document.getElementById("pgsProgressBar");
 
-function setPgsLoadingStatus(message, isError = false) {
-	if (!pgsLoadingStatusEl) return;
-	pgsLoadingStatusEl.textContent = message;
-	pgsLoadingStatusEl.classList.toggle("text-danger", isError);
-	pgsLoadingStatusEl.classList.toggle("text-muted", !isError);
+function setPgsLoadingStatus(message, isError = false, progress = 0) {
+	if (pgsLoadingStatusEl) {
+		pgsLoadingStatusEl.textContent = message;
+		pgsLoadingStatusEl.classList.toggle("text-danger", isError);
+		pgsLoadingStatusEl.classList.toggle("text-muted", !isError);
+	}
+	if (pgsProgressBar) {
+		pgsProgressBar.style.width = `${progress}%`;
+	}
 }
 
 let data$1 = { scoresPerTrait: {} };
@@ -90,14 +95,14 @@ let data2 = { scoresPerCategory: {} };
 try {
 	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
 	// that getScoresPerTrait() and getScoresPerCategory() depend on.
-	setPgsLoadingStatus("Step 1 - Loading PGS scores: running  loadTraitStats() and preparing trait summary cache...");
+	setPgsLoadingStatus("Step 1/3 - Loading trait summary cache...", false, 10);
 	await loadTraitStats();
 
 	// loadAllScores() must run second — it populates pgs:all-score-summary cache.
-	setPgsLoadingStatus("Step 2 - Loading PGS scores: running loadAllScores() and preparing all-score summary cache...");
+	setPgsLoadingStatus("Step 2/3 - Loading all-score summary cache...", false, 40);
 	await loadAllScores();
 
-	setPgsLoadingStatus("Step 3 - Loading PGS scores: running getScoresPerTrait() and getScoresPerCategory() to cache scores per trait and category...");
+	setPgsLoadingStatus("Step 3/3 - Loading scores per trait and category...", false, 70);
 	const [scoresPerTrait, scoresPerCategory] = await Promise.all([
 		getScoresPerTrait(),
 		getScoresPerCategory(),
@@ -105,10 +110,10 @@ try {
 
 	data$1 = scoresPerTrait ?? { scoresPerTrait: {} };
 	data2 = scoresPerCategory ?? { scoresPerCategory: {} };
-	setPgsLoadingStatus("Loading PGS scores... done (cache ready).");
+	setPgsLoadingStatus("PGS data loaded successfully.", false, 100);
 } catch (error) {
 	console.error("displayScores.js: failed to load/cache PGS scores", error);
-	setPgsLoadingStatus(`Loading PGS scores... failed: ${error.message}`, true);
+	setPgsLoadingStatus(`Failed to load PGS scores: ${error.message}`, true, 0);
 }
 
 // Dynamic variant filter state
@@ -1050,27 +1055,23 @@ if (fetchScoresBtn) {
 console.log("displayUsers.js loaded");
 console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
 
-// Show loading indicator while fetching participants
-const loadingContainer = document.getElementById('localUsersDiv');
-if (loadingContainer) {
-	loadingContainer.style.display = 'block';
-	loadingContainer.innerHTML = `
-		<div class="d-flex flex-column align-items-center my-4">
-			<div class="spinner-border text-primary my-3" role="status">
-				<span class="visually-hidden">Loading...</span>
-			</div>
-			<div class="progress w-50" style="height: 6px;">
-				<div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
-			</div>
-			<small class="text-muted mt-2">Loading participants...</small>
-		</div>
-	`;
+// Update loading progress indicator
+const participantsProgressBar = document.getElementById('participantsProgressBar');
+function setParticipantsLoadingProgress(progress) {
+	if (participantsProgressBar) {
+		participantsProgressBar.style.width = `${progress}%`;
+	}
 }
+
+// Show initial loading state
+setParticipantsLoadingProgress(20);
 
 // const data = await fetch23andMeParticipants_fast();
 // const data = await fetch23andMeParticipants();
-const INITIAL_LIMIT = 20;
+const INITIAL_LIMIT = 5; // Start with 5 participants, can load more with "Load more" button
+setParticipantsLoadingProgress(50);
 const data = await fetch23andMeParticipants(INITIAL_LIMIT);
+setParticipantsLoadingProgress(100);
 
 // console.log("Fetched 23andMe participants:", data);
 let participants = data ?? [];
@@ -1239,20 +1240,64 @@ window.onPgsSelectionChange = function onPgsSelectionChange() {
 };
 
 /**
+ * Show a loading overlay in the participants table container.
+ * @param {boolean} show - Whether to show or hide the overlay
+ * @param {number} progress - Progress percentage (0-100)
+ * @param {string} message - Loading message to display
+ */
+function showParticipantsLoadingOverlay(show, progress = 0, message = 'Loading...') {
+	const container = document.getElementById('localUsersDiv');
+	if (!container) return;
+	
+	let overlay = document.getElementById('participantsLoadingOverlay');
+	
+	if (show) {
+		if (!overlay) {
+			overlay = document.createElement('div');
+			overlay.id = 'participantsLoadingOverlay';
+			overlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;';
+			overlay.innerHTML = `
+				<div class="spinner-border text-primary mb-3" role="status">
+					<span class="visually-hidden">Loading...</span>
+				</div>
+				<div class="progress w-50 mb-2" style="height: 6px;">
+					<div id="loadMoreProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+				</div>
+				<small id="loadMoreMessage" class="text-muted">Loading...</small>
+			`;
+			container.style.position = 'relative';
+			container.appendChild(overlay);
+		}
+		const progressBar = document.getElementById('loadMoreProgressBar');
+		const messageEl = document.getElementById('loadMoreMessage');
+		if (progressBar) progressBar.style.width = `${progress}%`;
+		if (messageEl) messageEl.textContent = message;
+	} else {
+		if (overlay) overlay.remove();
+	}
+}
+
+/**
  * Load more participants by fetching additional rows.
- * @param {number} count - Number of additional participants to load (default: 10)
+ * @param {number} count - Number of additional participants to load (default: 5)
  * @returns {Promise<void>}
  */
-async function loadMoreParticipants(count = 10) {
+async function loadMoreParticipants(count = 5) {
 	const newLimit = currentLimit + count;
 	
 	console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	showParticipantsLoadingOverlay(true, 10, `Loading ${count} more participants...`);
+	
 	try {
+		showParticipantsLoadingOverlay(true, 30, 'Fetching participant data...');
 		const newData = await fetch23andMeParticipants(newLimit);
+		showParticipantsLoadingOverlay(true, 70, 'Processing data...');
+		
 		console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
 		if (newData && newData.length > participants.length) {
 			participants = newData;
 			currentLimit = newLimit;
+			showParticipantsLoadingOverlay(true, 90, 'Updating table...');
 			populateVersionSelect();
 			applyParticipantFilters();
 			console.log(`Loaded ${newData.length} participants total`);
@@ -1267,6 +1312,8 @@ async function loadMoreParticipants(count = 10) {
 	} catch (err) {
 		console.error('Error loading more participants:', err);
 		alert('Failed to load more participants.');
+	} finally {
+		showParticipantsLoadingOverlay(false);
 	}
 }
 window.loadMoreParticipants = loadMoreParticipants;
@@ -1387,7 +1434,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			<div class="d-flex justify-content-between align-items-center mt-2">
 			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
-					<button id="loadMore_${key}" class="btn btn-sm btn-outline-primary">Load 10 more</button>
+					<button id="loadMore_${key}" class="btn btn-sm btn-outline-primary">Load 5 more</button>
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
 					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
@@ -1409,10 +1456,10 @@ function renderParticipantsTable(list, targetId, title, key) {
 				loadMoreBtn.disabled = true;
 				loadMoreBtn.textContent = 'Loading...';
 				try {
-					await loadMoreParticipants(10);
+					await loadMoreParticipants(5);
 				} finally {
 					loadMoreBtn.disabled = false;
-					loadMoreBtn.textContent = 'Load 10 more';
+					loadMoreBtn.textContent = 'Load 5 more';
 				}
 			});
 		}

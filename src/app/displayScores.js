@@ -17,12 +17,17 @@ import {  loadAllScores, getScoresPerTrait, getScoresPerCategory, loadTraitStats
 */
 
 const pgsLoadingStatusEl = document.getElementById("pgsLoadingStatus");
+const pgsProgressBar = document.getElementById("pgsProgressBar");
 
-function setPgsLoadingStatus(message, isError = false) {
-	if (!pgsLoadingStatusEl) return;
-	pgsLoadingStatusEl.textContent = message;
-	pgsLoadingStatusEl.classList.toggle("text-danger", isError);
-	pgsLoadingStatusEl.classList.toggle("text-muted", !isError);
+function setPgsLoadingStatus(message, isError = false, progress = 0) {
+	if (pgsLoadingStatusEl) {
+		pgsLoadingStatusEl.textContent = message;
+		pgsLoadingStatusEl.classList.toggle("text-danger", isError);
+		pgsLoadingStatusEl.classList.toggle("text-muted", !isError);
+	}
+	if (pgsProgressBar) {
+		pgsProgressBar.style.width = `${progress}%`;
+	}
 }
 
 let data = { scoresPerTrait: {} };
@@ -33,14 +38,14 @@ let data2 = { scoresPerCategory: {} };
 try {
 	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
 	// that getScoresPerTrait() and getScoresPerCategory() depend on.
-	setPgsLoadingStatus("Step 1 - Loading PGS scores: running  loadTraitStats() and preparing trait summary cache...");
+	setPgsLoadingStatus("Step 1/3 - Loading trait summary cache...", false, 10);
 	await loadTraitStats();
 
 	// loadAllScores() must run second — it populates pgs:all-score-summary cache.
-	setPgsLoadingStatus("Step 2 - Loading PGS scores: running loadAllScores() and preparing all-score summary cache...");
+	setPgsLoadingStatus("Step 2/3 - Loading all-score summary cache...", false, 40);
 	await loadAllScores();
 
-	setPgsLoadingStatus("Step 3 - Loading PGS scores: running getScoresPerTrait() and getScoresPerCategory() to cache scores per trait and category...");
+	setPgsLoadingStatus("Step 3/3 - Loading scores per trait and category...", false, 70);
 	const [scoresPerTrait, scoresPerCategory] = await Promise.all([
 		getScoresPerTrait(),
 		getScoresPerCategory(),
@@ -48,10 +53,10 @@ try {
 
 	data = scoresPerTrait ?? { scoresPerTrait: {} };
 	data2 = scoresPerCategory ?? { scoresPerCategory: {} };
-	setPgsLoadingStatus("Loading PGS scores... done (cache ready).");
+	setPgsLoadingStatus("PGS data loaded successfully.", false, 100);
 } catch (error) {
 	console.error("displayScores.js: failed to load/cache PGS scores", error);
-	setPgsLoadingStatus(`Loading PGS scores... failed: ${error.message}`, true);
+	setPgsLoadingStatus(`Failed to load PGS scores: ${error.message}`, true, 0);
 }
 
 // Dynamic variant filter state

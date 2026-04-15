@@ -252,7 +252,17 @@
                     <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3">Fetch Users</button>
                     <div id="globalSelectionCount2" class="small text-muted mt-1">Selected: 0 / 10</div>
 
-                    <div id="localUsersDiv"></div>
+                    <div id="localUsersDiv">
+                        <div class="d-flex flex-column align-items-center my-4">
+                            <div class="spinner-border text-primary my-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="progress w-50" style="height: 6px;">
+                                <div id="participantsProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                            </div>
+                            <small class="text-muted mt-2">Loading 23andMe participants...</small>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- PGS Catalog: trait selector and actions ---------------------------->
@@ -329,6 +339,15 @@
                     <!--target element where renderPgsTable(...) writes the paginated PGS table  ---->
 
                     <div id="scoresDiv">
+                        <div class="d-flex flex-column align-items-center my-4">
+                            <div class="spinner-border text-primary my-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="progress w-50" style="height: 6px;">
+                                <div id="pgsProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                            </div>
+                            <small class="text-muted mt-2">Loading PGS scoring data...</small>
+                        </div>
                     </div>
                 </div>
 

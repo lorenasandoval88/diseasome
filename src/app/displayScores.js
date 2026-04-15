@@ -780,11 +780,11 @@ function renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats) {
 						<th colspan="3" class="text-center">Effect Weight %</th>
 					</tr>
 					<tr>
-						<th>23andMe_v4</th>
-						<th>23andMe_v5</th>
+						<th>v4_chip</th>
+						<th>v5_chip</th>
 						<th>Both</th>
-						<th>23andMe_v4</th>
-						<th>23andMe_v5</th>
+						<th>v4_chip</th>
+						<th>v5_chip</th>
 						<th>Both</th>
 					</tr>
 				</thead>

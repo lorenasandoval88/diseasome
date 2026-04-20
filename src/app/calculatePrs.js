@@ -1057,6 +1057,11 @@ async function calculatePRS() {
         console.log("PRS results:", prsResults);
         window.prsResults = prsResults;  // expose for cluster tab
         
+        // Invalidate cluster cache when PRS results change
+        if (typeof window.invalidateClusterCache === 'function') {
+            window.invalidateClusterCache();
+        }
+        
         if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
         
         // Display results

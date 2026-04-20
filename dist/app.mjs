@@ -33030,8 +33030,31 @@ function buildPRSPrompt(results, question) {
         });
     }
     
-    // Summarize PRS results
-    const summaries = results.slice(0, 5).map(r => {
+    // Summarize PRS results - sample from multiple users when available
+    // Group results by userId
+    const resultsByUser = {};
+    results.forEach(r => {
+        const userId = r.userId ?? 'Unknown';
+        if (!resultsByUser[userId]) {
+            resultsByUser[userId] = [];
+        }
+        resultsByUser[userId].push(r);
+    });
+    
+    // Take up to 2 results per user, max 10 total results
+    const userIds = Object.keys(resultsByUser);
+    const sampledResults = [];
+    const maxPerUser = Math.max(1, Math.floor(10 / userIds.length));
+    
+    for (const userId of userIds) {
+        const userResults = resultsByUser[userId].slice(0, maxPerUser);
+        sampledResults.push(...userResults);
+    }
+    
+    // Limit to 10 total
+    const finalResults = sampledResults.slice(0, 10);
+    
+    const summaries = finalResults.map(r => {
         const userId = r.userId ?? 'Unknown';
         const userName = r.userName ? ` (${r.userName})` : '';
         const pgsId = r.pgsId ?? 'Unknown';
@@ -33171,7 +33194,7 @@ function renderWebLLM() {
             <label for="webllmQuestionInput" class="form-label"><strong>Ask <span id="modelNameLabel">${currentModel?.name || selectedModel.name}</span> about your PRS results:</strong></label>
             <textarea id="webllmQuestionInput" class="form-control" rows="3" 
                 placeholder="Enter your question here..."
-                ${!hasResults ? 'disabled' : ''}>What do these PRS results suggest about genetic risk? Please explain the significance of the beta values and allele distributions.</textarea>
+                ${!hasResults ? 'disabled' : ''}>What is the highest risk or important variant in my PRS results?</textarea>
         </div>
         
         <div class="mb-3">

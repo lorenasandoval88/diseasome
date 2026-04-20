@@ -4720,6 +4720,43 @@ var localforage = /*@__PURE__*/getDefaultExportFromCjs(localforageExports);
 
 console.log("calculatePrs.js loaded");
 
+/**
+ * Get cached parsed genome data for a user
+ * Uses existing "Genome:23andMe-txt-*" pattern so the existing Clear Genome Cache button works
+ * @param {string} userId - User ID
+ * @returns {Promise<Object|null>} Cached parsed genome or null
+ */
+async function getCachedGenome(userId) {
+	try {
+		const key = `Genome:23andMe-txt-${userId}`;
+		const cached = await localforage.getItem(key);
+		if (cached) {
+			console.log(`Using cached genome for ${userId}`);
+			return cached;
+		}
+		return null;
+	} catch (err) {
+		console.warn(`Failed to read genome cache for ${userId}:`, err);
+		return null;
+	}
+}
+
+/**
+ * Cache parsed genome data for a user
+ * Uses existing "Genome:23andMe-txt-*" pattern so the existing Clear Genome Cache button works
+ * @param {string} userId - User ID
+ * @param {Object} parsed - Parsed genome data
+ */
+async function setCachedGenome(userId, parsed) {
+	try {
+		const key = `Genome:23andMe-txt-${userId}`;
+		await localforage.setItem(key, parsed);
+		console.log(`Cached genome for ${userId} (${parsed?.dt?.length ?? 0} variants)`);
+	} catch (err) {
+		console.warn(`Failed to cache genome for ${userId}:`, err);
+	}
+}
+
 // Track what has been loaded
 let loadedScores = []; // parsed PGS scoring files
 let loadedUsers = []; // parsed 23andMe genome data
@@ -4810,12 +4847,12 @@ async function clearPGSCache$1() {
 }
 window.clearPGSCache = clearPGSCache$1;
 
-/*** Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+/*** Clear genome/23andMe cache (Genome:23andMe-txt-* keys only, not metadata)
  */
 async function clearGenomeCache$1() {
 	const keys = await localforage.keys();
-	// Only clear keys like "Genome:id-hu09B28E", not metadata keys
-	const genomeKeys = keys.filter(k => k.startsWith('Genome:id-'));
+	// Only clear keys like "Genome:23andMe-txt-hu09B28E", not metadata keys
+	const genomeKeys = keys.filter(k => k.startsWith('Genome:23andMe-txt-'));
 	for (const key of genomeKeys) {
 		await localforage.removeItem(key);
 	}
@@ -5426,16 +5463,30 @@ async function loadFallbackUsers() {
 	if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)...`;
 	if (prsStatus) prsStatus.textContent = "";
 	
-	// Fetch and parse each user's genome file
-	const parsePromises = selectedUsers.map(async (user) => {
+	// Fetch and parse each user's genome file (with caching)
+	let cachedCount = 0;
+	const parsePromises = selectedUsers.map(async (user, idx) => {
 		const genos = user?.genotypes ?? [];
 		const filePath = genos[0]?.download_url ?? genos[0]?.file;
 		if (!filePath) return null;
 		
 		try {
+			// Check cache first
+			const cached = await getCachedGenome(user.id);
+			if (cached) {
+				cachedCount++;
+				if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)... (${cachedCount} from cache)`;
+				return { user, parsed: cached };
+			}
+			
+			// Not cached - fetch and parse
+			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${selectedUsers.length})`;
 			const parsed = await load23andMeFile(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
-			// console.log(`Parsed genome for ${user.id}:`, parsed);
+			
+			// Cache the result
+			await setCachedGenome(user.id, parsed);
+			
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
@@ -5446,7 +5497,8 @@ async function loadFallbackUsers() {
 	const results = await Promise.all(parsePromises);
 	loadedUsers = results.filter(Boolean);
 	
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s).`;
+	const cacheMsg = cachedCount > 0 ? ` (${cachedCount} from cache)` : '';
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s)${cacheMsg}.`;
 	
 	if (resultsDiv) {
 		const rows = selectedUsers.map((user, idx) => {

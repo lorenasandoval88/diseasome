@@ -1,0 +1,10 @@
+// Single wrapper at pgpSdk.js that re-exports 
+// from the remote SDK URL so all PGP imports are centralized.
+export {
+	cacheAndReturn,
+	parse23Txt,
+	load23andMeFile,
+	fetch23andMeParticipants_fast,
+	fetch23andMeParticipants,
+	fetchProfile,
+} from "https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs";

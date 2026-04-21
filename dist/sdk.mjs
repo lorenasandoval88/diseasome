@@ -1,7 +1,21 @@
 import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
-export { sdk_mjs as clustjs };
-import { fetchProfile, load23andMeFile, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
-import { getTxts, getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
+import { fetchProfile, load23andMeFile, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { getTxts, getScoresPerCategory, getScoresPerTrait, loadTraitStats } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+
+function _mergeNamespaces(n, m) {
+	m.forEach(function (e) {
+		e && typeof e !== 'string' && !Array.isArray(e) && Object.keys(e).forEach(function (k) {
+			if (k !== 'default' && !(k in n)) {
+				var d = Object.getOwnPropertyDescriptor(e, k);
+				Object.defineProperty(n, k, d.get ? d : {
+					enumerable: true,
+					get: function () { return e[k]; }
+				});
+			}
+		});
+	});
+	return Object.freeze(n);
+}
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -2841,6 +2855,13 @@ function requireLocalforage () {
 var localforageExports = requireLocalforage();
 var localforage = /*@__PURE__*/getDefaultExportFromCjs(localforageExports);
 
+// Single wrapper at clustSdk.js that re-exports 
+// from the remote SDK URL so all ClustJS imports are centralized.
+
+var clustSdk = /*#__PURE__*/_mergeNamespaces({
+	__proto__: null
+}, [sdk_mjs]);
+
 function Match2(mypgs, my23){
 	let data2 = {};
   // extract harmonized data from PGS entry first
@@ -3088,5 +3109,5 @@ const prs = {
 // 	getPGSIds
 // } from "./src/sdk/getPgs.js";
 
-export { localforage, pgp, pgs, prs };
+export { clustSdk as clustjs, localforage, pgp, pgs, prs };
 //# sourceMappingURL=sdk.mjs.map

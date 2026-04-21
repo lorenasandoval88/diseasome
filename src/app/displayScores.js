@@ -1,4 +1,4 @@
-import {  loadAllScores, getScoresPerTrait, getScoresPerCategory, loadTraitStats, getTxts } from "https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs";
+import { loadAllScores, getScoresPerTrait, getScoresPerCategory, loadTraitStats, getTxts } from "../sdk/pgsSdk.js";
 
 /*
  Module: displayScores.js

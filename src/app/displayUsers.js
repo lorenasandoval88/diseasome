@@ -1,6 +1,5 @@
-import { cacheAndReturn, parse23Txt,load23andMeFile, fetch23andMeParticipants_fast,fetch23andMeParticipants } from "https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs";
+import { cacheAndReturn, parse23Txt,load23andMeFile, fetch23andMeParticipants_fast,fetch23andMeParticipants } from "../sdk/pgpSdk.js";
 console.log("displayUsers.js loaded")
-console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
 
 // Update loading progress indicator
 const participantsProgressBar = document.getElementById('participantsProgressBar');

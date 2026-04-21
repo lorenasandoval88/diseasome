@@ -1,6 +1,6 @@
-import { loadTraitStats, loadAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/get-pgscatalog-scores/dist/sdk.mjs';
-import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs';
-import * as clust from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import { loadTraitStats, loadAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { version, hclust_plot, d3 } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
 
 function _mergeNamespaces(n, m) {
@@ -1053,7 +1053,6 @@ if (fetchScoresBtn) {
 }
 
 console.log("displayUsers.js loaded");
-console.log("Importing fetch23andMeParticipants from SDK: https://lorenasandoval88.github.io/get-23andme-data/dist/sdk.mjs");
 
 // Update loading progress indicator
 const participantsProgressBar = document.getElementById('participantsProgressBar');
@@ -6904,7 +6903,7 @@ window.plotAllMatchByEffect4 = plotAllMatchByEffect4;
 window.tabulateAllMatchByEffect = tabulateAllMatchByEffect;
 window.renderPlotPRS = renderPlotPRS;
 
-console.log("clustjs version:", clust.version);
+console.log("clustjs version:", version);
 
 const clusterContainerId = "clusterDiv";
 
@@ -8003,7 +8002,7 @@ async function renderCluster() {
 
   // Render PRS cluster plot
   // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
-  await clust.hclust_plot({
+  await hclust_plot({
     divid: "clusterPlotMount",
     data: pivoted,
    // width: 500,
@@ -8016,12 +8015,12 @@ async function renderCluster() {
     clusteringDistanceCols: clusterDistance
   });
 
-  const colorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
-  const greenColorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fcf5", "#74c476", "#006d2c"]);
+  const colorScale = d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
+  const greenColorScale = d3.scaleLinear().domain([0, 1, 2]).range(["#f7fcf5", "#74c476", "#006d2c"]);
 
   // Render 1. All Variants plot
   if (allMatrix) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "allVariantsPlot",
       data: allMatrix,
       displayData: allMatrixDisplay,
@@ -8039,7 +8038,7 @@ async function renderCluster() {
 
   // Render 2. Overlapping Matches plot
   if (overlapMatrix) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "overlapPlot",
       data: overlapMatrix,
       displayData: overlapMatrixDisplay,
@@ -8057,7 +8056,7 @@ async function renderCluster() {
 
   // Render 3. Shared Matched SNPs plot
   if (sharedMatrix && Object.keys(sharedMatrix[0]).length > 1) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "sharedPlot",
       data: sharedMatrix,
       displayData: sharedMatrixDisplay,
@@ -8078,7 +8077,7 @@ async function renderCluster() {
 
   // Render PGS vs SNPs plots (three views)
   if (pgsVsSnpsAllMatrix && pgsVsSnpsAllMatrix.length >= 2) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsVsSnpsAllPlot",
       data: pgsVsSnpsAllMatrix,
       displayData: pgsVsSnpsAllMatrixDisplay,
@@ -8095,7 +8094,7 @@ async function renderCluster() {
   }
 
   if (pgsVsSnpsOverlapMatrix && pgsVsSnpsOverlapMatrix.length >= 2) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsVsSnpsOverlapPlot",
       data: pgsVsSnpsOverlapMatrix,
       displayData: pgsVsSnpsOverlapMatrixDisplay,
@@ -8112,7 +8111,7 @@ async function renderCluster() {
   }
 
   if (pgsVsSnpsSharedMatrix && pgsVsSnpsSharedMatrix.length >= 2 && Object.keys(pgsVsSnpsSharedMatrix[0]).length > 1) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsVsSnpsSharedPlot",
       data: pgsVsSnpsSharedMatrix,
       displayData: pgsVsSnpsSharedMatrixDisplay,
@@ -8159,13 +8158,13 @@ async function renderCluster() {
       )
     : 2;
 
-  const effectColorScale = clust.d3.scaleLinear()
+  const effectColorScale = d3.scaleLinear()
     .domain([-effectExtent, 0, effectExtent])
     .range(["#2166ac", "#f7f7f7", "#b2182b"]);
     
   // Render PGS Effect Weight plots (All, Overlapping, Shared)
   if (pgsEffectAll && pgsEffectAll.data.length >= 2) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsEffectAllPlot",
       data: pgsEffectAll.data,
       displayData: pgsEffectAll.displayData,
@@ -8182,7 +8181,7 @@ async function renderCluster() {
   }
 
   if (pgsEffectOverlap && pgsEffectOverlap.data.length >= 2) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsEffectOverlapPlot",
       data: pgsEffectOverlap.data,
       displayData: pgsEffectOverlap.displayData,
@@ -8199,7 +8198,7 @@ async function renderCluster() {
   }
 
   if (pgsEffectShared && pgsEffectShared.data.length >= 2) {
-    await clust.hclust_plot({
+    await hclust_plot({
       divid: "pgsEffectSharedPlot",
       data: pgsEffectShared.data,
       displayData: pgsEffectShared.displayData,

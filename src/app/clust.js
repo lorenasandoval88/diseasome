@@ -1,4 +1,4 @@
-import * as clust from "https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs";
+import * as clust from "../sdk/clustSdk.js";
 
 console.log("clustjs version:", clust.version);
 

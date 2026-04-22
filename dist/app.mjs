@@ -1,6 +1,6 @@
 import { loadTraitStats, loadAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
-import { version, hclust_plot, d3 } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import { hclust_plot, d3 } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
 
 function _mergeNamespaces(n, m) {
@@ -1052,7 +1052,7 @@ if (fetchScoresBtn) {
 	fetchScoresBtn.addEventListener("click", fetchScoresTxts);
 }
 
-console.log("displayUsers.js loaded");
+// console.log("displayUsers.js loaded")
 
 // Update loading progress indicator
 const participantsProgressBar = document.getElementById('participantsProgressBar');
@@ -1105,7 +1105,7 @@ function updateGlobalSelectionCount() {
 		prsUsersdiv.textContent = `${selectedUserIds.size} user(s) selected: ${userList}`;
 	}
 	
-	console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
+	// console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
 }
 /**
  * escapeHtml(value)
@@ -1161,12 +1161,12 @@ function sanitizeKey(value) {
  */
 function extractVersion(item) {
 	const filename = item.fileName ?? item.name ?? '';
-	console.log("Extracting version from filename:", filename,item);
+	// console.log("Extracting version from filename:", filename,item);
 	// Match patterns like _v4_, _v5_, v4_Full, v5_Full, etc.
 	const match = String(filename).match(/_v(\d+)_|v(\d+)_Full/i);
 	if (match) {
 		const version = match[1] ?? match[2];
-		console.log("Found version:", version);
+		// console.log("Found version:", version);
 		return `v${version}`;
 	}
 	return null;
@@ -1234,7 +1234,7 @@ window.onParticipantsVersionChange = function onParticipantsVersionChange(select
  * @returns {void}
  */
 window.onPgsSelectionChange = function onPgsSelectionChange() {
-	console.log('PGS selection changed, re-rendering participants table');
+	// console.log('PGS selection changed, re-rendering participants table');
 	applyParticipantFilters();
 };
 
@@ -1284,7 +1284,7 @@ function showParticipantsLoadingOverlay(show, progress = 0, message = 'Loading..
 async function loadMoreParticipants(count = 5) {
 	const newLimit = currentLimit + count;
 	
-	console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	// console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
 	showParticipantsLoadingOverlay(true, 10, `Loading ${count} more participants...`);
 	
 	try {
@@ -1292,20 +1292,20 @@ async function loadMoreParticipants(count = 5) {
 		const newData = await fetch23andMeParticipants(newLimit);
 		showParticipantsLoadingOverlay(true, 70, 'Processing data...');
 		
-		console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
+		// console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
 		if (newData && newData.length > participants.length) {
 			participants = newData;
 			currentLimit = newLimit;
 			showParticipantsLoadingOverlay(true, 90, 'Updating table...');
 			populateVersionSelect();
 			applyParticipantFilters();
-			console.log(`Loaded ${newData.length} participants total`);
+			// console.log(`Loaded ${newData.length} participants total`);
 		} else if (newData && newData.length === participants.length && newData.length < newLimit) {
 			// All available participants already loaded
-			console.log('All available participants already loaded');
+			// console.log('All available participants already loaded');
 			alert(`All ${participants.length} available participants are already loaded.`);
 		} else {
-			console.log('No additional participants available');
+			// console.log('No additional participants available');
 			alert('No additional participants available.');
 		}
 	} catch (err) {
@@ -1544,7 +1544,7 @@ if (my23Btn && my23FileInput) {
 	// console.log("Setting up 23andMe file upload handler");
 	// Clicking the button triggers the hidden file input
 	my23Btn.addEventListener("click", () => {
-		console.log("Upload 23andMe button clicked");
+		// console.log("Upload 23andMe button clicked");
 		my23FileInput.click();
 	});
 
@@ -1578,10 +1578,10 @@ if (my23Btn && my23FileInput) {
 				}
 			} else if (typeof window.parse23Txt === "function") {
 				parsed = await window.parse23Txt(text);
-				console.log("Using window.parse23Txt from window", parsed);
+				// console.log("Using window.parse23Txt from window", parsed);
 			} else {
 				parsed = parseLocalFile(text, file.name);
-				console.log("Using parseLocalFile fallback", parsed);
+				// console.log("Using parseLocalFile fallback", parsed);
 			}
 
 			if (!parsed || !parsed.dt || parsed.dt.length === 0) {
@@ -1623,7 +1623,7 @@ if (my23Btn && my23FileInput) {
 				if (my23Status) my23Status.textContent = `Loaded ${file.name}, but max selection (${MAX_SELECTION}) reached. Deselect a user first.`;
 			}
 
-			console.log("Uploaded 23andMe file:", user);
+			// console.log("Uploaded 23andMe file:", user);
 		} catch (err) {
 			console.error("Error reading 23andMe file:", err);
 			if (my23Status) my23Status.textContent = `Error: ${err.message}`;
@@ -1745,10 +1745,10 @@ async function computeV4V5Overlap() {
     window.v4_23andme = [...marikaSet];  // v4 SNPs (Marika)
     window.v4_v5_23andme = overlap;      // Overlap of both
 
-    console.log(`23andMe SNP sets computed:`);
-    console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
-    console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
-    console.log(`  Overlap: ${overlap.length} SNPs`);
+	// console.log(`23andMe SNP sets computed:`);
+	// console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
+	// console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
+	// console.log(`  Overlap: ${overlap.length} SNPs`);
 
     return overlap;
   } catch (err) {
@@ -5912,7 +5912,7 @@ async function clearPGSCache() {
     for (const key of pgsKeys) {
         await localforage.removeItem(key);
     }
-    console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+    // console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
     return pgsKeys.length;
 }
 window.clearPGSCache = clearPGSCache;
@@ -5927,7 +5927,7 @@ async function clearGenomeCache() {
     for (const key of genomeKeys) {
         await localforage.removeItem(key);
     }
-    console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+    // console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
     return genomeKeys.length;
 }
 window.clearGenomeCache = clearGenomeCache;
@@ -6392,7 +6392,7 @@ function processAllResults(validResults) {
         }
     });
 
-    console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
+    // console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
 }
 
 /**
@@ -6424,14 +6424,14 @@ function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById(
             return v[1]
 
         } else if (v.length == 3) {
-            console.log("two 23andme SNPS mapped to one pgs variant", v);
+            // console.log("two 23andme SNPS mapped to one pgs variant", v)
             duplicate += `<span style="font-size:small; color: blue">Alert : two 23andMe variants mapped to pgs variant : chr.position ${v[2][indChr] + "." + v[2][indPos]}<br>Only the first 23andMe variant is used: ${v[0]}</span><br>`;
             dv2.innerHTML = duplicate;
             return v[2]
         } else if (v.length > 3) {
             duplicate += `<span style="font-size:small; color: blue">Alert : more than two 23andMe variants mapped to a pgs variant<br>please check 23andMe file for duplicate chromosome.position</span><br>`;
             dv2.innerHTML = duplicate;
-            console.log("more than 2 23andme SNPS mapped to one pgs variant", v);
+            // console.log("more than 2 23andme SNPS mapped to one pgs variant", v)
             return v[2]
         }
     });
@@ -6903,8 +6903,6 @@ window.plotAllMatchByEffect4 = plotAllMatchByEffect4;
 window.tabulateAllMatchByEffect = tabulateAllMatchByEffect;
 window.renderPlotPRS = renderPlotPRS;
 
-console.log("clustjs version:", version);
-
 const clusterContainerId = "clusterDiv";
 
 // Caching mechanism to avoid redundant computations
@@ -6959,7 +6957,7 @@ function invalidateClusterCache() {
     effectMatrices: null,
     snpLists: null,
   };
-  console.log("Cluster cache invalidated");
+  // console.log("Cluster cache invalidated");
 }
 
 // Expose cache invalidation globally so it can be called when PRS is recalculated
@@ -7124,7 +7122,7 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
     return row;
   });
 
-  console.log(`buildAlleleMatrix (${mode}):`, userVariantMap.length, "users,", allVariants.length, "variants, missingValue:", missingValue);
+  // console.log(`buildAlleleMatrix (${mode}):`, userVariantMap.length, "users,", allVariants.length, "variants, missingValue:", missingValue);
 
   return userVariantMap;
 }
@@ -7230,7 +7228,7 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
     return row;
   });
 
-  console.log(`buildPgsVsSnpsMatrix (${mode}): ${matrix.length} PGS entries × ${targetSnps.length} SNPs for user ${targetUserId}`);
+  // console.log(`buildPgsVsSnpsMatrix (${mode}): ${matrix.length} PGS entries × ${targetSnps.length} SNPs for user ${targetUserId}`);
   return matrix;
 }
 
@@ -7459,7 +7457,7 @@ function buildPgsEffectWeightMatrix(rawResults, snpList) {
     return row;
   });
   
-  console.log(`buildPgsEffectWeightMatrix: ${pgsIds.length} PGS × ${filteredSnps.length} SNPs (from ${snpList.length} input)`);
+  // console.log(`buildPgsEffectWeightMatrix: ${pgsIds.length} PGS × ${filteredSnps.length} SNPs (from ${snpList.length} input)`);
   
   return { data, displayData, snpCount: filteredSnps.length, pgsCount: pgsIds.length };
 }
@@ -7494,9 +7492,9 @@ async function renderCluster() {
     pivoted = clusterCache.pivoted;
     pgsIds = clusterCache.pgsIds;
     userIds = clusterCache.userIds;
-    console.log("Using cached base data for cluster tab");
+    // console.log("Using cached base data for cluster tab");
   } else {
-    console.log("Computing fresh base data for cluster tab");
+    // console.log("Computing fresh base data for cluster tab");
     pivoted = pivotPrsResults(window.prsResults);
     pgsIds = getUniquePgsIds(window.prsResults);
     userIds = getUniqueUserIds(window.prsResults);
@@ -7556,11 +7554,11 @@ async function renderCluster() {
   
   const allelesCacheKey = `${currentHash}-${selectedPgsId}`;
   if (clusterCache.alleleMatrices?.cacheKey === allelesCacheKey) {
-    console.log("Using cached allele matrices");
+    // console.log("Using cached allele matrices");
     ({ allMatrix, allMatrixDisplay, overlapMatrix, overlapMatrixDisplay, sharedMatrix, sharedMatrixDisplay } = clusterCache.alleleMatrices);
   } else if (selectedPgsId) {
     await updateLoading("Building allele matrices...");
-    console.log("Computing fresh allele matrices for", selectedPgsId);
+    // console.log("Computing fresh allele matrices for", selectedPgsId);
     allMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 });
     allMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1 });
     overlapMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: 0 });
@@ -7582,11 +7580,11 @@ async function renderCluster() {
   
   const pgsVsSnpsCacheKey = `${currentHash}-${selectedUserId}`;
   if (clusterCache.pgsVsSnpsMatrices?.cacheKey === pgsVsSnpsCacheKey) {
-    console.log("Using cached PGS vs SNPs matrices");
+    // console.log("Using cached PGS vs SNPs matrices");
     ({ pgsVsSnpsAllMatrix, pgsVsSnpsAllMatrixDisplay, pgsVsSnpsOverlapMatrix, pgsVsSnpsOverlapMatrixDisplay, pgsVsSnpsSharedMatrix, pgsVsSnpsSharedMatrixDisplay } = clusterCache.pgsVsSnpsMatrices);
   } else if (selectedUserId) {
     await updateLoading("Building PGS vs SNPs matrices...");
-    console.log("Computing fresh PGS vs SNPs matrices for", selectedUserId);
+    // console.log("Computing fresh PGS vs SNPs matrices for", selectedUserId);
     pgsVsSnpsAllMatrix = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'all' });
     pgsVsSnpsAllMatrixDisplay = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1, mode: 'all' });
     pgsVsSnpsOverlapMatrix = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'overlapping' });
@@ -7607,12 +7605,12 @@ async function renderCluster() {
   
   const effectCacheKey = currentHash;
   if (clusterCache.effectMatrices?.cacheKey === effectCacheKey) {
-    console.log("Using cached effect weight matrices");
+    // console.log("Using cached effect weight matrices");
     ({ allSnpsList, overlapSnpsList, sharedSnpsList } = clusterCache.snpLists);
     ({ pgsEffectAll, pgsEffectOverlap, pgsEffectShared } = clusterCache.effectMatrices);
   } else {
     await updateLoading("Building effect weight matrices...");
-    console.log("Computing fresh effect weight matrices");
+    // console.log("Computing fresh effect weight matrices");
     allSnpsList = getAllSnpsFromPgs(window.prsResults);
     overlapSnpsList = getOverlappingSnpsFromPgs(window.prsResults);
     sharedSnpsList = getSharedSnpsFromPgs(window.prsResults);
@@ -32781,11 +32779,11 @@ async function handletransformersjs() {
     try {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt$1(prsResults, question);
-        console.log("Building AI prompt based on PRS results:", prsResults);
+        // console.log("Building AI prompt based on PRS results:", prsResults);
 
-        console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
+        // console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
         const response = await generateResponse$1(prompt);
-        console.log('AI Response:', response);
+        // console.log('AI Response:', response);
         
         responseText.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
         clearResponseBtn.style.display = '';
@@ -32891,7 +32889,7 @@ async function initModel(modelId, progressCallback) {
     
     // If different model requested, unload current first
     if (engine && currentModelId !== targetModelId) {
-        console.log(`Switching from ${currentModelId} to ${targetModelId}`);
+        // console.log(`Switching from ${currentModelId} to ${targetModelId}`);
         await unloadModel();
     }
     
@@ -32958,7 +32956,7 @@ async function clearModelCache() {
                 name.toLowerCase().includes('wasm')) {
                 await caches.delete(name);
                 clearedCount++;
-                console.log(`Cleared cache: ${name}`);
+                // console.log(`Cleared cache: ${name}`);
             }
         }
         
@@ -32970,7 +32968,7 @@ async function clearModelCache() {
                            db.name.toLowerCase().includes('model'))) {
                 indexedDB.deleteDatabase(db.name);
                 clearedCount++;
-                console.log(`Deleted IndexedDB: ${db.name}`);
+                // console.log(`Deleted IndexedDB: ${db.name}`);
             }
         }
         
@@ -33603,7 +33601,7 @@ async function handleAskWebLLM() {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt(prsResults, question);
         
-        console.log('WebLLM Prompt:', prompt);
+        // console.log('WebLLM Prompt:', prompt);
         
         if (streamingCheckbox?.checked) {
             // Streaming response
@@ -33614,7 +33612,7 @@ async function handleAskWebLLM() {
         } else {
             // Non-streaming response
             const response = await generateResponse(prompt);
-            console.log('WebLLM Response:', response);
+            // console.log('WebLLM Response:', response);
             responseText.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
         }
         

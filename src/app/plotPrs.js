@@ -14,7 +14,7 @@ async function clearPGSCache() {
     for (const key of pgsKeys) {
         await localforage.removeItem(key);
     }
-    console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+    // console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
     return pgsKeys.length;
 }
 window.clearPGSCache = clearPGSCache;
@@ -29,7 +29,7 @@ async function clearGenomeCache() {
     for (const key of genomeKeys) {
         await localforage.removeItem(key);
     }
-    console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+    // console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
     return genomeKeys.length;
 }
 window.clearGenomeCache = clearGenomeCache;
@@ -494,7 +494,7 @@ function processAllResults(validResults) {
         }
     });
 
-    console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
+    // console.log(`Processed ${Object.keys(window.matchedResults).length} results into matchedResults`, window.matchedResults);
 }
 
 /**
@@ -526,14 +526,14 @@ function plotAllMatchByEffect4(data = PGS23.data, dv2 = document.getElementById(
             return v[1]
 
         } else if (v.length == 3) {
-            console.log("two 23andme SNPS mapped to one pgs variant", v)
+            // console.log("two 23andme SNPS mapped to one pgs variant", v)
             duplicate += `<span style="font-size:small; color: blue">Alert : two 23andMe variants mapped to pgs variant : chr.position ${v[2][indChr] + "." + v[2][indPos]}<br>Only the first 23andMe variant is used: ${v[0]}</span><br>`
             dv2.innerHTML = duplicate
             return v[2]
         } else if (v.length > 3) {
             duplicate += `<span style="font-size:small; color: blue">Alert : more than two 23andMe variants mapped to a pgs variant<br>please check 23andMe file for duplicate chromosome.position</span><br>`
             dv2.innerHTML = duplicate
-            console.log("more than 2 23andme SNPS mapped to one pgs variant", v)
+            // console.log("more than 2 23andme SNPS mapped to one pgs variant", v)
             return v[2]
         }
     })

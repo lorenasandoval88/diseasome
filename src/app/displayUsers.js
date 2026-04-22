@@ -1,5 +1,5 @@
 import { cacheAndReturn, parse23Txt,load23andMeFile, fetch23andMeParticipants_fast,fetch23andMeParticipants } from "../sdk/pgpSdk.js";
-console.log("displayUsers.js loaded")
+// console.log("displayUsers.js loaded")
 
 // Update loading progress indicator
 const participantsProgressBar = document.getElementById('participantsProgressBar');
@@ -52,7 +52,7 @@ function updateGlobalSelectionCount() {
 		prsUsersdiv.textContent = `${selectedUserIds.size} user(s) selected: ${userList}`;
 	}
 	
-	console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
+	// console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
 }
 /**
  * escapeHtml(value)
@@ -108,12 +108,12 @@ function sanitizeKey(value) {
  */
 function extractVersion(item) {
 	const filename = item.fileName ?? item.name ?? '';
-	console.log("Extracting version from filename:", filename,item);
+	// console.log("Extracting version from filename:", filename,item);
 	// Match patterns like _v4_, _v5_, v4_Full, v5_Full, etc.
 	const match = String(filename).match(/_v(\d+)_|v(\d+)_Full/i);
 	if (match) {
 		const version = match[1] ?? match[2];
-		console.log("Found version:", version);
+		// console.log("Found version:", version);
 		return `v${version}`;
 	}
 	return null;
@@ -181,7 +181,7 @@ window.onParticipantsVersionChange = function onParticipantsVersionChange(select
  * @returns {void}
  */
 window.onPgsSelectionChange = function onPgsSelectionChange() {
-	console.log('PGS selection changed, re-rendering participants table');
+	// console.log('PGS selection changed, re-rendering participants table');
 	applyParticipantFilters();
 };
 
@@ -231,7 +231,7 @@ function showParticipantsLoadingOverlay(show, progress = 0, message = 'Loading..
 async function loadMoreParticipants(count = 5) {
 	const newLimit = currentLimit + count;
 	
-	console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	// console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
 	showParticipantsLoadingOverlay(true, 10, `Loading ${count} more participants...`);
 	
 	try {
@@ -239,20 +239,20 @@ async function loadMoreParticipants(count = 5) {
 		const newData = await fetch23andMeParticipants(newLimit);
 		showParticipantsLoadingOverlay(true, 70, 'Processing data...');
 		
-		console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
+		// console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
 		if (newData && newData.length > participants.length) {
 			participants = newData;
 			currentLimit = newLimit;
 			showParticipantsLoadingOverlay(true, 90, 'Updating table...');
 			populateVersionSelect();
 			applyParticipantFilters();
-			console.log(`Loaded ${newData.length} participants total`);
+			// console.log(`Loaded ${newData.length} participants total`);
 		} else if (newData && newData.length === participants.length && newData.length < newLimit) {
 			// All available participants already loaded
-			console.log('All available participants already loaded');
+			// console.log('All available participants already loaded');
 			alert(`All ${participants.length} available participants are already loaded.`);
 		} else {
-			console.log('No additional participants available');
+			// console.log('No additional participants available');
 			alert('No additional participants available.');
 		}
 	} catch (err) {
@@ -491,7 +491,7 @@ if (my23Btn && my23FileInput) {
 	// console.log("Setting up 23andMe file upload handler");
 	// Clicking the button triggers the hidden file input
 	my23Btn.addEventListener("click", () => {
-		console.log("Upload 23andMe button clicked");
+		// console.log("Upload 23andMe button clicked");
 		my23FileInput.click();
 	});
 
@@ -525,10 +525,10 @@ if (my23Btn && my23FileInput) {
 				}
 			} else if (typeof window.parse23Txt === "function") {
 				parsed = await window.parse23Txt(text);
-				console.log("Using window.parse23Txt from window", parsed);
+				// console.log("Using window.parse23Txt from window", parsed);
 			} else {
 				parsed = parseLocalFile(text, file.name);
-				console.log("Using parseLocalFile fallback", parsed);
+				// console.log("Using parseLocalFile fallback", parsed);
 			}
 
 			if (!parsed || !parsed.dt || parsed.dt.length === 0) {
@@ -570,7 +570,7 @@ if (my23Btn && my23FileInput) {
 				if (my23Status) my23Status.textContent = `Loaded ${file.name}, but max selection (${MAX_SELECTION}) reached. Deselect a user first.`;
 			}
 
-			console.log("Uploaded 23andMe file:", user);
+			// console.log("Uploaded 23andMe file:", user);
 		} catch (err) {
 			console.error("Error reading 23andMe file:", err);
 			if (my23Status) my23Status.textContent = `Error: ${err.message}`;
@@ -692,10 +692,10 @@ async function computeV4V5Overlap() {
     window.v4_23andme = [...marikaSet];  // v4 SNPs (Marika)
     window.v4_v5_23andme = overlap;      // Overlap of both
 
-    console.log(`23andMe SNP sets computed:`);
-    console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
-    console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
-    console.log(`  Overlap: ${overlap.length} SNPs`);
+	// console.log(`23andMe SNP sets computed:`);
+	// console.log(`  v5 (Joshua): ${joshuaSet.size} SNPs`);
+	// console.log(`  v4 (Marika): ${marikaSet.size} SNPs`);
+	// console.log(`  Overlap: ${overlap.length} SNPs`);
 
     return overlap;
   } catch (err) {

@@ -57,7 +57,7 @@ function invalidateClusterCache() {
     effectMatrices: null,
     snpLists: null,
   };
-  console.log("Cluster cache invalidated");
+  // console.log("Cluster cache invalidated");
 }
 
 // Expose cache invalidation globally so it can be called when PRS is recalculated
@@ -222,7 +222,7 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
     return row;
   });
 
-  console.log(`buildAlleleMatrix (${mode}):`, userVariantMap.length, "users,", allVariants.length, "variants, missingValue:", missingValue);
+  // console.log(`buildAlleleMatrix (${mode}):`, userVariantMap.length, "users,", allVariants.length, "variants, missingValue:", missingValue);
 
   return userVariantMap;
 }
@@ -328,7 +328,7 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
     return row;
   });
 
-  console.log(`buildPgsVsSnpsMatrix (${mode}): ${matrix.length} PGS entries × ${targetSnps.length} SNPs for user ${targetUserId}`);
+  // console.log(`buildPgsVsSnpsMatrix (${mode}): ${matrix.length} PGS entries × ${targetSnps.length} SNPs for user ${targetUserId}`);
   return matrix;
 }
 
@@ -557,7 +557,7 @@ function buildPgsEffectWeightMatrix(rawResults, snpList) {
     return row;
   });
   
-  console.log(`buildPgsEffectWeightMatrix: ${pgsIds.length} PGS × ${filteredSnps.length} SNPs (from ${snpList.length} input)`);
+  // console.log(`buildPgsEffectWeightMatrix: ${pgsIds.length} PGS × ${filteredSnps.length} SNPs (from ${snpList.length} input)`);
   
   return { data, displayData, snpCount: filteredSnps.length, pgsCount: pgsIds.length };
 }
@@ -592,9 +592,9 @@ async function renderCluster() {
     pivoted = clusterCache.pivoted;
     pgsIds = clusterCache.pgsIds;
     userIds = clusterCache.userIds;
-    console.log("Using cached base data for cluster tab");
+    // console.log("Using cached base data for cluster tab");
   } else {
-    console.log("Computing fresh base data for cluster tab");
+    // console.log("Computing fresh base data for cluster tab");
     pivoted = pivotPrsResults(window.prsResults);
     pgsIds = getUniquePgsIds(window.prsResults);
     userIds = getUniqueUserIds(window.prsResults);
@@ -654,11 +654,11 @@ async function renderCluster() {
   
   const allelesCacheKey = `${currentHash}-${selectedPgsId}`;
   if (clusterCache.alleleMatrices?.cacheKey === allelesCacheKey) {
-    console.log("Using cached allele matrices");
+    // console.log("Using cached allele matrices");
     ({ allMatrix, allMatrixDisplay, overlapMatrix, overlapMatrixDisplay, sharedMatrix, sharedMatrixDisplay } = clusterCache.alleleMatrices);
   } else if (selectedPgsId) {
     await updateLoading("Building allele matrices...");
-    console.log("Computing fresh allele matrices for", selectedPgsId);
+    // console.log("Computing fresh allele matrices for", selectedPgsId);
     allMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 });
     allMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1 });
     overlapMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: 0 });
@@ -680,11 +680,11 @@ async function renderCluster() {
   
   const pgsVsSnpsCacheKey = `${currentHash}-${selectedUserId}`;
   if (clusterCache.pgsVsSnpsMatrices?.cacheKey === pgsVsSnpsCacheKey) {
-    console.log("Using cached PGS vs SNPs matrices");
+    // console.log("Using cached PGS vs SNPs matrices");
     ({ pgsVsSnpsAllMatrix, pgsVsSnpsAllMatrixDisplay, pgsVsSnpsOverlapMatrix, pgsVsSnpsOverlapMatrixDisplay, pgsVsSnpsSharedMatrix, pgsVsSnpsSharedMatrixDisplay } = clusterCache.pgsVsSnpsMatrices);
   } else if (selectedUserId) {
     await updateLoading("Building PGS vs SNPs matrices...");
-    console.log("Computing fresh PGS vs SNPs matrices for", selectedUserId);
+    // console.log("Computing fresh PGS vs SNPs matrices for", selectedUserId);
     pgsVsSnpsAllMatrix = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'all' });
     pgsVsSnpsAllMatrixDisplay = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: -1, mode: 'all' });
     pgsVsSnpsOverlapMatrix = buildPgsVsSnpsMatrix(window.prsResults, selectedUserId, { missingValue: 0, mode: 'overlapping' });
@@ -705,12 +705,12 @@ async function renderCluster() {
   
   const effectCacheKey = currentHash;
   if (clusterCache.effectMatrices?.cacheKey === effectCacheKey) {
-    console.log("Using cached effect weight matrices");
+    // console.log("Using cached effect weight matrices");
     ({ allSnpsList, overlapSnpsList, sharedSnpsList } = clusterCache.snpLists);
     ({ pgsEffectAll, pgsEffectOverlap, pgsEffectShared } = clusterCache.effectMatrices);
   } else {
     await updateLoading("Building effect weight matrices...");
-    console.log("Computing fresh effect weight matrices");
+    // console.log("Computing fresh effect weight matrices");
     allSnpsList = getAllSnpsFromPgs(window.prsResults);
     overlapSnpsList = getOverlappingSnpsFromPgs(window.prsResults);
     sharedSnpsList = getSharedSnpsFromPgs(window.prsResults);

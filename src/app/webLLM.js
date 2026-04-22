@@ -87,7 +87,7 @@ async function initModel(modelId, progressCallback) {
     
     // If different model requested, unload current first
     if (engine && currentModelId !== targetModelId) {
-        console.log(`Switching from ${currentModelId} to ${targetModelId}`);
+        // console.log(`Switching from ${currentModelId} to ${targetModelId}`);
         await unloadModel();
     }
     
@@ -154,7 +154,7 @@ async function clearModelCache() {
                 name.toLowerCase().includes('wasm')) {
                 await caches.delete(name);
                 clearedCount++;
-                console.log(`Cleared cache: ${name}`);
+                // console.log(`Cleared cache: ${name}`);
             }
         }
         
@@ -166,7 +166,7 @@ async function clearModelCache() {
                            db.name.toLowerCase().includes('model'))) {
                 indexedDB.deleteDatabase(db.name);
                 clearedCount++;
-                console.log(`Deleted IndexedDB: ${db.name}`);
+                // console.log(`Deleted IndexedDB: ${db.name}`);
             }
         }
         
@@ -799,7 +799,7 @@ async function handleAskWebLLM() {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt(prsResults, question);
         
-        console.log('WebLLM Prompt:', prompt);
+        // console.log('WebLLM Prompt:', prompt);
         
         if (streamingCheckbox?.checked) {
             // Streaming response
@@ -810,7 +810,7 @@ async function handleAskWebLLM() {
         } else {
             // Non-streaming response
             const response = await generateResponse(prompt);
-            console.log('WebLLM Response:', response);
+            // console.log('WebLLM Response:', response);
             responseText.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
         }
         

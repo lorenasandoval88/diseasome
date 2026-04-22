@@ -397,11 +397,11 @@ async function handletransformersjs() {
     try {
         const prsResults = window.prsResults ?? [];
         const prompt = buildPRSPrompt(prsResults, question);
-        console.log("Building AI prompt based on PRS results:", prsResults);
+        // console.log("Building AI prompt based on PRS results:", prsResults);
 
-        console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
+        // console.log('AI Prompt (first 500 chars):', prompt.slice(0, 500) + '...');
         const response = await generateResponse(prompt);
-        console.log('AI Response:', response);
+        // console.log('AI Response:', response);
         
         responseText.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
         clearResponseBtn.style.display = '';

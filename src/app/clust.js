@@ -1,6 +1,5 @@
 import * as clust from "../sdk/clustSdk.js";
 
-console.log("clustjs version:", clust.version);
 
 const clusterContainerId = "clusterDiv";
 

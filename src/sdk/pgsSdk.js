@@ -1,3 +1,5 @@
+// Single wrapper at pgsSdk.js that re-exports 
+// from the remote SDK URL so all PGS imports are centralized.
 export {
 	loadAllScores,
 	getScoresPerTrait,

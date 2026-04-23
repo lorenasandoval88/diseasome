@@ -1,4 +1,4 @@
-import { loadTraitStats, loadAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { hclust_plot, d3 } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
@@ -93,14 +93,14 @@ let data2 = { scoresPerCategory: {} };
 
 // TODO combine all 3 steps below in pgs sdk!
 try {
-	// loadTraitStats() must run first — it populates the pgs:trait-summary cache
+	// fetchTraits() must run first — it populates the pgs:trait-summary cache
 	// that getScoresPerTrait() and getScoresPerCategory() depend on.
 	setPgsLoadingStatus("Step 1/3 - Loading trait summary cache...", false, 10);
-	await loadTraitStats();
+	await fetchTraits();
 
-	// loadAllScores() must run second — it populates pgs:all-score-summary cache.
+	// fetchAllScores() must run second — it populates pgs:all-score-summary cache.
 	setPgsLoadingStatus("Step 2/3 - Loading all-score summary cache...", false, 40);
-	await loadAllScores();
+	await fetchAllScores();
 
 	setPgsLoadingStatus("Step 3/3 - Loading scores per trait and category...", false, 70);
 	const [scoresPerTrait, scoresPerCategory] = await Promise.all([

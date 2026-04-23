@@ -97,7 +97,6 @@ function passesVariantFilter(score) {
 	const v = Number(score?.variants_number ?? score?.score?.variants_number ?? 0);
 	return Number.isFinite(v) && v >= variantMin && v <= variantMax;
 }
-
 /**
  * Compare two score objects for stable sorting.
  * First compares the `trait_reported` string, then falls back to `id`.
@@ -141,7 +140,7 @@ const allCategoryScores = allCategoryScoresRaw.filter((score) => {
 	seenCategoryIds.add(id);
 	return true;
 });
-console.log(`displayScores.js: Deduplicated category scores from ${allCategoryScoresRaw.length} to ${allCategoryScores.length}`,allCategoryScores.slice(0,10));
+// console.log(`displayScores.js: Deduplicated category scores from ${allCategoryScoresRaw.length} to ${allCategoryScores.length}`,allCategoryScores.slice(0,10));
 //console.log(`displayScores.js: Loaded ${allCategoryScores.length} PGS entries across ${categoryScoresMap.size} categories`,allCategoryScores);
 
 /** Get category scores filtered by current variant range. */
@@ -175,7 +174,7 @@ const allTraitScores = allTraitScoresRaw.filter((score) => {
 	seenTraitIds.add(id);
 	return true;
 });
-console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`,allTraitScores.slice(0,10));
+// console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`,allTraitScores.slice(0,10));
 // console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
 
 /** Get trait scores filtered by current variant range. */

@@ -1,6 +1,6 @@
 import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import { fetchProfile, load23andMeFile, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
-import { getTxts, getScoresPerCategory, getScoresPerTrait, fetchTraits } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { getTextSizeKB, checkStorageKB, estimateLocalForageSizeKB, getTxts, getScoresPerCategory, getScoresPerTrait, fetchTraits, fetchSomeScores, fetchAllScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 function _mergeNamespaces(n, m) {
 	m.forEach(function (e) {
@@ -3069,23 +3069,24 @@ function Match2(mypgs, my23){
 }
 
 const pgp = {
-	data: fetch23andMeParticipants,
-	txt: load23andMeFile,
-	profile: fetchProfile,
+	fetch23andMeParticipants,
+	load23andMeFile,
+	fetchProfile,
 };
 
 const pgs = {
-	data: {
-		summary: fetchTraits,
-		traits: getScoresPerTrait,
-		categories: getScoresPerCategory,
-	},
-	txts: getTxts
+	fetchAllScores,
+	fetchSomeScores,
+	fetchTraits,
+	getScoresPerTrait,
+	getScoresPerCategory,
+	getTxts,
+	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 
 const prs = {
-	calc: Match2, // pgsTxt, my23Txt
-	calc2: Match3 // pgsTxt, my23Txt
+	Match2, // pgsTxt, my23Txt
+	Match3,  // pgsTxt, my23Txt
 };
 
 // export {

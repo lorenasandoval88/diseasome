@@ -2863,7 +2863,17 @@ var clustSdk = /*#__PURE__*/_mergeNamespaces({
 }, [sdk_mjs]);
 
 function Match2(mypgs, my23){
-	let data2 = {};
+  // Defensive checks
+  if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
+    console.error("Match2 error: invalid mypgs structure", mypgs);
+    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
+  }
+  if (!my23 || !my23.cols || !Array.isArray(my23.cols)) {
+    console.error("Match2 error: invalid my23 structure", my23);
+    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
+  }
+	
+  let data2 = {};
   // extract harmonized data from PGS entry first
   const indChr = mypgs.cols.indexOf('hm_chr');
   const indPos = mypgs.cols.indexOf('hm_pos');

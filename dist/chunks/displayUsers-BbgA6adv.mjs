@@ -1,4 +1,5 @@
-import { load23andMeFile, fetch23andMeParticipants } from "../sdk/pgpSdk.js";
+import { fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+
 // console.log("displayUsers.js loaded")
 
 // Update loading progress indicator
@@ -94,7 +95,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -709,3 +710,4 @@ async function computeV4V5Overlap() {
 
 // Initialize v4_v5_23andme on load
 computeV4V5Overlap();
+//# sourceMappingURL=displayUsers-BbgA6adv.mjs.map

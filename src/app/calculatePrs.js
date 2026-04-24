@@ -1,7 +1,7 @@
 import { getTxts } from "../sdk/pgsSdk.js";
 import {Match2 } from "../sdk/prs.js"
 // import { parsePGP23, load23andMeFile } from "../sdk/get23me.js";
-import { parse23Txt, load23andMeFile } from "../sdk/pgpSdk.js";
+import { load23andMeFile } from "../sdk/pgpSdk.js";
 import localforage from "localforage";
 console.log("calculatePrs.js loaded");
 
@@ -42,6 +42,7 @@ async function setCachedGenome(userId, parsed) {
 	}
 }
 
+/** Calculate PRS for a given PGS and 23andMe genome data.
 // Track what has been loaded
 let loadedScores = []; // parsed PGS scoring files
 let loadedUsers = []; // parsed 23andMe genome data
@@ -79,9 +80,13 @@ async function getCachedPRS(userId, pgsId) {
 	try {
 		const key = `PRS: ${userId}_${pgsId}`;
 		const cache = await localforage.getItem(key) || {};
-		console.log(`Found cache for key ${userId}_${pgsId}`);
+		const result = cache[key] ?? null;
+		
+		if (result) {
+			console.log(`Cache hit for ${userId}_${pgsId}`);
+		}
 
-		return cache[key] ?? null;
+		return result;
 	} catch (err) {
 		console.warn('Failed to read PRS cache:', err);
 		return null;
@@ -435,6 +440,15 @@ function parsePGS(id, txt) {
 	const rows = txt.split(/[\r\n]/g);
 	const metaL = rows.filter(r => r[0] === '#').length;
 	obj.meta = { txt: rows.slice(0, metaL) };
+	
+	// Defensive check: ensure header row exists
+	if (metaL >= rows.length) {
+		console.error(`Invalid PGS file ${id}: no column headers found`);
+		obj.cols = [];
+		obj.dt = [];
+		return obj;
+	}
+	
 	obj.cols = rows[metaL].split(/\t/g);
 	obj.dt = rows.slice(metaL + 1).map(r => r.split(/\t/g)).filter(r => r.length > 1);
 	
@@ -880,6 +894,53 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
+/*** Helper: Calculate PRS with automatic caching
+ * Checks cache first, calculates if not found, then stores result.
+ * @param {Object} mypgs - Parsed PGS data
+ * @param {Object} my23 - Parsed 23andMe genome
+ * @param {string} userId - User ID (for cache key)
+ * @param {string} pgsId - PGS ID (for cache key)
+ * @param {Object} userData - Full user data (for result enrichment)
+ * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
+ */
+async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
+    // Check cache first
+    let cached = await getCachedPRS(userId, pgsId);
+    if (cached) {
+        let organizedData = cached.organized;
+        if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
+            organizedData = organizeResultsByAllele(cached, mypgs);
+        }
+        return {
+            ...cached,
+            organized: organizedData,
+            pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
+            fromCache: true
+        };
+    }
+    
+    // Calculate if not cached
+    const result = Match2(mypgs, my23);
+    const organizedData = organizeResultsByAllele(result, mypgs);
+    
+    const prsResult = {
+        userId,
+        userName: userData.user.name,
+        userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
+        pgsId,
+        totalVariants: mypgs.dt.length,
+        ...result,
+        organized: organizedData,
+        pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
+        genome: { cols: my23.cols, variantCount: my23.dt.length },
+        fromCache: false
+    };
+    
+    // Store in cache
+    await setCachedPRS(userId, pgsId, prsResult);
+    return prsResult;
+}
+
 /*** Calculate PRS using loaded scores and users.
  * Triggered by the "Calculate PRS" button.
  */
@@ -1057,52 +1118,15 @@ async function calculatePRS() {
         for (const userData of userDataForCalc) {
             const my23 = userData.parsed;
             const userId = userData.user.id;
-            //console.log(`Calculating PRS for user ${userId} (${userData.user.name}) with ${my23.dt.length} variants...`,userData);
             
             for (const mypgs of pgsTxts) {
                 const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
                 
-                // Check cache first
-                const cached = await getCachedPRS(userId, pgsId);
-                if (cached) {
-                    // console.log(`Cache hit for user ${userId} and PGS ${pgsId}`);
-                    // If cached result doesn't have organized data, add it now
-                    let organizedData = cached.organized;
-                    if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
-                        organizedData = organizeResultsByAllele(cached, mypgs);
-                    }
-                    prsResults.push({
-                        ...cached,
-                        organized: organizedData,
-                        pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta }, // Ensure pgs structure exists
-                        fromCache: true
-                    });
-                    cachedCount++;
-                    continue;
-                }
-                
-                // Calculate if not cached
-                const result = Match2(mypgs, my23);
-                
-                // Organize results by allele count (0, 1, 2)
-                const organizedData = organizeResultsByAllele(result, mypgs);
-                
-                const prsResult = {
-                    userId,
-                    userName: userData.user.name,
-                    userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
-                    pgsId,
-                    totalVariants: mypgs.dt.length,
-                    ...result,
-                    organized: organizedData, // Add organized data for plotting/analysis
-                    pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta }, // Store PGS structure for plotting
-                    genome: { cols: my23.cols, variantCount: my23.dt.length } // Store genome info (not full dt to save space)
-                };
-                
-                // Store in cache
-                await setCachedPRS(userId, pgsId, prsResult);
+                const prsResult = await calculateAndCachePRS(mypgs, my23, userId, pgsId, userData);
                 prsResults.push(prsResult);
-                calculatedCount++;
+                
+                if (prsResult.fromCache) cachedCount++;
+                else calculatedCount++;
             }
         }
         

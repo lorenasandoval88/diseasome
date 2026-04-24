@@ -24,7 +24,9 @@ export default [
     external: baseExternal,
     plugins: basePlugins,
     output: {
-      file: "./dist/app.mjs",
+      dir: "./dist",
+      entryFileNames: "app.mjs",
+      chunkFileNames: "chunks/[name]-[hash].mjs",
       format: "es",
       sourcemap: true
     }

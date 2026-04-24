@@ -1,5 +1,28 @@
 // logic in tabs.js to show only the selected category panel 
-function tabFunction(evt, openTab, subTab) {
+let pgsModuleLoaded = false;
+let localDataModuleLoaded = false;
+
+
+// the PGS and 23andMe tables lazy-load on first tab click by moving their initialization 
+// code into separate modules and importing them here on demand. 
+// This keeps the initial load faster and avoids unnecessary fetches until the user actually clicks those tabs. 
+// The try/catch blocks ensure that any errors during dynamic import or rendering are logged without breaking 
+// the tab functionality.
+async function ensurePgsModuleLoaded() {
+    if (!pgsModuleLoaded) {
+        await import("./displayScores.js");
+        pgsModuleLoaded = true;
+    }
+}
+
+async function ensureLocalDataModuleLoaded() {
+    if (!localDataModuleLoaded) {
+        await import("./displayUsers.js");
+        localDataModuleLoaded = true;
+    }
+}
+
+async function tabFunction(evt, openTab, subTab) {
     var i, tabcontent, tablinks;
     tabcontent = document.getElementsByClassName("tabcontent");
     for (i = 0; i < tabcontent.length; i++) {
@@ -17,8 +40,15 @@ function tabFunction(evt, openTab, subTab) {
     }
     document.getElementById(openTab).style.display = "block";
     evt.currentTarget.className += " active";
-        if (openTab === 'LocalData' && typeof window.renderLocalUsers === 'function') {
-            try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
+
+        if (openTab === 'PGSCatalog') {
+            try { await ensurePgsModuleLoaded(); } catch (e) { console.error('PGS module load error', e); }
+        }
+        if (openTab === 'LocalData') {
+            try { await ensureLocalDataModuleLoaded(); } catch (e) { console.error('LocalData module load error', e); }
+            if (typeof window.renderLocalUsers === 'function') {
+                try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
+            }
         }
         if (openTab === 'PlotPRS' && typeof window.renderPlotPRS === 'function') {
             try { window.renderPlotPRS(); } catch (e) { console.error('renderPlotPRS error', e); }

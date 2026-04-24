@@ -97,6 +97,7 @@
         <button id="transformersjsButton" class="tablinks"
             onclick="tabFunction(event, 'transformersjs')">Transformers.js</button>
         <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')">WebLLM</button>
+        <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')">About</button>
     </div>
     <div id="selection"></div>
 
@@ -181,7 +182,6 @@
                     <hr class="my-3" />
 
                     <!-- Calculate PRS Section -->
-                    <hr class="my-3" />
                     <h5 class="prs-step-header d-inline">3.) Calculate Polygenic Risk Scores</h5>
                     <button class="btn btn-outline-danger btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearPRSCache().then(() => alert('PRS cache cleared')).catch(e => alert('Error: ' + e.message))">Clear
@@ -197,25 +197,6 @@
                         <!-- <h1 class='wait_message'>Please wait ...</h1> -->
                     </div>
 
-                    <hr class="my-3" />
-                    <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
-                            target="_blank"> <u>calculator</u></a> , created for research purposes, was developed to
-                        demonstrate how
-                        the PGS Catalog can be privately and readily applied to readily available direct-to-consumer
-                        genetic testing
-                        services, such as 23andMe. No software download, installation, or configuration is needed. The
-                        PRS web
-                        calculator matches individual PGS catalog entries with an individual's 23andMe genome data
-                        composed of 600k
-                        to 1.4 M single-nucleotide polymorphisms (SNPs). Beta coefficients provide researchers with a
-                        convenient
-                        assessment of risk associated with matched SNPs. This in-browser application was tested in a
-                        variety of
-                        personal devices, including smartphones, establishing the feasibility of privately calculating
-                        personal risk
-                        scores with up to a few thousand reference genetic variations and from the full 23andMe SNP data
-                        file
-                        (compressed or not).</p>
                 </div>
 
                 <!-- 23 and me ------------------------------------------>
@@ -353,6 +334,36 @@
                 </div>
 
 
+                <!-- About tab -->
+                <div id="About" class="tabcontent">
+                    <h3>About</h3>
+                    <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
+                            target="_blank"><u>calculator</u></a>, created for research purposes, was developed to
+                        demonstrate how the PGS Catalog can be privately and readily applied to readily available
+                        direct-to-consumer genetic testing services, such as 23andMe. No software download, installation,
+                        or configuration is needed. The PRS web calculator matches individual PGS catalog entries with an
+                        individual's 23andMe genome data composed of 600k to 1.4 M single-nucleotide polymorphisms
+                        (SNPs). Beta coefficients provide researchers with a convenient assessment of risk associated
+                        with matched SNPs. This in-browser application was tested in a variety of personal devices,
+                        including smartphones, establishing the feasibility of privately calculating personal risk scores
+                        with up to a few thousand reference genetic variations and from the full 23andMe SNP data file
+                        (compressed or not).</p>
+
+                    <h5>Privacy</h5>
+                    <p>All data and calculations take place in the browser. No data or calculations circulate by a
+                        server. This application is, foremost, an exercise in privacy-preserving biomedical informatics
+                        for consumer genomics data.</p>
+
+                    <h5>Scope / Limitations</h5>
+                    <p>This calculator was devised as an implementation proof of concept. It has a number of important
+                        limitations for epidemiology research and it does not meet criteria for clinical use. The current
+                        tool uses pre-imputation genotype data and thus results in a low number of SNP matches. Most
+                        important, only the relative risk model <a href='https://www.nature.com/articles/nrg.2016.27#Sec5'
+                            target="_blank">(Box 1, eq 2)</a> is calculated, with no effort to determine absolute risk
+                        of disease. Finally, the risk calculation will only be attempted for PGS catalog entries
+                        reporting effects as beta values under "effect_weight".</p>
+                </div>
+
                 <!-- Scripts: app module and third-party libs -->
 
                 <!-- App bundle (module) - contains app logic that wires UI behaviors -->
@@ -360,32 +371,7 @@
 
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
 
-                <!-- privacy section-->
-                <section id="notices">
-                    <span style="font-size:large;">Privacy:</span><br>
-                    <span style="font-size:small;color:black;font-weight:normal">
-                        All data and calculations take place in the browser. No data or calculations circulate by a
-                        server. This
-                        application is, foremost, an exercise in privacy-preserving biomedical informatics for consumer
-                        genomics
-                        data.
-                    </span><br>
-                    <span style="font-size:large;">Scope/Limitations:</span><br>
-                    <span style="font-size:small;color:black;font-weight:normal">
-                        This calculator was devised as an implementation proof of concept. It has a number of important
-                        limitations
-                        for epidemiology research and it does not meet criteria for clinical use. The current tool uses
-                        pre-imputation genotype data and thus results in a low number of SNP matches. Most important,
-                        only the
-                        relative risk model <a href='https://www.nature.com/articles/nrg.2016.27#Sec5'
-                            target="_blank">(Box 1,
-                            eq
-                            2)</a> is calculated, with no effort to determine absolute risk of disease. Finally, the
-                        risk
-                        calculation will only be attempted for PGS catalog entries reporting effects as beta values
-                        under
-                        "effect_weight".</span>
-                </section>
+
 
 
 </body>

@@ -673,15 +673,17 @@ async function fetchScoresTxts() {
 		if (txtsDiv) txtsDiv.style.display = "block";
 		
 		// Fetch PGS text files using the SDK
-		console.log(`Fetching ${selectedIds.length} PGS files:`, selectedIds);
+		//console.log(`Fetching ${selectedIds.length} PGS files:`, selectedIds);
 		const pgsTxts = await getTxts(selectedIds);
 		
 		window.loadedPgsTxts = pgsTxts;
-		
+		console.log(`\n=== Results saved to window.loadedPgsTxts ===`);
+
+
 		if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} of ${selectedIds.length} PGS file(s).`;
 		
 		// Compare loaded PGS files with 23andMe SNPs (v4, v5, both)
-		const pgsMatchStats = comparePgsWithOverlap(pgsTxts);
+		const pgsMatchStats = compareSnpOverlap(pgsTxts);
 		
 		// Show summary of loaded files with match percentages
 		renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats);
@@ -814,8 +816,8 @@ function renderLoadedPgsTable(txtsDiv, pgsTxts, selectedScores, pgsMatchStats) {
  * @param {Array} pgsTxts - Loaded PGS text files
  * @returns {Object} Map of pgsId -> { v4Percent, v5Percent, bothPercent, v4WeightPercent, v5WeightPercent, bothWeightPercent, ... }
  */
-function comparePgsWithOverlap(pgsTxts) {
-	console.log("comparePgsWithOverlap called with", pgsTxts?.length, "PGS files");
+function compareSnpOverlap(pgsTxts) {
+	console.log("compareSnpOverlap called with", pgsTxts?.length, "PGS files");
 	
 	const v4Array = window.v4_23andme ?? [];
 	const v5Array = window.v5_23andme ?? [];
@@ -836,7 +838,7 @@ function comparePgsWithOverlap(pgsTxts) {
 	window.pgsOverlapResults = {};
 	const stats = {};
 	
-	console.log(`\n=== PGS vs 23andMe SNP Match Analysis ===`);
+	//console.log(`\n=== PGS vs 23andMe SNP Match Analysis ===`);
 	
 	for (const pgs of pgsTxts) {
 		const pgsId = pgs?.id ?? pgs?.meta?.pgs_id ?? "unknown";
@@ -922,7 +924,7 @@ function comparePgsWithOverlap(pgsTxts) {
 		// Store in global results (keep bothRows for backward compatibility)
 		window.pgsOverlapResults[pgsId] = bothRows;
 		
-		console.log(`${pgsId}: ${totalVariants} variants | SNP%: v4=${v4Percent.toFixed(1)}%, v5=${v5Percent.toFixed(1)}%, both=${bothPercent.toFixed(1)}% | Weight%: v4=${v4WeightPercent.toFixed(1)}%, v5=${v5WeightPercent.toFixed(1)}%, both=${bothWeightPercent.toFixed(1)}%`);
+		//console.log(`${pgsId}: ${totalVariants} variants | SNP%: v4=${v4Percent.toFixed(1)}%, v5=${v5Percent.toFixed(1)}%, both=${bothPercent.toFixed(1)}% | Weight%: v4=${v4WeightPercent.toFixed(1)}%, v5=${v5WeightPercent.toFixed(1)}%, both=${bothWeightPercent.toFixed(1)}%`);
 	}
 	
 	// Store full stats globally
@@ -932,7 +934,7 @@ function comparePgsWithOverlap(pgsTxts) {
 	return stats;
 }
 
-window.comparePgsWithOverlap = comparePgsWithOverlap;
+window.compareSnpOverlap = compareSnpOverlap;
 
 /**
  * Update the Calculate PRS tab's weight files display.

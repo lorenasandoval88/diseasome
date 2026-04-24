@@ -160,14 +160,483 @@ function getPublicationYear(rawResults, pgsId) {
 }
 
 /**
- * Build allele matrix for clustering users by variants for a specific PGS entry.
- * Each row is a user, each column is a variant (rsid or chr:pos), values are allele counts (0, 1, 2).
+ * Build matched vs unmatched beta contribution per user for a selected PGS.
+ * Uses organized risk arrays when available, with fallback to legacy fields.
+ */
+function getBetaContributionByUser(rawResults, targetPgsId) {
+  if (!Array.isArray(rawResults) || !targetPgsId) return [];
+
+  const sumFinite = (arr) => (Array.isArray(arr)
+    ? arr.reduce((acc, v) => acc + (Number.isFinite(Number(v)) ? Number(v) : 0), 0)
+    : 0);
+
+  const out = [];
+
+  for (const result of rawResults) {
+    if (result?.pgsId !== targetPgsId) continue;
+
+    const userLabel = result.userName ?? result.userId ?? 'Unknown';
+    const userId = result.userId ?? userLabel;
+
+    const organizedMatchedRisk = result.organized?.matched?.risk;
+    const organizedUnmatchedRisk = result.organized?.not_matched?.risk;
+
+    if (Array.isArray(organizedMatchedRisk) || Array.isArray(organizedUnmatchedRisk)) {
+      out.push({
+        userId,
+        userLabel,
+        matchedBeta: sumFinite(organizedMatchedRisk),
+        unmatchedBeta: sumFinite(organizedUnmatchedRisk),
+        matchedCount: Array.isArray(organizedMatchedRisk) ? organizedMatchedRisk.length : 0,
+        unmatchedCount: Array.isArray(organizedUnmatchedRisk) ? organizedUnmatchedRisk.length : 0,
+      });
+      continue;
+    }
+
+    const pgsData = result.pgs;
+    const indWeight = pgsData?.cols?.indexOf('effect_weight') ?? -1;
+    if (!pgsData?.dt || indWeight < 0) continue;
+
+    const matchedVariants = Array.isArray(result.pgsMatchMy23)
+      ? result.pgsMatchMy23
+          .map(m => (Array.isArray(m) && m.length >= 2 ? m[m.length - 1] : null))
+          .filter(Boolean)
+      : [];
+
+    const matchedSet = new Set(matchedVariants);
+    const notMatchedVariants = pgsData.dt.filter(v => !matchedSet.has(v));
+
+    out.push({
+      userId,
+      userLabel,
+      matchedBeta: sumFinite(matchedVariants.map(v => v[indWeight])),
+      unmatchedBeta: sumFinite(notMatchedVariants.map(v => v[indWeight])),
+      matchedCount: matchedVariants.length,
+      unmatchedCount: notMatchedVariants.length,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Compute allele-sharing distance between two genotypes at a single locus.
+ * Genotypes are strings like "AA", "AT", "GG", etc. (2 characters).
+ * Distance is based on number of alleles shared:
+ *   2 alleles shared (both same) = distance 0
+ *   1 allele shared = distance 1
+ *   0 alleles shared = distance 2
+ * 
+ * Correctly handles homozygotes by counting allele frequencies:
+ * Example: AA vs AT → A appears in both (min(2,1)=1 shared) → distance 1
+ * 
+ * @param {string} geno1 - First genotype (e.g., "AA")
+ * @param {string} geno2 - Second genotype (e.g., "AT")
+ * @returns {number} Allele-sharing distance (0, 1, or 2), or NaN if invalid
+ */
+function alleleSharingDistance(geno1, geno2) {
+  if (typeof geno1 !== 'string' || typeof geno2 !== 'string') return NaN;
+  if (geno1.length !== 2 || geno2.length !== 2) return NaN;
+
+  // Count allele frequencies in each genotype
+  const count1 = {};
+  const count2 = {};
+  
+  for (const a of geno1.split('')) {
+    count1[a] = (count1[a] || 0) + 1;
+  }
+  
+  for (const a of geno2.split('')) {
+    count2[a] = (count2[a] || 0) + 1;
+  }
+  
+  // Count shared alleles by frequency matching
+  // For each unique allele, add min(frequency in geno1, frequency in geno2)
+  let sharedCount = 0;
+  const allUnique = new Set([...Object.keys(count1), ...Object.keys(count2)]);
+  
+  for (const allele of allUnique) {
+    const c1 = count1[allele] || 0;
+    const c2 = count2[allele] || 0;
+    sharedCount += Math.min(c1, c2);
+  }
+  
+  // Distance = 2 - sharedCount
+  return 2 - sharedCount;
+}
+
+/**
+ * Build user × SNP allele count matrix across all PGS entries combined.
+ * Rows = users, Columns = SNPs shared across ALL users.
+ * Values = encoded genotypes (0–9). Used for genotype-level clustering in section E.
+ * @param {Array} rawResults - window.prsResults
+ * @returns {Object|null} { matrix, userIds, snpCount }
+ */
+
+/**
+ * Encode a diploid genotype string (e.g. "AT") to a canonical integer (0–9).
+ * Alleles are sorted before lookup so AT === TA.
+ * Returns -1 for unknown or missing genotypes.
+ */
+function encodeGenotype(genotype) {
+  if (typeof genotype !== 'string' || genotype.length !== 2) return -1;
+  const g = genotype.split('').sort().join('');
+  const map = { AA: 0, AC: 1, AG: 2, AT: 3, CC: 4, CG: 5, CT: 6, GG: 7, GT: 8, TT: 9 };
+  return map[g] ?? -1;
+}
+
+/**
+ * Build user × SNP matrix of encoded raw genotypes (not just allele counts).
+ * @param {Array} rawResults - window.prsResults
+ * @param {Object} options - { mode: 'shared'|'overlapping', missingValue: -1 }
+ * @returns {Object|null} { matrix, userIds, snpCount }
+ */
+function buildUserSnpGenotypeMatrix(rawResults, { mode = 'shared', missingValue = -1 } = {}) {
+  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
+
+  const userDataMap = new Map();
+
+  for (const result of rawResults) {
+    if (!result.userId) continue;
+
+    const userId = result.userId;
+    const userLabel = result.userName ?? result.userId;
+    if (!userDataMap.has(userId)) {
+      userDataMap.set(userId, { label: userLabel, genotypes: new Map() });
+    }
+    const userData = userDataMap.get(userId);
+
+    // Preferred: result.results (new Match3 structure)
+    if (Array.isArray(result.results)) {
+      for (const item of result.results) {
+        if (item.match !== true) continue;
+        const snpId = item.hm_chr_pos;
+        const genotype = item.my23?.[0]?.[3];
+        if (!snpId) continue;
+        if (typeof genotype === 'string' && genotype.length === 2) {
+          userData.genotypes.set(snpId, encodeGenotype(genotype));
+        }
+      }
+      continue;
+    }
+
+    // Fallback: legacy pgsMatchMy23
+    if (Array.isArray(result.pgsMatchMy23) && result.pgs?.cols) {
+      const indChr = result.pgs.cols.indexOf('hm_chr');
+      const indPos = result.pgs.cols.indexOf('hm_pos');
+      const indRsid = result.pgs.cols.indexOf('rsID');
+
+      for (const matchModel of result.pgsMatchMy23) {
+        if (!Array.isArray(matchModel) || matchModel.length < 2) continue;
+        const my23 = matchModel[0];
+        const pgsVariant = matchModel[matchModel.length - 1];
+        if (!Array.isArray(my23) || !Array.isArray(pgsVariant)) continue;
+
+        let snpId = null;
+        if (indChr >= 0 && indPos >= 0) snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+        else if (indRsid >= 0 && pgsVariant[indRsid]) snpId = pgsVariant[indRsid];
+
+        const genotype = my23[3];
+        if (snpId && typeof genotype === 'string' && genotype.length === 2) {
+          userData.genotypes.set(snpId, encodeGenotype(genotype));
+        }
+      }
+    }
+  }
+
+  if (userDataMap.size < 2) return null;
+
+  let snpSet = null;
+  if (mode === 'shared') {
+    for (const ud of userDataMap.values()) {
+      const s = new Set(ud.genotypes.keys());
+      snpSet = snpSet === null ? s : new Set([...snpSet].filter(k => s.has(k)));
+    }
+  } else {
+    snpSet = new Set();
+    for (const ud of userDataMap.values()) for (const snp of ud.genotypes.keys()) snpSet.add(snp);
+  }
+
+  if (!snpSet || snpSet.size === 0) return null;
+
+  const snpList = Array.from(snpSet);
+  const userIds = Array.from(userDataMap.keys());
+
+  const matrix = userIds.map(userId => {
+    const ud = userDataMap.get(userId);
+    const row = { label: ud.label };
+    for (const snp of snpList) row[snp] = ud.genotypes.has(snp) ? ud.genotypes.get(snp) : missingValue;
+    return row;
+  });
+
+  return { matrix, userIds, snpCount: snpList.length };
+}
+
+/** @deprecated */
+function buildGenotypeAlleleMatrix(rawResults) {
+  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
+
+  const userDataMap = new Map(); // userId -> { label, alleles: {snpId -> count} }
+
+  for (const result of rawResults) {
+    if (!result.userId) continue;
+
+    const userId = result.userId;
+    const userLabel = result.userName ?? result.userId;
+    if (!userDataMap.has(userId)) {
+      userDataMap.set(userId, { label: userLabel, alleles: {} });
+    }
+
+    const userData = userDataMap.get(userId);
+    const pgsData = result.pgs;
+    if (!pgsData || !pgsData.cols) continue;
+
+    const indChr = pgsData.cols.indexOf('hm_chr');
+    const indPos = pgsData.cols.indexOf('hm_pos');
+    const indRsid = pgsData.cols.indexOf('rsID');
+    const getSnpId = (v) => {
+      if (indRsid >= 0 && v[indRsid]) return v[indRsid];
+      if (indChr >= 0 && indPos >= 0) return `${v[indChr]}:${v[indPos]}`;
+      return null;
+    };
+
+    // Primary: organized.matched
+    const org = result.organized?.matched;
+    if (Array.isArray(org?.dt) && Array.isArray(org?.alleles)) {
+      org.dt.forEach((pgsVariant, idx) => {
+        if (!Array.isArray(pgsVariant)) return;
+        const snpId = getSnpId(pgsVariant);
+        if (!snpId) return;
+        const a = Number(org.alleles[idx]);
+        if (Number.isFinite(a)) userData.alleles[snpId] = a;
+      });
+    } else if (Array.isArray(result.pgsMatchMy23) && Array.isArray(result.alleles)) {
+      // Fallback: legacy pgsMatchMy23
+      result.pgsMatchMy23.forEach((matchModel, idx) => {
+        const pgsVariant = matchModel[matchModel.length - 1];
+        if (!Array.isArray(pgsVariant)) return;
+        const snpId = getSnpId(pgsVariant);
+        if (!snpId) return;
+        const a = Number(result.alleles[idx]);
+        if (Number.isFinite(a)) userData.alleles[snpId] = a;
+      });
+    }
+  }
+
+  if (userDataMap.size < 2) return null;
+
+  // SNPs present in ALL users
+  let sharedSnps = null;
+  for (const ud of userDataMap.values()) {
+    const s = new Set(Object.keys(ud.alleles));
+    sharedSnps = sharedSnps === null ? s : new Set([...sharedSnps].filter(k => s.has(k)));
+  }
+  if (!sharedSnps || sharedSnps.size === 0) return null;
+
+  const snpList = Array.from(sharedSnps);
+  const userIds = Array.from(userDataMap.keys());
+
+  const matrix = userIds.map(userId => {
+    const ud = userDataMap.get(userId);
+    const row = { label: ud.label };
+    for (const snpId of snpList) row[snpId] = ud.alleles[snpId] ?? 0;
+    return row;
+  });
+
+  return { matrix, userIds, snpCount: sharedSnps.size };
+}
+
+/** @deprecated */
+function buildGenotypeDistanceMatrix(rawResults) {
+  if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
+
+  // Step 1: Organize users and their genotype data across all matched SNPs
+  const userDataMap = new Map(); // userId -> { label, genotypes: {snpId -> geno} }
+  
+  for (const result of rawResults) {
+    if (!result.userId || !result.pgsMatchMy23) continue;
+
+    const userId = result.userId;
+    const userLabel = result.userName ?? result.userId;
+    
+    if (!userDataMap.has(userId)) {
+      userDataMap.set(userId, { label: userLabel, genotypes: {} });
+    }
+
+    const userData = userDataMap.get(userId);
+    const pgsData = result.pgs;
+    if (!pgsData || !pgsData.cols) continue;
+
+    const indChr = pgsData.cols.indexOf('hm_chr');
+    const indPos = pgsData.cols.indexOf('hm_pos');
+    const indRsid = pgsData.cols.indexOf('rsID');
+
+    // Extract genotypes from pgsMatchMy23
+    // Each element is [23andMe variant(s), ..., PGS variant]
+    // The 23andMe data has genotype at the genotype column index
+    result.pgsMatchMy23.forEach((matchModel) => {
+      if (!Array.isArray(matchModel) || matchModel.length < 2) return;
+
+      // Get PGS variant (last element)
+      const pgsVariant = matchModel[matchModel.length - 1];
+      if (!Array.isArray(pgsVariant)) return;
+
+      // Create SNP identifier
+      let snpId;
+      if (indRsid >= 0 && pgsVariant[indRsid]) {
+        snpId = pgsVariant[indRsid];
+      } else if (indChr >= 0 && indPos >= 0) {
+        snpId = `${pgsVariant[indChr]}:${pgsVariant[indPos]}`;
+      } else {
+        return;
+      }
+
+      // Get genotype from 23andMe variant (first element(s))
+      // The 23andMe data has genotype column at a fixed index: typically index 3
+      const my23Variants = matchModel.slice(0, -1); // All but last
+      if (my23Variants.length === 0) return;
+      
+      const my23Variant = my23Variants[0]; // Use first matching 23andMe variant
+      if (!Array.isArray(my23Variant)) return;
+
+      // Find genotype column in 23andMe data
+      // Standard 23andMe format: ['rsid', 'chromosome', 'position', 'genotype']
+      const genotypeIdx = 3; // genotype is typically 4th column (0-indexed 3)
+      const genotype = my23Variant[genotypeIdx];
+
+      if (typeof genotype === 'string' && genotype.length === 2) {
+        userData.genotypes[snpId] = genotype;
+      }
+    });
+  }
+
+  if (userDataMap.size < 2) return null;
+
+  // Step 2: Find SNPs that are shared across all users
+  let sharedSnps = null;
+  for (const userData of userDataMap.values()) {
+    const userSnpSet = new Set(Object.keys(userData.genotypes));
+    if (sharedSnps === null) {
+      sharedSnps = userSnpSet;
+    } else {
+      sharedSnps = new Set([...sharedSnps].filter(snp => userSnpSet.has(snp)));
+    }
+  }
+
+  if (!sharedSnps || sharedSnps.size === 0) return null;
+
+  // Step 3: Build distance matrix
+  const userIds = Array.from(userDataMap.keys());
+  const n = userIds.length;
+  const distanceMatrix = Array(n).fill(null).map(() => Array(n).fill(0));
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const user1Data = userDataMap.get(userIds[i]);
+      const user2Data = userDataMap.get(userIds[j]);
+
+      let totalDistance = 0;
+      let validSnpCount = 0;
+
+      for (const snpId of sharedSnps) {
+        const geno1 = user1Data.genotypes[snpId];
+        const geno2 = user2Data.genotypes[snpId];
+
+        if (geno1 && geno2) {
+          const dist = alleleSharingDistance(geno1, geno2);
+          if (Number.isFinite(dist)) {
+            totalDistance += dist;
+            validSnpCount++;
+          }
+        }
+      }
+
+      const avgDistance = validSnpCount > 0 ? totalDistance / validSnpCount : 0;
+      distanceMatrix[i][j] = avgDistance;
+      distanceMatrix[j][i] = avgDistance;
+    }
+  }
+
+  return { userIds, distanceMatrix, sharedSnpCount: sharedSnps.size };
+}
+
+/**
+ * Build user × SNP encoded-genotype matrix directly from raw 23andMe parsed files.
+ * No PGS model used. Source = window.loadedUsers[].parsed (cols + dt).
+ * @param {Array} loadedUsers - window.loadedUsers: [{user:{id,name}, parsed:{cols,dt}}]
+ * @param {number} missingValue - Fill value for SNPs absent in a user (default -1)
+ * @param {number} maxSnps     - Max SNP columns to include; evenly samples if exceeded (default 5000)
+ * @returns {Object|null} { matrix, userIds, snpCount, totalSharedSnps }
+ */
+function buildRawGenotypeMatrix(loadedUsers, { missingValue = -1, maxSnps = 5000 } = {}) {
+  if (!Array.isArray(loadedUsers) || loadedUsers.length < 2) return null;
+
+  const userDataMap = new Map(); // userId -> { label, genotypes: Map<snpId, encodedInt> }
+
+  for (const entry of loadedUsers) {
+    const userId = entry.user?.id ?? entry.user?.participant_id;
+    const userLabel = entry.user?.name ?? userId;
+    const parsed = entry.parsed;
+    if (!userId || !parsed?.cols || !Array.isArray(parsed.dt)) continue;
+
+    const indRsid = parsed.cols.indexOf('rsid');
+    const indChr  = parsed.cols.indexOf('chromosome');
+    const indPos  = parsed.cols.indexOf('position');
+    const indGeno = parsed.cols.indexOf('genotype');
+    if (indGeno < 0) continue;
+
+    const genotypes = new Map();
+    for (const row of parsed.dt) {
+      const geno = row[indGeno];
+      if (typeof geno !== 'string' || geno.length !== 2) continue;
+      // Use rsid if available, else chr:pos
+      const snpId = (indRsid >= 0 && row[indRsid])
+        ? row[indRsid]
+        : (indChr >= 0 && indPos >= 0 ? `${row[indChr]}:${row[indPos]}` : null);
+      if (snpId) genotypes.set(snpId, encodeGenotype(geno));
+    }
+    userDataMap.set(userId, { label: userLabel, genotypes });
+  }
+
+  if (userDataMap.size < 2) return null;
+
+  // Find SNPs present in ALL users
+  let sharedSnps = null;
+  for (const ud of userDataMap.values()) {
+    const s = new Set(ud.genotypes.keys());
+    sharedSnps = sharedSnps === null ? s : new Set([...sharedSnps].filter(k => s.has(k)));
+  }
+  if (!sharedSnps || sharedSnps.size === 0) return null;
+
+  const totalSharedSnps = sharedSnps.size;
+  let snpList = Array.from(sharedSnps);
+
+  // Evenly subsample if too many SNPs to avoid OOM
+  if (snpList.length > maxSnps) {
+    const step = snpList.length / maxSnps;
+    snpList = Array.from({ length: maxSnps }, (_, i) => snpList[Math.round(i * step)]);
+  }
+
+  const userIds = Array.from(userDataMap.keys());
+
+  const matrix = userIds.map(userId => {
+    const ud = userDataMap.get(userId);
+    const row = { label: ud.label };
+    for (const snp of snpList) row[snp] = ud.genotypes.has(snp) ? ud.genotypes.get(snp) : missingValue;
+    return row;
+  });
+
+  return { matrix, userIds, snpCount: snpList.length, totalSharedSnps };
+}
+
+ /* Each row is a user, each column is a variant (rsid or chr:pos).
+ * Values can be allele counts (0,1,2) or risk_x_allele.
  * For non-matches, uses missingValue as a marker.
  * Returns array of objects suitable for hclust_plot: [{label, variant1: alleleCount, variant2: alleleCount, ...}, ...]
  * @param {string} mode - "all" (all PGS variants), "overlapping" (matched in ≥1 user), "shared" (matched in ALL users)
  * @param {number} missingValue - Value to use for missing/non-matched variants (default: -1)
  */
-function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', missingValue = -1 } = {}) {
+function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', missingValue = -1, valueMode = 'allele' } = {}) {
   if (!Array.isArray(rawResults) || rawResults.length === 0) return null;
 
   // First pass: collect all user data and per-user matched variants
@@ -176,7 +645,6 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
 
   for (const result of rawResults) {
     if (result.pgsId !== targetPgsId) continue;
-    if (!result.pgsMatchMy23 || !result.alleles) continue;
 
     const label = result.userName ?? result.userId ?? 'Unknown';
     const pgsData = result.pgs;
@@ -187,6 +655,7 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
     const indChr = pgsData.cols.indexOf('hm_chr');
     const indPos = pgsData.cols.indexOf('hm_pos');
     const indRsid = pgsData.cols.indexOf('rsID');
+    const indWeight = pgsData.cols.indexOf('effect_weight');
 
     const getVariantId = (variant, idx) => {
       if (indRsid >= 0 && variant[indRsid]) return variant[indRsid];
@@ -196,15 +665,46 @@ function buildAlleleMatrix(rawResults, targetPgsId, { mode = 'overlapping', miss
 
     const matchedVariants = new Map(); // variantId -> alleleCount
 
-    result.pgsMatchMy23.forEach((matchEntry, idx) => {
-      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
-      if (!pgsVariant) return;
+    const calcValue = (pgsVariant, alleleRaw, riskRaw, riskXRaw) => {
+      const allele = Number(alleleRaw);
+      const risk = Number(riskRaw);
+      const riskX = Number(riskXRaw);
+      if (valueMode === 'risk_x_allele') {
+        if (Number.isFinite(riskX)) return riskX;
+        if (Number.isFinite(risk) && Number.isFinite(allele)) return risk * allele;
+        if (indWeight >= 0 && Array.isArray(pgsVariant)) {
+          const beta = Number(pgsVariant[indWeight]);
+          if (Number.isFinite(beta) && Number.isFinite(allele)) return beta * allele;
+        }
+        return missingValue;
+      }
+      return Number.isFinite(allele) ? allele : missingValue;
+    };
 
-      const variantId = getVariantId(pgsVariant, idx);
-      const val = Number(result.alleles[idx]);
-      const alleleCount = Number.isFinite(val) ? val : missingValue;
-      matchedVariants.set(variantId, alleleCount);
-    });
+    // Primary source: organized.matched (from calculatePrs.js)
+    const organizedMatched = result.organized?.matched;
+    const organizedMatchedDt = organizedMatched?.dt;
+    const organizedAlleles = organizedMatched?.alleles;
+    const organizedRisk = organizedMatched?.risk;
+    const organizedRiskXAllele = organizedMatched?.risk_x_allele;
+    if (Array.isArray(organizedMatchedDt) && Array.isArray(organizedAlleles)) {
+      organizedMatchedDt.forEach((pgsVariant, idx) => {
+        if (!Array.isArray(pgsVariant)) return;
+        const variantId = getVariantId(pgsVariant, idx);
+        const value = calcValue(pgsVariant, organizedAlleles[idx], organizedRisk?.[idx], organizedRiskXAllele?.[idx]);
+        matchedVariants.set(variantId, value);
+      });
+    } else if (Array.isArray(result.pgsMatchMy23) && Array.isArray(result.alleles)) {
+      // Fallback source: legacy Match2 fields
+      result.pgsMatchMy23.forEach((matchModel, idx) => {
+        const pgsVariant = matchModel.length >= 2 ? matchModel[matchModel.length - 1] : null;
+        if (!pgsVariant) return;
+
+        const variantId = getVariantId(pgsVariant, idx);
+        const value = calcValue(pgsVariant, result.alleles[idx], undefined, undefined);
+        matchedVariants.set(variantId, value);
+      });
+    }
 
     usersData.push({ label, matchedVariants, pgsData, getVariantId });
   }
@@ -286,7 +786,7 @@ function getUniqueUserIds(rawResults) {
 
 /**
  * Build matrix for clustering PGS entries (rows) by SNPs (columns) for a single user.
- * Each row is a PGS entry, each column is a SNP (rsid or chr:pos), values are allele counts.
+ * Each row is a PGS model, each column is a SNP (rsid or chr:pos), values are allele counts.
  * @param {Array} rawResults - window.prsResults
  * @param {string} targetUserId - The user ID to filter by
  * @param {Object} options - { missingValue: -1, mode: 'all' }
@@ -297,7 +797,7 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
 
   if (!userResults.length || userResults.length < 2) return null;
 
-  // First pass: collect SNPs per PGS entry and count occurrences
+  // First pass: collect SNPs per PGS model and count occurrences
   const snpCounts = new Map(); // snpId -> count of PGS entries containing it
   const pgsSnpMaps = new Map(); // pgsId -> snpMap: Map<snpId, alleleCount> (deduplicated)
 
@@ -313,8 +813,8 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
     const snpMap = new Map();
     const seenSnps = new Set();
 
-    r.pgsMatchMy23.forEach((matchEntry, idx) => {
-      const pgsVariant = matchEntry.length >= 2 ? matchEntry[matchEntry.length - 1] : null;
+    r.pgsMatchMy23.forEach((matchModel, idx) => {
+      const pgsVariant = matchModel.length >= 2 ? matchModel[matchModel.length - 1] : null;
       if (!pgsVariant) return;
 
       let snpId;
@@ -376,7 +876,7 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
 }
 
 // /** PGS x PGS matrix builder for clustering PGS entries by their SNP effect weights 
-//  * Extract SNP data from a PGS entry.
+//  * Extract SNP data from a PGS model.
 //  * Returns a Map of snpId -> effect_weight
 //  */
 // function extractPgsSnpWeights(pgs) {
@@ -407,7 +907,7 @@ function buildPgsVsSnpsMatrix(rawResults, targetUserId, { missingValue = -1, mod
 //   return snpData;
 // }
 /** PGS x PGS matrix builder for clustering PGS entries by their SNP effect weights
- * Extract SNP effect weights from one PGS entry.
+ * Extract SNP effect weights from one PGS model.
  * Returns Map<snpId, effect_weight>
  */
 function extractPgsSnpWeights(pgs) {
@@ -675,6 +1175,7 @@ async function renderCluster() {
   const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
   const alleleClusterMethod = window.clusterOptions?.alleleClusterMethod ?? 'complete';
   const alleleClusterDistance = window.clusterOptions?.alleleClusterDistance ?? 'euclidean';
+  const alleleValueMode = window.clusterOptions?.alleleValueMode ?? 'allele';
   
   // PGS vs SNPs clustering options (single user view)
   const selectedUserId = window.clusterOptions?.selectedUserId ?? (userIds[0]?.id ?? '');
@@ -695,19 +1196,19 @@ async function renderCluster() {
   // Build allele matrices for selected PGS - three views (with caching)
   let allMatrix, allMatrixDisplay, overlapMatrix, overlapMatrixDisplay, sharedMatrix, sharedMatrixDisplay;
   
-  const allelesCacheKey = `${currentHash}-${selectedPgsId}`;
+  const allelesCacheKey = `${currentHash}-${selectedPgsId}-${alleleValueMode}`;
   if (clusterCache.alleleMatrices?.cacheKey === allelesCacheKey) {
     // console.log("Using cached allele matrices");
     ({ allMatrix, allMatrixDisplay, overlapMatrix, overlapMatrixDisplay, sharedMatrix, sharedMatrixDisplay } = clusterCache.alleleMatrices);
   } else if (selectedPgsId) {
     await updateLoading("Building allele matrices...");
     // console.log("Computing fresh allele matrices for", selectedPgsId);
-    allMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0 });
-    allMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1 });
-    overlapMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: 0 });
-    overlapMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: -1 });
-    sharedMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: 0 });
-    sharedMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: -1 });
+    allMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: 0, valueMode: alleleValueMode });
+    allMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'all', missingValue: -1, valueMode: alleleValueMode });
+    overlapMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: 0, valueMode: alleleValueMode });
+    overlapMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'overlapping', missingValue: -1, valueMode: alleleValueMode });
+    sharedMatrix = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: 0, valueMode: alleleValueMode });
+    sharedMatrixDisplay = buildAlleleMatrix(window.prsResults, selectedPgsId, { mode: 'shared', missingValue: -1, valueMode: alleleValueMode });
     clusterCache.alleleMatrices = { cacheKey: allelesCacheKey, allMatrix, allMatrixDisplay, overlapMatrix, overlapMatrixDisplay, sharedMatrix, sharedMatrixDisplay };
   }
 
@@ -717,6 +1218,7 @@ async function renderCluster() {
   const sharedCount = sharedMatrix ? Object.keys(sharedMatrix[0]).length - 1 : 0;
   const sharedPct = totalVariants > 0 ? ((sharedCount / totalVariants) * 100).toFixed(1) : '0.0';
   const overlapPct = totalVariants > 0 ? ((overlapCount / totalVariants) * 100).toFixed(1) : '0.0';
+  const betaContributionByUser = getBetaContributionByUser(window.prsResults, selectedPgsId);
 
   // Build PGS vs SNPs matrices for selected user - three views (with caching)
   let pgsVsSnpsAllMatrix, pgsVsSnpsAllMatrixDisplay, pgsVsSnpsOverlapMatrix, pgsVsSnpsOverlapMatrixDisplay, pgsVsSnpsSharedMatrix, pgsVsSnpsSharedMatrixDisplay;
@@ -766,7 +1268,27 @@ async function renderCluster() {
   
   const pgsEffectPgsCount = pgsEffectAll?.pgsCount ?? 0;
 
-//  console.log("window.prsResults",window.prsResults)
+  // Build genotype allele matrix (section E)
+  let genotypeMatrix = null;
+  let genotypeMatrixResult = null;
+
+  const genotypeCacheKey = currentHash;
+  if (clusterCache.genotypeDistData?.cacheKey === genotypeCacheKey) {
+    genotypeMatrixResult = clusterCache.genotypeDistData.result;
+    genotypeMatrix = clusterCache.genotypeDistData.plotData;
+  } else {
+    await updateLoading("Building genotype allele matrix...");
+    genotypeMatrixResult = buildUserSnpGenotypeMatrix(window.prsResults, { mode: 'shared', missingValue: -1 });
+    if (genotypeMatrixResult) {
+      genotypeMatrix = genotypeMatrixResult.matrix;
+      clusterCache.genotypeDistData = { cacheKey: genotypeCacheKey, result: genotypeMatrixResult, plotData: genotypeMatrix };
+    }
+  }
+
+  const genotypeClusterRows = window.clusterOptions?.genotypeClusterRows ?? true;
+  const genotypeClusterCols = window.clusterOptions?.genotypeClusterCols ?? false;
+  const genotypeClusterMethod = window.clusterOptions?.genotypeClusterMethod ?? 'complete';
+  const genotypeClusterDistance = window.clusterOptions?.genotypeClusterDistance ?? 'euclidean';
 
   // Update loading message before rendering
   await updateLoading("Rendering clusters...");
@@ -805,12 +1327,14 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>B. Users x one PGS, allele counts (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
+    <h5>B. Users x one PGS, ${alleleValueMode === 'risk_x_allele' ? 'risk × allele' : 'allele counts'} (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
     <p class="text-muted small mb-2">
-      Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in black.
+      ${alleleValueMode === 'risk_x_allele'
+        ? 'Cluster users by risk × allele values for variants in a single PGS model. Non-matched variants shown in black.'
+        : 'Cluster users by allele counts (0, 1, 2) for variants in a single PGS model. Non-matched variants shown in black.'}
     </p>
     <div class="mb-3">
-      <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Entry:</strong></label>
+      <label for="pgsSelectDropdown" class="form-label"><strong>Select PGS Model:</strong></label>
       <select id="pgsSelectDropdown" class="form-select" style="max-width: 400px;">
         ${pgsIds.map(id => {
           const year = getPublicationYear(window.prsResults, id);
@@ -843,6 +1367,29 @@ async function renderCluster() {
         <button id="alleleDistEuclidean" class="btn btn-sm ${alleleClusterDistance === 'euclidean' ? 'btn-info' : 'btn-outline-info'}">Euclidean</button>
         <button id="alleleDistManhattan" class="btn btn-sm ${alleleClusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
         <button id="alleleDistCosine" class="btn btn-sm ${alleleClusterDistance === 'cosine' ? 'btn-info' : 'btn-outline-info'}">Cosine</button>
+      </div>
+    </div>
+    <div class="mb-3">
+      <strong>Values:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="alleleValueAlleleBtn" class="btn btn-sm ${alleleValueMode === 'allele' ? 'btn-dark' : 'btn-outline-dark'}">Allele Count</button>
+        <button id="alleleValueRiskXAlleleBtn" class="btn btn-sm ${alleleValueMode === 'risk_x_allele' ? 'btn-dark' : 'btn-outline-dark'}">Risk × Allele</button>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header"><strong>Beta Contribution by User</strong> <span class="text-muted small">— matched vs unmatched variants</span></div>
+      <div class="card-body">
+        ${betaContributionByUser.length > 0 ? `
+          <div class="d-flex flex-row flex-wrap gap-3 align-items-start">
+            ${betaContributionByUser.map((u, idx) => `
+              <div class="border rounded p-2" style="min-width: 155px;">
+                <div class="small fw-semibold mb-1">${u.userLabel}</div>
+                <div id="betaContributionPieUser_${idx}" style="width: 125px; height: 125px;"></div>
+                <div class="text-muted" style="font-size: 0.78rem;">Σβ m=${Number(u.matchedBeta).toFixed(3)}, u=${Number(u.unmatchedBeta).toFixed(3)}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<div class="alert alert-warning mb-0">No beta contribution data available for this PGS.</div>`}
       </div>
     </div>
 
@@ -995,12 +1542,118 @@ async function renderCluster() {
 
     <!-- 3. Shared SNPs Effect Weight -->
     <div class="card mb-4">
-      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs found in every PGS entry</span></div>
+      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs found in every PGS model</span></div>
       <div class="card-body">
         ${pgsEffectShared ? `
           <p class="text-muted small mb-2">${pgsEffectShared.pgsCount} PGS × ${pgsEffectShared.snpCount} SNPs</p>
           <div id="pgsEffectSharedPlot"></div>
         ` : `<div class="alert alert-warning mb-0">No SNPs shared across all PGS entries.</div>`}
+      </div>
+    </div>
+
+    <hr class="my-4" />
+
+    <h5>E. Genotype-level Clustering ${genotypeMatrixResult ? `(${genotypeMatrixResult.userIds.length} Users × ${genotypeMatrixResult.snpCount} Shared SNPs)` : '(No data)'}</h5>
+    <p class="text-muted small mb-3">
+      ${genotypeMatrixResult
+        ? 'Genotype similarity was quantified using allele-sharing distance, where genotypes sharing two, one, or zero alleles were assigned distances of 0, 1, and 2, respectively. Each cell shows the encoded raw genotype (AA=0, AC=1, AG=2, AT=3, CC=4, CG=5, CT=6, GG=7, GT=8, TT=9) at each SNP shared across all users.'
+        : 'Insufficient data for genotype clustering (need ≥2 users with shared matched variants).'}
+    </p>
+
+    ${genotypeMatrixResult ? `
+      <div class="mb-2">
+        <strong>Cluster by:</strong>
+        <div class="btn-group ms-2" role="group">
+          <button id="genotypeClusterRowsBtn" class="btn btn-sm ${genotypeClusterRows ? 'btn-primary' : 'btn-outline-primary'}">Rows (Users)</button>
+          <button id="genotypeClusterColsBtn" class="btn btn-sm ${genotypeClusterCols ? 'btn-primary' : 'btn-outline-primary'}">Columns (SNPs)</button>
+          <button id="genotypeClusterBothBtn" class="btn btn-sm ${genotypeClusterRows && genotypeClusterCols ? 'btn-success' : 'btn-outline-success'}">Both</button>
+        </div>
+      </div>
+      <div class="mb-2">
+        <strong>Linkage:</strong>
+        <div class="btn-group ms-2" role="group">
+          <button id="genotypeMethodComplete" class="btn btn-sm ${genotypeClusterMethod === 'complete' ? 'btn-secondary' : 'btn-outline-secondary'}">Complete</button>
+          <button id="genotypeMethodSingle" class="btn btn-sm ${genotypeClusterMethod === 'single' ? 'btn-secondary' : 'btn-outline-secondary'}">Single</button>
+          <button id="genotypeMethodAverage" class="btn btn-sm ${genotypeClusterMethod === 'average' ? 'btn-secondary' : 'btn-outline-secondary'}">Average</button>
+          <button id="genotypeMethodWard" class="btn btn-sm ${genotypeClusterMethod === 'ward' ? 'btn-secondary' : 'btn-outline-secondary'}">Ward</button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <strong>Distance:</strong>
+        <div class="btn-group ms-2" role="group">
+          <button id="genotypeDistEuclidean" class="btn btn-sm ${genotypeClusterDistance === 'euclidean' ? 'btn-info' : 'btn-outline-info'}">Euclidean</button>
+          <button id="genotypeDistManhattan" class="btn btn-sm ${genotypeClusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <button id="genotypeFastModeBtn" class="btn btn-sm btn-warning">⚡ Fast Mode (No Clustering)</button>
+        <span class="text-muted small ms-2">Skip dendrograms for faster rendering</span>
+      </div>
+      <div class="card mb-4">
+        <div class="card-header"><strong>Users × SNPs Allele Count Heatmap</strong> <span class="text-muted small">— ${genotypeMatrixResult.userIds.length} users × ${genotypeMatrixResult.snpCount} shared SNPs (all PGS combined)</span></div>
+        <div class="card-body">
+          <div id="genotypeDistPlot" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
+            <div class="text-muted small">
+              <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+              <div>Rendering heatmap...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ` : `<div class="alert alert-warning mb-3">Cannot generate genotype clustering. Check that multiple users have loaded genome data with matched variants.</div>`}
+
+    <hr class="my-4" />
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <strong>F. Genome-wide User × SNP Genotype Clustering</strong>
+        <span class="text-muted small">— raw 23andMe files only</span>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Cluster users by genotype patterns across SNPs shared in all loaded 23andMe files.
+          This does not use PGS models, PRS scores, or effect weights.
+        </p>
+        <div class="mb-2">
+          <strong>Cluster by:</strong>
+          <div class="btn-group ms-2" role="group">
+            <button id="rawGenoClusterRowsBtn" class="btn btn-sm btn-primary">Rows (Users)</button>
+            <button id="rawGenoClusterColsBtn" class="btn btn-sm btn-outline-primary">Cols (SNPs)</button>
+            <button id="rawGenoClusterBothBtn" class="btn btn-sm btn-outline-success">Both</button>
+            <button id="rawGenoClusterNoneBtn" class="btn btn-sm btn-outline-secondary">None</button>
+          </div>
+          <span class="text-muted small ms-2">Column clustering is slow with many SNPs.</span>
+        </div>
+        <div class="mb-2">
+          <strong>Linkage:</strong>
+          <div class="btn-group ms-2" role="group">
+            <button id="rawGenoMethodComplete" class="btn btn-sm btn-secondary">Complete</button>
+            <button id="rawGenoMethodSingle"   class="btn btn-sm btn-outline-secondary">Single</button>
+            <button id="rawGenoMethodAverage"  class="btn btn-sm btn-outline-secondary">Average</button>
+            <button id="rawGenoMethodWard"     class="btn btn-sm btn-outline-secondary">Ward</button>
+          </div>
+        </div>
+        <div class="mb-2">
+          <strong>Distance:</strong>
+          <div class="btn-group ms-2" role="group">
+            <button id="rawGenoDistEuclidean" class="btn btn-sm btn-info">Euclidean</button>
+            <button id="rawGenoDistManhattan" class="btn btn-sm btn-outline-info">Manhattan</button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <strong>Max SNPs:</strong>
+          <div class="btn-group ms-2" role="group">
+            <button id="rawGenoMaxSnps500"  class="btn btn-sm btn-outline-secondary">500</button>
+            <button id="rawGenoMaxSnps1k"   class="btn btn-sm btn-secondary">1 k</button>
+            <button id="rawGenoMaxSnps5k"   class="btn btn-sm btn-outline-secondary">5 k</button>
+            <button id="rawGenoMaxSnps10k"  class="btn btn-sm btn-outline-secondary">10 k</button>
+          </div>
+          <span class="text-muted small ms-2">(evenly sampled; raise with caution)</span>
+        </div>
+        <button id="runRawGenoBtn" class="btn btn-sm btn-warning">&#9654; Run genome-wide clustering</button>
+        <span class="text-muted small ms-2">Computes on click — not automatic.</span>
+        <div id="rawGenoStatus" class="text-muted small mt-2"></div>
+        <div id="rawGenoPlot" class="mt-3"></div>
       </div>
     </div>
   `;
@@ -1141,6 +1794,234 @@ async function renderCluster() {
     renderCluster();
   };
 
+  document.getElementById('alleleValueAlleleBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleValueMode: 'allele' };
+    renderCluster();
+  };
+  document.getElementById('alleleValueRiskXAlleleBtn').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, alleleValueMode: 'risk_x_allele' };
+    renderCluster();
+  };
+
+  // Genotype clustering button handlers (Section E)
+  const ensureGenotypeButtons = () => {
+    const btn1 = document.getElementById('genotypeClusterRowsBtn');
+    if (!btn1) return; // Section E not rendered
+    btn1.onclick = () => { window.clusterOptions = { ...window.clusterOptions, genotypeClusterRows: !genotypeClusterRows }; renderCluster(); };
+    const btn2 = document.getElementById('genotypeClusterColsBtn');
+    if (btn2) btn2.onclick = () => { window.clusterOptions = { ...window.clusterOptions, genotypeClusterCols: !genotypeClusterCols }; renderCluster(); };
+    const btn3 = document.getElementById('genotypeClusterBothBtn');
+    if (btn3) btn3.onclick = () => {
+      const bothOn = genotypeClusterRows && genotypeClusterCols;
+      window.clusterOptions = { ...window.clusterOptions, genotypeClusterRows: !bothOn, genotypeClusterCols: !bothOn };
+      renderCluster();
+    };
+    const btnEuc = document.getElementById('genotypeDistEuclidean');
+    if (btnEuc) btnEuc.onclick = () => { window.clusterOptions = { ...window.clusterOptions, genotypeClusterDistance: 'euclidean' }; renderCluster(); };
+    const btnMan = document.getElementById('genotypeDistManhattan');
+    if (btnMan) btnMan.onclick = () => { window.clusterOptions = { ...window.clusterOptions, genotypeClusterDistance: 'manhattan' }; renderCluster(); };
+  };
+
+  // Genotype clustering linkage handlers
+  const ensureGenotypeMethodButtons = () => {
+    const btnComplete = document.getElementById('genotypeMethodComplete');
+    const btnSingle = document.getElementById('genotypeMethodSingle');
+    const btnAverage = document.getElementById('genotypeMethodAverage');
+    const btnWard = document.getElementById('genotypeMethodWard');
+    const btnFastMode = document.getElementById('genotypeFastModeBtn');
+    if (!btnComplete) return;
+
+    btnComplete.onclick = () => {
+      window.clusterOptions = { ...window.clusterOptions, genotypeClusterMethod: 'complete' };
+      renderCluster();
+    };
+    btnSingle.onclick = () => {
+      window.clusterOptions = { ...window.clusterOptions, genotypeClusterMethod: 'single' };
+      renderCluster();
+    };
+    btnAverage.onclick = () => {
+      window.clusterOptions = { ...window.clusterOptions, genotypeClusterMethod: 'average' };
+      renderCluster();
+    };
+    btnWard.onclick = () => {
+      window.clusterOptions = { ...window.clusterOptions, genotypeClusterMethod: 'ward' };
+      renderCluster();
+    };
+    if (btnFastMode) {
+      btnFastMode.onclick = () => {
+        // Toggle off clustering for speed
+        window.clusterOptions = { 
+          ...window.clusterOptions, 
+          genotypeClusterRows: false, 
+          genotypeClusterCols: false 
+        };
+        renderCluster();
+      };
+    }
+  };
+
+  ensureGenotypeButtons();
+  ensureGenotypeMethodButtons();
+
+  // Section F — lazy-loaded on button click
+  // Local state for Section F options (persisted on window.clusterOptions)
+  const syncRawGenoButtons = () => {
+    const cr = window.clusterOptions?.rawGenoClusterRows ?? true;
+    const cc = window.clusterOptions?.rawGenoClusterCols ?? false;
+    const method = window.clusterOptions?.rawGenoMethod ?? 'complete';
+    const dist   = window.clusterOptions?.rawGenoDist   ?? 'euclidean';
+    const maxSnps = window.clusterOptions?.rawGenoMaxSnps ?? 1000;
+
+    const setActive = (id, active) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // swap between active/outline variants by toggling class lists
+      const cls = el.className.replace('btn-outline-', '__OUT__').replace('btn-', '').replace('__OUT__', 'outline-');
+      // simpler: just force the known classes
+    };
+
+    // Cluster-by buttons
+    const rb = document.getElementById('rawGenoClusterRowsBtn');
+    const cb = document.getElementById('rawGenoClusterColsBtn');
+    const bb = document.getElementById('rawGenoClusterBothBtn');
+    const nb = document.getElementById('rawGenoClusterNoneBtn');
+    if (rb) rb.className = `btn btn-sm ${cr && !cc ? 'btn-primary' : 'btn-outline-primary'}`;
+    if (cb) cb.className = `btn btn-sm ${!cr && cc ? 'btn-primary' : 'btn-outline-primary'}`;
+    if (bb) bb.className = `btn btn-sm ${cr && cc  ? 'btn-success' : 'btn-outline-success'}`;
+    if (nb) nb.className = `btn btn-sm ${!cr && !cc ? 'btn-secondary' : 'btn-outline-secondary'}`;
+
+    // Method
+    ['complete','single','average','ward'].forEach(m => {
+      const el = document.getElementById(`rawGenoMethod${m.charAt(0).toUpperCase()+m.slice(1)}`);
+      if (el) el.className = `btn btn-sm ${method === m ? 'btn-secondary' : 'btn-outline-secondary'}`;
+    });
+
+    // Distance
+    const de = document.getElementById('rawGenoDistEuclidean');
+    const dm = document.getElementById('rawGenoDistManhattan');
+    if (de) de.className = `btn btn-sm ${dist === 'euclidean' ? 'btn-info' : 'btn-outline-info'}`;
+    if (dm) dm.className = `btn btn-sm ${dist === 'manhattan' ? 'btn-info' : 'btn-outline-info'}`;
+
+    // Max SNPs
+    [['rawGenoMaxSnps500',500],['rawGenoMaxSnps1k',1000],['rawGenoMaxSnps5k',5000],['rawGenoMaxSnps10k',10000]].forEach(([id,n]) => {
+      const el = document.getElementById(id);
+      if (el) el.className = `btn btn-sm ${maxSnps === n ? 'btn-secondary' : 'btn-outline-secondary'}`;
+    });
+  };
+  syncRawGenoButtons();
+
+  const bindRawGenoOption = (id, optKey, val) => {
+    const el = document.getElementById(id);
+    if (el) el.onclick = () => { window.clusterOptions = { ...window.clusterOptions, [optKey]: val }; syncRawGenoButtons(); };
+  };
+
+  // Cluster-by
+  const rawGenoRowsBtn = document.getElementById('rawGenoClusterRowsBtn');
+  const rawGenoColsBtn = document.getElementById('rawGenoClusterColsBtn');
+  const rawGenoBothBtn = document.getElementById('rawGenoClusterBothBtn');
+  const rawGenoNoneBtn = document.getElementById('rawGenoClusterNoneBtn');
+  if (rawGenoRowsBtn) rawGenoRowsBtn.onclick = () => { window.clusterOptions = { ...window.clusterOptions, rawGenoClusterRows: true,  rawGenoClusterCols: false }; syncRawGenoButtons(); };
+  if (rawGenoColsBtn) rawGenoColsBtn.onclick = () => { window.clusterOptions = { ...window.clusterOptions, rawGenoClusterRows: false, rawGenoClusterCols: true  }; syncRawGenoButtons(); };
+  if (rawGenoBothBtn) rawGenoBothBtn.onclick = () => { window.clusterOptions = { ...window.clusterOptions, rawGenoClusterRows: true,  rawGenoClusterCols: true  }; syncRawGenoButtons(); };
+  if (rawGenoNoneBtn) rawGenoNoneBtn.onclick = () => { window.clusterOptions = { ...window.clusterOptions, rawGenoClusterRows: false, rawGenoClusterCols: false }; syncRawGenoButtons(); };
+
+  // Method
+  bindRawGenoOption('rawGenoMethodComplete', 'rawGenoMethod', 'complete');
+  bindRawGenoOption('rawGenoMethodSingle',   'rawGenoMethod', 'single');
+  bindRawGenoOption('rawGenoMethodAverage',  'rawGenoMethod', 'average');
+  bindRawGenoOption('rawGenoMethodWard',     'rawGenoMethod', 'ward');
+
+  // Distance
+  bindRawGenoOption('rawGenoDistEuclidean', 'rawGenoDist', 'euclidean');
+  bindRawGenoOption('rawGenoDistManhattan', 'rawGenoDist', 'manhattan');
+
+  // Max SNPs
+  bindRawGenoOption('rawGenoMaxSnps500',  'rawGenoMaxSnps', 500);
+  bindRawGenoOption('rawGenoMaxSnps1k',   'rawGenoMaxSnps', 1000);
+  bindRawGenoOption('rawGenoMaxSnps5k',   'rawGenoMaxSnps', 5000);
+  bindRawGenoOption('rawGenoMaxSnps10k',  'rawGenoMaxSnps', 10000);
+
+  const runRawGenoBtn = document.getElementById('runRawGenoBtn');
+  if (runRawGenoBtn) {
+    runRawGenoBtn.onclick = async () => {
+      const status  = document.getElementById('rawGenoStatus');
+      const plotDiv = document.getElementById('rawGenoPlot');
+      if (status)  status.textContent = 'Building genome-wide shared SNP matrix…';
+      if (plotDiv) plotDiv.innerHTML  = '';
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      const rawGenoMaxSnps   = window.clusterOptions?.rawGenoMaxSnps   ?? 1000;
+      const rawGenoClusterRows = window.clusterOptions?.rawGenoClusterRows ?? true;
+      const rawGenoClusterCols = window.clusterOptions?.rawGenoClusterCols ?? false;
+      const rawGenoMethod    = window.clusterOptions?.rawGenoMethod    ?? 'complete';
+      const rawGenoDist      = window.clusterOptions?.rawGenoDist      ?? 'euclidean';
+
+      const rawGenoResult = buildRawGenotypeMatrix(window.loadedUsers, { maxSnps: rawGenoMaxSnps, missingValue: -1 });
+
+      if (!rawGenoResult) {
+        if (status) status.textContent = 'No raw genotype matrix could be generated. Make sure multiple users are loaded.';
+        return;
+      }
+
+      if (status) {
+        status.textContent =
+          `${rawGenoResult.userIds.length} users × ${rawGenoResult.snpCount.toLocaleString()} SNPs shown` +
+          (rawGenoResult.totalSharedSnps > rawGenoResult.snpCount
+            ? ` (evenly sampled from ${rawGenoResult.totalSharedSnps.toLocaleString()} shared SNPs)`
+            : ` (${rawGenoResult.totalSharedSnps.toLocaleString()} total shared SNPs)`) + '.';
+      }
+
+      const genotypeColorScale = clust.d3.scaleLinear()
+        .domain([-1, 0, 9])
+        .range(['#000000', '#f7fbff', '#08306b']);
+
+      await clust.hclust_plot({
+        divid: 'rawGenoPlot',
+        data:  rawGenoResult.matrix,
+        width: 1000,
+        height: 400,
+        clusterRows: rawGenoClusterRows,
+        clusterCols: rawGenoClusterCols,
+        heatmapColorScale: genotypeColorScale,
+        clusteringMethodRows: rawGenoMethod,
+        clusteringMethodCols: rawGenoMethod,
+        clusteringDistanceRows: rawGenoDist,
+        clusteringDistanceCols: rawGenoDist
+      });
+    };
+  }
+
+  if (betaContributionByUser.length > 0 && typeof Plotly !== 'undefined') {
+    betaContributionByUser.forEach((u, idx) => {
+      const matchedAbs = Math.abs(u.matchedBeta);
+      const unmatchedAbs = Math.abs(u.unmatchedBeta);
+      const hasData = matchedAbs > 0 || unmatchedAbs > 0;
+      if (!hasData) return;
+
+      Plotly.newPlot(`betaContributionPieUser_${idx}`, [{
+        values: [matchedAbs, unmatchedAbs],
+        labels: [
+          `Matched (n=${u.matchedCount})`,
+          `Unmatched (n=${u.unmatchedCount})`
+        ],
+        textinfo: 'percent',
+        textposition: 'outside',
+        type: 'pie',
+        marker: {
+          colors: ['#2ca02c', 'grey'],
+          line: { color: 'black' }
+        },
+        hovertemplate: '%{label}<br>|Σβ|=%{value:.4f}<extra></extra>'
+      }], {
+        margin: { t: 24, r: 24, b: 24, l: 24 },
+        showlegend: false
+      }, {
+        responsive: true,
+        displayModeBar: false
+      });
+    });
+  }
+
   // Render PRS cluster plot
   // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
   await clust.hclust_plot({
@@ -1157,6 +2038,42 @@ async function renderCluster() {
   });
 
   const colorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
+
+  const getMatrixValues = (matrix) => {
+    if (!Array.isArray(matrix)) return [];
+    return matrix.flatMap(row =>
+      Object.entries(row)
+        .filter(([k]) => k !== 'label')
+        .map(([, v]) => v)
+        .filter(Number.isFinite)
+    );
+  };
+
+  const alleleValueScale = (() => {
+    const vals = [
+      ...getMatrixValues(allMatrix),
+      ...getMatrixValues(overlapMatrix),
+      ...getMatrixValues(sharedMatrix)
+    ];
+    if (!vals.length) return colorScale;
+
+    if (alleleValueMode === 'risk_x_allele') {
+      const maxAbs = Math.max(...vals.map(v => Math.abs(v)), 0.01);
+      return clust.d3.scaleLinear()
+        .domain([-maxAbs, 0, maxAbs])
+        .range(["#66bc66", "#ffffff", "#9e0606"]);
+    }
+
+    const minVal = Math.min(...vals);
+    const maxVal = Math.max(...vals);
+    if (!Number.isFinite(minVal) || !Number.isFinite(maxVal) || minVal === maxVal) {
+      return colorScale;
+    }
+
+    return clust.d3.scaleLinear()
+      .domain([minVal, (minVal + maxVal) / 2, maxVal])
+      .range(["#f7fbff", "#d66b6b", "#840505"]);
+  })();
   const greenColorScale = clust.d3.scaleLinear().domain([0, 1, 2]).range(["#f7fcf5", "#74c476", "#006d2c"]);
 
   // Render 1. All Variants plot
@@ -1169,7 +2086,7 @@ async function renderCluster() {
       height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale,
+      heatmapColorScale: alleleValueScale,
       clusteringMethodRows: alleleClusterMethod,
       clusteringMethodCols: alleleClusterMethod,
       clusteringDistanceRows: alleleClusterDistance,
@@ -1187,7 +2104,7 @@ async function renderCluster() {
       height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale,
+      heatmapColorScale: alleleValueScale,
       clusteringMethodRows: alleleClusterMethod,
       clusteringMethodCols: alleleClusterMethod,
       clusteringDistanceRows: alleleClusterDistance,
@@ -1205,7 +2122,7 @@ async function renderCluster() {
       height: 350,
       clusterRows: clusterAlleleRows,
       clusterCols: clusterAlleleCols,
-      heatmapColorScale: colorScale,
+      heatmapColorScale: alleleValueScale,
       clusteringMethodRows: alleleClusterMethod,
       clusteringMethodCols: alleleClusterMethod,
       clusteringDistanceRows: alleleClusterDistance,
@@ -1354,6 +2271,29 @@ async function renderCluster() {
       clusteringDistanceCols: clusterDistance
     });
   }
+
+  // Render Section E: Genotype allele count heatmap (users × shared SNPs)
+  if (genotypeMatrix) {
+    // Genotype codes 0–9: AA AC AG AT CC CG CT GG GT TT
+    const genotypeColorScale = clust.d3.scaleLinear()
+      .domain([0, 4, 9])
+      .range(["#f7fbff", "#6baed6", "#103a79"]);
+
+    await clust.hclust_plot({
+      divid: "genotypeDistPlot",
+      data: genotypeMatrix,
+      width: 900,
+      height: 350,
+      clusterRows: genotypeClusterRows,
+      clusterCols: genotypeClusterCols,
+      heatmapColorScale: genotypeColorScale,
+      clusteringMethodRows: genotypeClusterMethod,
+      clusteringMethodCols: genotypeClusterMethod,
+      clusteringDistanceRows: genotypeClusterDistance,
+      clusteringDistanceCols: genotypeClusterDistance
+    });
+  }
+
 }
 
 window.renderCluster = renderCluster;

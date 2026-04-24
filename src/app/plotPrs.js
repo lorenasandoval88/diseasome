@@ -297,7 +297,7 @@ function pieChart(data = PGS23.data) {
         labels: x,
         insidetextorientation: "horizontal",
         textinfo: "percent",
-        textposition: "inside",
+        textposition: "outside",
         type: 'pie',
         marker: {
             colors: ["#2ca02c", "grey"],

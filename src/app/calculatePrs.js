@@ -192,6 +192,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 		dt: matched,
 		alleles: matchResult.alleles,
 		risk: matched_risk,
+		allele: matchResult.alleles,
+		risk_x_allele: matched_risk.map((r, i) => r * (matchResult.alleles[i] ?? 0)),
 		category: Array(matched.length).fill("matched"),
 		count: matched.length
 	};
@@ -255,6 +257,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: zero_allele_chrpos,
 			dt: zero_allele,
 			risk: zero_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(zero_allele.length).fill(0),
+			risk_x_allele: Array(zero_allele.length).fill(0),
 			riskScores: zero_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(zero_allele.length).fill(`${zero_allele.length} matched, zero alleles`),
 			count: zero_allele.length,
@@ -268,6 +272,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: one_allele_chrpos,
 			dt: one_allele,
 			risk: one_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(one_allele.length).fill(1),
+			risk_x_allele: one_allele_idx.map(i => matched[i][indBeta] * 1),
 			riskScores: one_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(one_allele.length).fill(`${one_allele.length} matched, one allele`),
 			count: one_allele.length,
@@ -281,6 +287,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: two_allele_chrpos,
 			dt: two_allele,
 			risk: two_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(two_allele.length).fill(2),
+			risk_x_allele: two_allele_idx.map(i => matched[i][indBeta] * 2),
 			riskScores: two_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(two_allele.length).fill(`${two_allele.length} matched, two alleles`),
 			count: two_allele.length,
@@ -631,6 +639,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		});
 		const results = await Promise.all(parsePromises);
 		loadedUsers = results.filter(Boolean);
+		window.loadedUsers = loadedUsers; // expose for cluster tab
 
 		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
 
@@ -795,6 +804,7 @@ async function loadFallbackUsers() {
 	
 	const results = await Promise.all(parsePromises);
 	loadedUsers = results.filter(Boolean);
+	window.loadedUsers = loadedUsers; // expose for cluster tab
 	
 	const cacheMsg = cachedCount > 0 ? ` (${cachedCount} from cache)` : '';
 	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s)${cacheMsg}.`;

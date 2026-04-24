@@ -1314,3 +1314,17 @@ async function renderCluster() {
 }
 
 window.renderCluster = renderCluster;
+
+Object.defineProperty(window, "pivoted", {
+  get() {
+    return clusterCache.pivoted;
+  },
+  configurable: true,
+});
+
+Object.defineProperty(window, "clusterCache", {
+  get() {
+    return clusterCache;
+  },
+  configurable: true,
+});

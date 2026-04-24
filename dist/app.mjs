@@ -3090,7 +3090,7 @@ async function setCachedGenome(userId, parsed) {
 	}
 }
 
-/** Calculate PRS for a given PGS and 23andMe genome data.
+// Calculate PRS for a given PGS and 23andMe genome data.
 // Track what has been loaded
 let loadedScores = []; // parsed PGS scoring files
 let loadedUsers = []; // parsed 23andMe genome data
@@ -5267,6 +5267,8 @@ const clusterContainerId = "clusterDiv";
 // This is not persistent - it only lasts for the current browser session
 let clusterCache = {
   prsResultsHash: null,      // Hash of prsResults to detect changes
+  selectedPgsId: null,       // Last selected PGS ID
+  selectedUserId: null,      // Last selected user ID
   pivoted: null,
   pgsIds: null,
   userIds: null,
@@ -6572,6 +6574,20 @@ async function renderCluster() {
 }
 
 window.renderCluster = renderCluster;
+
+Object.defineProperty(window, "pivoted", {
+  get() {
+    return clusterCache.pivoted;
+  },
+  configurable: true,
+});
+
+Object.defineProperty(window, "clusterCache", {
+  get() {
+    return clusterCache;
+  },
+  configurable: true,
+});
 
 /**
  * @file Core utility functions/classes for Transformers.js.

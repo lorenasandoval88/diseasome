@@ -1,5 +1,48 @@
 import * as clust from "../sdk/clustSdk.js";
 
+// clust.js adds the Cluster Analysis tab for your PRS app and does four main things:
+
+// 1. PRS-level clustering
+// Converts PRS results into a user × PGS matrix.
+// Rows = users.
+// Columns = PGS entries.
+// Values = PRS scores.
+// Clusters users and/or PGS entries.
+
+// 2. Allele clustering for one selected PGS
+// Builds user × SNP matrices.
+// Rows = users.
+// Columns = variants.
+// Values = allele counts 0, 1, 2.
+// Supports three views:
+// all variants
+// overlapping variants matched in at least one user
+// shared variants matched in all users
+// Missing variants are displayed separately, often as -1/black.
+
+// 3. PGS vs SNP clustering for one selected user
+// Builds PGS × SNP matrices.
+// Rows = PGS entries.
+// Columns = SNPs.
+// Values = allele counts for that user.
+// Useful for comparing how multiple PGS entries overlap in the same person.
+
+// 4. PGS × SNP effect-weight clustering
+// Builds matrices from PGS scoring-file effect weights.
+// Rows = PGS entries.
+// Columns = SNPs.
+// Values = effect_weight, z-scored by row.
+// This compares PGS entries biologically by their SNP effect profiles.
+
+// It also includes:
+
+// a caching system to avoid recomputing matrices every time the tab rerenders
+// dropdowns for selecting PGS ID or user
+// buttons for row/column clustering
+// linkage choices: complete, single, average, ward
+// distance choices: euclidean, manhattan, cosine
+// D3 color scales for allele counts and effect weights
+// calls to clust.hclust_plot() to render heatmap + dendrogram plots
 
 const clusterContainerId = "clusterDiv";
 

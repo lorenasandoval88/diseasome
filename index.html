@@ -124,9 +124,15 @@
                 <div id="Cluster" class="tabcontent">
                     <h3>Genomic Clustering</h3>
                     <p>
-                        Compare users through PRS and SNP-based clustering. Explore patterns, similarity, and shared
-                        variants using interactive heatmaps.
+                        Compare users and models through PRS and SNP-based clustering. Explore patterns, similarity, and shared
+                        variants using interactive clustering.
                     </p>
+                    <ul>
+                        <li>A. Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
+                        <li>B. Inspect shared and overlapping SNP patterns across users for a selected PGS. (users × one PGS)</li>
+                         <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
+                        <li>D. Explore Similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
+                    </ul>
                     <hr class="my-3" />
                     <div id="clusterErrorDiv" class="text-danger small mb-2"></div>
                     <div id="clusterDiv"></div>

@@ -5989,7 +5989,7 @@ async function renderCluster() {
   await updateLoading("Rendering clusters...");
 
   clusterContainer.innerHTML = `
-    <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
+    <h5>A. PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
     <p class="text-muted small mb-3">
       Hierarchical clustering of PRS results (${pivoted.length} users × ${Object.keys(pivoted[0]).length - 1} PGS entries).
     </p>
@@ -6022,7 +6022,7 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>Allele Clustering (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
+    <h5>B. Users x one PGS, allele counts (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
     <p class="text-muted small mb-2">
       Cluster users by allele counts (0, 1, 2) for variants in a single PGS entry. Non-matched variants shown in black.
     </p>
@@ -6098,7 +6098,7 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>PGS vs SNPs Clustering (${pgsVsSnpsPgsCount} PGS Entries for ${selectedUserName})</h5>
+    <h5>C. PGS vs One user, allele counts(${pgsVsSnpsPgsCount} PGS Entries for ${selectedUserName})</h5>
     <p class="text-muted small mb-2">
       Cluster PGS entries by their matched SNP allele patterns for a single user. Rows = PGS entries, Columns = SNPs.
     </p>
@@ -6165,7 +6165,7 @@ async function renderCluster() {
 
     <hr class="my-4" />
 
-    <h5>PGS × SNP Effect Weight Profiles (${pgsEffectPgsCount} PGS Entries)</h5>
+    <h5>D. PGS × PGS effect wirghts (${pgsEffectPgsCount} PGS Entries)</h5>
     <p class="text-muted small mb-2">
       Cluster PGS entries by their SNP effect weights (z-scored). Rows = PGS, Columns = SNPs, Values = effect_weight.
     </p>

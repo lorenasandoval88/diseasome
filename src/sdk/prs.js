@@ -152,6 +152,7 @@ function Match2(mypgs, my23){
       const matchedRecord = {
         match: true,
         status: "match",
+        hm_chr_pos: `${chr}:${pos}`,
         pgs: pgsRow,
         my23: dtMatch_i,   // keep all matching 23andMe rows
         alleleCount,
@@ -166,6 +167,7 @@ function Match2(mypgs, my23){
       allResults.push({
         match: false,
         status: "nomatch",
+        hm_chr_pos: `${chr}:${pos}`,
         pgs: pgsRow,
         my23: "nomatch",
         alleleCount: "-",

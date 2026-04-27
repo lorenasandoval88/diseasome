@@ -59,6 +59,7 @@ let clusterCache = {
   pgsVsSnpsMatrices: null,   // Cached PGS vs SNPs matrices for selected user
   effectMatrices: null,      // Cached effect weight matrices
   snpLists: null,            // Cached SNP lists
+  rawGenoMatrix: null,       // Cached Section F raw genotype matrix
 };
 
 /**
@@ -99,6 +100,7 @@ function invalidateClusterCache() {
     pgsVsSnpsMatrices: null,
     effectMatrices: null,
     snpLists: null,
+    rawGenoMatrix: null,
   };
   // console.log("Cluster cache invalidated");
 }
@@ -600,7 +602,10 @@ function buildRawGenotypeMatrix(loadedUsers, { missingValue = -1, maxSnps = 5000
     const userId = entry.user?.id ?? entry.user?.participant_id;
     const userLabel = entry.user?.name ?? userId;
     const parsed = entry.parsed;
-    if (!userId || !parsed?.cols || !Array.isArray(parsed.dt)) continue;
+    if (!userId || !parsed?.cols || !Array.isArray(parsed.dt)) {
+      console.warn('[F] Skipping user — missing parsed data:', userId, { hasCols: !!parsed?.cols, hasDt: Array.isArray(parsed?.dt) });
+      continue;
+    }
 
     const indRsid = parsed.cols.indexOf('rsid');
     const indChr  = parsed.cols.indexOf('chromosome');
@@ -621,6 +626,7 @@ function buildRawGenotypeMatrix(loadedUsers, { missingValue = -1, maxSnps = 5000
     userDataMap.set(userId, { label: userLabel, genotypes });
   }
 
+  console.log(`[F] buildRawGenotypeMatrix: ${userDataMap.size} of ${loadedUsers.length} users passed parse check`, Array.from(userDataMap.keys()));
   if (userDataMap.size < 2) return null;
 
   // Find SNPs present in ALL users
@@ -1608,10 +1614,6 @@ async function renderCluster() {
           <button id="genotypeDistManhattan" class="btn btn-sm ${genotypeClusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
         </div>
       </div>
-      <div class="mb-3">
-        <button id="genotypeFastModeBtn" class="btn btn-sm btn-warning">⚡ Fast Mode (No Clustering)</button>
-        <span class="text-muted small ms-2">Skip dendrograms for faster rendering</span>
-      </div>
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span><strong>Users × SNPs Allele Count Heatmap</strong> <span class="text-muted small">— ${genotypeMatrixResult.userIds.length} users × ${genotypeMatrixResult.snpCount} shared SNPs (all PGS combined)</span></span>
@@ -1669,15 +1671,22 @@ async function renderCluster() {
         <div class="mb-3">
           <strong>Max SNPs:</strong>
           <div class="btn-group ms-2" role="group">
-            <button id="rawGenoMaxSnps500"  class="btn btn-sm btn-outline-secondary">500</button>
-            <button id="rawGenoMaxSnps1k"   class="btn btn-sm btn-secondary">1 k</button>
+            <button id="rawGenoMaxSnps500"  class="btn btn-sm btn-secondary">500</button>
+            <button id="rawGenoMaxSnps1k"   class="btn btn-sm btn-outline-secondary">1 k</button>
             <button id="rawGenoMaxSnps5k"   class="btn btn-sm btn-outline-secondary">5 k</button>
             <button id="rawGenoMaxSnps10k"  class="btn btn-sm btn-outline-secondary">10 k</button>
           </div>
           <span class="text-muted small ms-2">(evenly sampled; raise with caution)</span>
         </div>
-        <button id="runRawGenoBtn" class="btn btn-sm btn-warning">&#9654; Run genome-wide clustering</button>
-        <span class="text-muted small ms-2">Computes on click — not automatic.</span>
+        <div class="mb-2 small text-muted">
+          <strong>Users available:</strong> ${(window.loadedUsers ?? []).length} loaded
+          ${(window.loadedUsers ?? []).length === 0 ? '<span class="text-danger ms-1">(Load fallback users in the PRS tab first)</span>' : ''}
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button id="runRawGenoBtn" class="btn btn-sm btn-warning">&#9654; Run genome-wide clustering</button>
+          <button id="rawGenoBuildCsvBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>
+          <span class="text-muted small">Clustering computes on click — not automatic.</span>
+        </div>
         <div id="rawGenoStatus" class="text-muted small mt-2"></div>
         <div id="rawGenoDownloadWrap" class="mt-2" style="display:none">
           <button id="rawGenoDownloadBtn" class="btn btn-sm btn-outline-secondary">⬇ Download CSV</button>
@@ -1858,7 +1867,6 @@ async function renderCluster() {
     const btnSingle = document.getElementById('genotypeMethodSingle');
     const btnAverage = document.getElementById('genotypeMethodAverage');
     const btnWard = document.getElementById('genotypeMethodWard');
-    const btnFastMode = document.getElementById('genotypeFastModeBtn');
     if (!btnComplete) return;
 
     btnComplete.onclick = () => {
@@ -1877,17 +1885,6 @@ async function renderCluster() {
       window.clusterOptions = { ...window.clusterOptions, genotypeClusterMethod: 'ward' };
       renderCluster();
     };
-    if (btnFastMode) {
-      btnFastMode.onclick = () => {
-        // Toggle off clustering for speed
-        window.clusterOptions = { 
-          ...window.clusterOptions, 
-          genotypeClusterRows: false, 
-          genotypeClusterCols: false 
-        };
-        renderCluster();
-      };
-    }
   };
 
   ensureGenotypeButtons();
@@ -1908,7 +1905,7 @@ async function renderCluster() {
     const cc = window.clusterOptions?.rawGenoClusterCols ?? false;
     const method = window.clusterOptions?.rawGenoMethod ?? 'complete';
     const dist   = window.clusterOptions?.rawGenoDist   ?? 'euclidean';
-    const maxSnps = window.clusterOptions?.rawGenoMaxSnps ?? 1000;
+    const maxSnps = window.clusterOptions?.rawGenoMaxSnps ?? 500;
 
     const setActive = (id, active) => {
       const el = document.getElementById(id);
@@ -1984,22 +1981,46 @@ async function renderCluster() {
     runRawGenoBtn.onclick = async () => {
       const status  = document.getElementById('rawGenoStatus');
       const plotDiv = document.getElementById('rawGenoPlot');
-      if (status)  status.textContent = 'Building genome-wide shared SNP matrix…';
       if (plotDiv) plotDiv.innerHTML  = '';
       await new Promise(resolve => requestAnimationFrame(resolve));
 
-      const rawGenoMaxSnps   = window.clusterOptions?.rawGenoMaxSnps   ?? 1000;
+      const rawGenoMaxSnps   = window.clusterOptions?.rawGenoMaxSnps   ?? 500;
       const rawGenoClusterRows = window.clusterOptions?.rawGenoClusterRows ?? true;
       const rawGenoClusterCols = window.clusterOptions?.rawGenoClusterCols ?? false;
       const rawGenoMethod    = window.clusterOptions?.rawGenoMethod    ?? 'complete';
       const rawGenoDist      = window.clusterOptions?.rawGenoDist      ?? 'euclidean';
 
-      const rawGenoResult = buildRawGenotypeMatrix(window.loadedUsers, { maxSnps: rawGenoMaxSnps, missingValue: -1 });
+      // Build a cache key from user IDs + maxSnps — skip expensive rebuild if unchanged
+      const rawGenoCacheKey = `${(window.loadedUsers ?? []).map(u => u.user?.id ?? u.user?.participant_id).join(',')}-${rawGenoMaxSnps}`;
+      let rawGenoResult;
+      if (clusterCache.rawGenoMatrix?.cacheKey === rawGenoCacheKey) {
+        console.log('[F] Using cached matrix');
+        rawGenoResult = clusterCache.rawGenoMatrix.result;
+      } else {
+        if (status) status.textContent = 'Building genome-wide shared SNP matrix…';
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        console.time('[F] buildRawGenotypeMatrix');
+        rawGenoResult = buildRawGenotypeMatrix(window.loadedUsers, { maxSnps: rawGenoMaxSnps, missingValue: -1 });
+        console.timeEnd('[F] buildRawGenotypeMatrix');
+        clusterCache.rawGenoMatrix = { cacheKey: rawGenoCacheKey, result: rawGenoResult };
+      }
 
       if (!rawGenoResult) {
         if (status) status.textContent = 'No raw genotype matrix could be generated. Make sure multiple users are loaded.';
         return;
       }
+
+      console.log(`[F] matrix: ${rawGenoResult.userIds.length} users × ${rawGenoResult.snpCount} SNPs, clusterRows=${rawGenoClusterRows}, clusterCols=${rawGenoClusterCols}`);
+
+      // Show download button immediately after matrix is built
+      const wrap  = document.getElementById('rawGenoDownloadWrap');
+      const dlBtn = document.getElementById('rawGenoDownloadBtn');
+      const dlLbl = document.getElementById('rawGenoDownloadLabel');
+      if (wrap)  wrap.style.display = '';
+      if (dlLbl) dlLbl.textContent = `${rawGenoResult.snpCount.toLocaleString()} SNPs × ${rawGenoResult.userIds.length} users`;
+      if (dlBtn) dlBtn.onclick = () => {
+        downloadMatrixAsCsv(rawGenoResult.matrix, `raw_genotype_matrix_F_${rawGenoResult.snpCount}snps.csv`);
+      };
 
       if (status) {
         status.textContent =
@@ -2013,6 +2034,7 @@ async function renderCluster() {
         .domain([-1, 0, 9])
         .range(['#000000', '#f7fbff', '#08306b']);
 
+      console.time('[F] hclust_plot');
       await clust.hclust_plot({
          divId:  'rawGenoPlot',
         data:  rawGenoResult.matrix,
@@ -2026,8 +2048,31 @@ async function renderCluster() {
         clusteringDistanceRows: rawGenoDist,
         clusteringDistanceCols: rawGenoDist
       });
+      console.timeEnd('[F] hclust_plot');
+    };
+  }
 
-      // Show download button for Section F
+  // Wire "Build & Download CSV" button — builds matrix only, no render
+  const rawGenoBuildCsvBtn = document.getElementById('rawGenoBuildCsvBtn');
+  if (rawGenoBuildCsvBtn) {
+    rawGenoBuildCsvBtn.onclick = async () => {
+      const status = document.getElementById('rawGenoStatus');
+      const rawGenoMaxSnps = window.clusterOptions?.rawGenoMaxSnps ?? 500;
+      const rawGenoCacheKey = `${(window.loadedUsers ?? []).map(u => u.user?.id ?? u.user?.participant_id).join(',')}-${rawGenoMaxSnps}`;
+      let rawGenoResult;
+      if (clusterCache.rawGenoMatrix?.cacheKey === rawGenoCacheKey) {
+        rawGenoResult = clusterCache.rawGenoMatrix.result;
+      } else {
+        if (status) status.textContent = 'Building matrix…';
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        rawGenoResult = buildRawGenotypeMatrix(window.loadedUsers, { maxSnps: rawGenoMaxSnps, missingValue: -1 });
+        clusterCache.rawGenoMatrix = { cacheKey: rawGenoCacheKey, result: rawGenoResult };
+      }
+      if (!rawGenoResult) {
+        if (status) status.textContent = 'No raw genotype matrix could be generated. Make sure multiple users are loaded.';
+        return;
+      }
+      if (status) status.textContent = `${rawGenoResult.userIds.length} users × ${rawGenoResult.snpCount.toLocaleString()} SNPs.`;
       const wrap  = document.getElementById('rawGenoDownloadWrap');
       const dlBtn = document.getElementById('rawGenoDownloadBtn');
       const dlLbl = document.getElementById('rawGenoDownloadLabel');
@@ -2036,6 +2081,7 @@ async function renderCluster() {
       if (dlBtn) dlBtn.onclick = () => {
         downloadMatrixAsCsv(rawGenoResult.matrix, `raw_genotype_matrix_F_${rawGenoResult.snpCount}snps.csv`);
       };
+      downloadMatrixAsCsv(rawGenoResult.matrix, `raw_genotype_matrix_F_${rawGenoResult.snpCount}snps.csv`);
     };
   }
 

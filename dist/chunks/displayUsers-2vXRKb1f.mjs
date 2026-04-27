@@ -1,4 +1,5 @@
-import { load23andMeFile, fetch23andMeParticipants, fetch23andMeParticipants_fast } from "../sdk/pgpSdk.js";
+import { fetch23andMeParticipants, fetch23andMeParticipants_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -27,16 +28,18 @@ function setParticipantsLoadingProgress(progress) {
 // Show initial loading state
 setParticipantsLoadingProgress(20);
 
-const INITIAL_LIMIT = 5;
+// const data = await fetch23andMeParticipants_fast();
+// const data = await fetch23andMeParticipants();
+const INITIAL_LIMIT = 5; // Start with 5 participants, can load more with "Load more" button
 setParticipantsLoadingProgress(50);
-// Default to 'all' mode — fast fetch with no per-profile round trips
-const data = await fetch23andMeParticipants_fast();
+const data = await fetch23andMeParticipants(INITIAL_LIMIT);
 setParticipantsLoadingProgress(100);
 
+// console.log("Fetched 23andMe participants:", data);
 let participants = data ?? [];
-let currentLimit = INITIAL_LIMIT;
-let participantLoadMode = 'all'; // 'paged' | 'all'
-let allParticipantsFast = participants; // already loaded
+let currentLimit = INITIAL_LIMIT; // Track current fetch limit
+let participantLoadMode = 'paged'; // 'paged' | 'all'
+let allParticipantsFast = null; // cache for fast-fetch results
 
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10;
@@ -57,10 +60,6 @@ function updateGlobalSelectionCount() {
 	// Update count on 23andMe Data tab
 	const el = document.getElementById("globalSelectionCount2");
 	if (el) el.textContent = `Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
-
-	// Show/hide Fetch button based on whether any users are selected
-	const fetchBtn = document.getElementById("fetchUsersBtn");
-	if (fetchBtn) fetchBtn.style.display = selectedUserIds.size > 0 ? '' : 'none';
 	
 	// Also update PRS tab user section to reflect selection
 	const prsUsersdiv = document.getElementById("prsUsersdiv");
@@ -113,7 +112,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -461,6 +460,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 		`;
 
 		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
+		// update external title element (placed above the dropdown)
+		const titleEl = document.getElementById('participantsTitle');
+		if (titleEl) titleEl.textContent = title;
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
@@ -780,3 +782,4 @@ async function computeV4V5Overlap() {
 
 // Initialize v4_v5_23andme on load
 computeV4V5Overlap();
+//# sourceMappingURL=displayUsers-2vXRKb1f.mjs.map

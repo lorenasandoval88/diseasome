@@ -224,21 +224,32 @@
                     <div id="my23Status" class="small text-muted mb-2"></div>
                     <hr class="my-3" />
 
-                    <h6 style="color: rgb(6, 137, 231);">Choose up to 6 participants below:
+                    <h5 style="color: rgb(6, 137, 231);">Choose up to 10 participants below:
                         <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
                             Or load fallback users →
                         </a>
-                    </h6>
+                    </h5>
                     <hr class="my-3" />
-                    <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
-                    <div class="my-3">
-                        <label for="participantsVersionSelect" class="form-label"><b>23andMe Version</b></label>
-                        <select id="participantsVersionSelect" class="form-select" style="max-width: 180px;"
-                            onchange="onParticipantsVersionChange(this.value)">
-                            <option value="">All Versions</option>
-                        </select>
+                    <div class="my-3 d-flex flex-wrap align-items-end gap-3">
+                        <div>
+                            <label class="form-label mb-1"><b>Load Mode</b></label>
+                            <div class="btn-group d-block" role="group">
+                                <button id="modePagedBtn" class="btn btn-sm btn-outline-primary"
+                                    onclick="onParticipantsModeChange('paged')">Paged</button>
+                                <button id="modeAllBtn" class="btn btn-sm btn-primary"
+                                    onclick="onParticipantsModeChange('all')">All Participants</button>
+                            </div>
+                            <div class="text-muted small mt-1"><b>All</b> loads every participant instantly (no version/name lookup). <b>Paged</b> is slower — it fetches each profile individually to get the chip version and full name.</div>
+                        </div>
+                        <div>
+                            <label for="participantsVersionSelect" class="form-label mb-1"><b>Filter by Version</b></label>
+                            <select id="participantsVersionSelect" class="form-select form-select-sm" style="max-width: 180px;"
+                                onchange="onParticipantsVersionChange(this.value)">
+                                <option value="">All Versions</option>
+                            </select>
+                        </div>
                     </div>
-                    <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3">Fetch Users</button>
+                    <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3" style="display:none;">Fetch 23andMe Text Files</button>
                     <div id="globalSelectionCount2" class="small text-muted mt-1">Selected: 0 / 10</div>
 
                     <div id="localUsersDiv">

@@ -1,4 +1,5 @@
-import { load23andMeFile, fetch23andMeParticipants, fetch23andMeParticipants_fast } from "../sdk/pgpSdk.js";
+import { fetch23andMeParticipants_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -57,10 +58,6 @@ function updateGlobalSelectionCount() {
 	// Update count on 23andMe Data tab
 	const el = document.getElementById("globalSelectionCount2");
 	if (el) el.textContent = `Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
-
-	// Show/hide Fetch button based on whether any users are selected
-	const fetchBtn = document.getElementById("fetchUsersBtn");
-	if (fetchBtn) fetchBtn.style.display = selectedUserIds.size > 0 ? '' : 'none';
 	
 	// Also update PRS tab user section to reflect selection
 	const prsUsersdiv = document.getElementById("prsUsersdiv");
@@ -113,7 +110,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -780,3 +777,4 @@ async function computeV4V5Overlap() {
 
 // Initialize v4_v5_23andme on load
 computeV4V5Overlap();
+//# sourceMappingURL=displayUsers-Bi25ADH4.mjs.map

@@ -275,6 +275,29 @@ function alleleSharingDistance(geno1, geno2) {
 
 /**
  * Encode a diploid genotype string (e.g. "AT") to a canonical integer (0–9).
+/**
+ * Serialise a hclust_plot matrix (array of row-objects with a `label` key) to CSV
+ * and trigger a browser download.
+ * @param {Array<Object>} matrix - e.g. [{label:'user1', rs123: 0, rs456: 7, ...}, ...]
+ * @param {string} filename     - suggested download filename
+ */
+function downloadMatrixAsCsv(matrix, filename = 'matrix.csv') {
+  if (!Array.isArray(matrix) || matrix.length === 0) return;
+  const cols = Object.keys(matrix[0]).filter(k => k !== 'label');
+  const header = ['label', ...cols].join(',');
+  const rows = matrix.map(row =>
+    [row.label, ...cols.map(c => row[c] ?? '')].join(',')
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Encode a diploid genotype string (e.g. "AT") to a canonical integer (0–9).
  * Alleles are sorted before lookup so AT === TA.
  * Returns -1 for unknown or missing genotypes.
  */
@@ -1590,7 +1613,10 @@ async function renderCluster() {
         <span class="text-muted small ms-2">Skip dendrograms for faster rendering</span>
       </div>
       <div class="card mb-4">
-        <div class="card-header"><strong>Users × SNPs Allele Count Heatmap</strong> <span class="text-muted small">— ${genotypeMatrixResult.userIds.length} users × ${genotypeMatrixResult.snpCount} shared SNPs (all PGS combined)</span></div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><strong>Users × SNPs Allele Count Heatmap</strong> <span class="text-muted small">— ${genotypeMatrixResult.userIds.length} users × ${genotypeMatrixResult.snpCount} shared SNPs (all PGS combined)</span></span>
+          <button id="genotypeDownloadBtn" class="btn btn-sm btn-outline-secondary">⬇ Download CSV</button>
+        </div>
         <div class="card-body">
           <div id="genotypeDistPlot" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
             <div class="text-muted small">
@@ -1653,6 +1679,10 @@ async function renderCluster() {
         <button id="runRawGenoBtn" class="btn btn-sm btn-warning">&#9654; Run genome-wide clustering</button>
         <span class="text-muted small ms-2">Computes on click — not automatic.</span>
         <div id="rawGenoStatus" class="text-muted small mt-2"></div>
+        <div id="rawGenoDownloadWrap" class="mt-2" style="display:none">
+          <button id="rawGenoDownloadBtn" class="btn btn-sm btn-outline-secondary">⬇ Download CSV</button>
+          <span class="text-muted small ms-2" id="rawGenoDownloadLabel"></span>
+        </div>
         <div id="rawGenoPlot" class="mt-3"></div>
       </div>
     </div>
@@ -1863,6 +1893,14 @@ async function renderCluster() {
   ensureGenotypeButtons();
   ensureGenotypeMethodButtons();
 
+  // Wire Section E download button
+  const genotypeDownloadBtn = document.getElementById('genotypeDownloadBtn');
+  if (genotypeDownloadBtn) {
+    genotypeDownloadBtn.onclick = () => {
+      downloadMatrixAsCsv(genotypeMatrix, `genotype_matrix_E_${genotypeMatrixResult.snpCount}snps.csv`);
+    };
+  }
+
   // Section F — lazy-loaded on button click
   // Local state for Section F options (persisted on window.clusterOptions)
   const syncRawGenoButtons = () => {
@@ -1976,7 +2014,7 @@ async function renderCluster() {
         .range(['#000000', '#f7fbff', '#08306b']);
 
       await clust.hclust_plot({
-        divid: 'rawGenoPlot',
+         divId:  'rawGenoPlot',
         data:  rawGenoResult.matrix,
         width: 1000,
         height: 400,
@@ -1988,6 +2026,16 @@ async function renderCluster() {
         clusteringDistanceRows: rawGenoDist,
         clusteringDistanceCols: rawGenoDist
       });
+
+      // Show download button for Section F
+      const wrap  = document.getElementById('rawGenoDownloadWrap');
+      const dlBtn = document.getElementById('rawGenoDownloadBtn');
+      const dlLbl = document.getElementById('rawGenoDownloadLabel');
+      if (wrap)  wrap.style.display = '';
+      if (dlLbl) dlLbl.textContent = `${rawGenoResult.snpCount.toLocaleString()} SNPs × ${rawGenoResult.userIds.length} users`;
+      if (dlBtn) dlBtn.onclick = () => {
+        downloadMatrixAsCsv(rawGenoResult.matrix, `raw_genotype_matrix_F_${rawGenoResult.snpCount}snps.csv`);
+      };
     };
   }
 
@@ -2025,7 +2073,7 @@ async function renderCluster() {
   // Render PRS cluster plot
   // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
   await clust.hclust_plot({
-    divid: "clusterPlotMount",
+     divId:  "clusterPlotMount",
     data: pivoted,
    // width: 500,
     height: 350,
@@ -2079,7 +2127,7 @@ async function renderCluster() {
   // Render 1. All Variants plot
   if (allMatrix) {
     await clust.hclust_plot({
-      divid: "allVariantsPlot",
+       divId:  "allVariantsPlot",
       data: allMatrix,
       displayData: allMatrixDisplay,
       width: 900,
@@ -2097,7 +2145,7 @@ async function renderCluster() {
   // Render 2. Overlapping Matches plot
   if (overlapMatrix) {
     await clust.hclust_plot({
-      divid: "overlapPlot",
+       divId:  "overlapPlot",
       data: overlapMatrix,
       displayData: overlapMatrixDisplay,
       width: 900,
@@ -2115,7 +2163,7 @@ async function renderCluster() {
   // Render 3. Shared Matched SNPs plot
   if (sharedMatrix && Object.keys(sharedMatrix[0]).length > 1) {
     await clust.hclust_plot({
-      divid: "sharedPlot",
+       divId:  "sharedPlot",
       data: sharedMatrix,
       displayData: sharedMatrixDisplay,
       width: 900,
@@ -2136,7 +2184,7 @@ async function renderCluster() {
   // Render PGS vs SNPs plots (three views)
   if (pgsVsSnpsAllMatrix && pgsVsSnpsAllMatrix.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsVsSnpsAllPlot",
+       divId:  "pgsVsSnpsAllPlot",
       data: pgsVsSnpsAllMatrix,
       displayData: pgsVsSnpsAllMatrixDisplay,
       width: 900,
@@ -2153,7 +2201,7 @@ async function renderCluster() {
 
   if (pgsVsSnpsOverlapMatrix && pgsVsSnpsOverlapMatrix.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsVsSnpsOverlapPlot",
+       divId:  "pgsVsSnpsOverlapPlot",
       data: pgsVsSnpsOverlapMatrix,
       displayData: pgsVsSnpsOverlapMatrixDisplay,
       width: 900,
@@ -2170,7 +2218,7 @@ async function renderCluster() {
 
   if (pgsVsSnpsSharedMatrix && pgsVsSnpsSharedMatrix.length >= 2 && Object.keys(pgsVsSnpsSharedMatrix[0]).length > 1) {
     await clust.hclust_plot({
-      divid: "pgsVsSnpsSharedPlot",
+       divId:  "pgsVsSnpsSharedPlot",
       data: pgsVsSnpsSharedMatrix,
       displayData: pgsVsSnpsSharedMatrixDisplay,
       width: 900,
@@ -2223,7 +2271,7 @@ async function renderCluster() {
   // Render PGS Effect Weight plots (All, Overlapping, Shared)
   if (pgsEffectAll && pgsEffectAll.data.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsEffectAllPlot",
+       divId:  "pgsEffectAllPlot",
       data: pgsEffectAll.data,
       displayData: pgsEffectAll.displayData,
       width: 900,
@@ -2240,7 +2288,7 @@ async function renderCluster() {
 
   if (pgsEffectOverlap && pgsEffectOverlap.data.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsEffectOverlapPlot",
+       divId:  "pgsEffectOverlapPlot",
       data: pgsEffectOverlap.data,
       displayData: pgsEffectOverlap.displayData,
       width: 900,
@@ -2257,7 +2305,7 @@ async function renderCluster() {
 
   if (pgsEffectShared && pgsEffectShared.data.length >= 2) {
     await clust.hclust_plot({
-      divid: "pgsEffectSharedPlot",
+       divId:  "pgsEffectSharedPlot",
       data: pgsEffectShared.data,
       displayData: pgsEffectShared.displayData,
       width: 900,
@@ -2280,7 +2328,7 @@ async function renderCluster() {
       .range(["#f7fbff", "#6baed6", "#103a79"]);
 
     await clust.hclust_plot({
-      divid: "genotypeDistPlot",
+       divId:  "genotypeDistPlot",
       data: genotypeMatrix,
       width: 900,
       height: 350,

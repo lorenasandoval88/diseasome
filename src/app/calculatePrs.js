@@ -904,6 +904,25 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
+/**
+ * Derive a human-readable name from a 23andMe / PGP genome filename.
+ * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
+ * e.g. "genome_James_Jones_v5_full_20171221.txt" → "James Jones"
+ *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" → "Joshua Yoakem"
+ * Returns null if the pattern is not found.
+ */
+function nameFromFilename(filename) {
+    if (!filename) return null;
+    // Extract just the basename (handles full URLs like finalUrl)
+    const base = String(filename).replace(/.*\//, '');
+    const m = base.match(/(?:^|_)genome_(.+?)_[vV]\d+_/i);
+    if (!m) return null;
+    return m[1]
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .trim() || null;
+}
+
 /*** Helper: Calculate PRS with automatic caching
  * Checks cache first, calculates if not found, then stores result.
  * @param {Object} mypgs - Parsed PGS data
@@ -921,8 +940,16 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
         if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
             organizedData = organizeResultsByAllele(cached, mypgs);
         }
+        const freshName = nameFromFilename(
+            userData.user?.fileName ??
+            userData.user?.finalUrl ??
+            userData.user?.downloadUrl ??
+            userData.user?.genotypes?.[0]?.filename
+        ) || userData.user.name;
+        console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
         return {
             ...cached,
+            userName: freshName,
             organized: organizedData,
             pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
             fromCache: true
@@ -935,7 +962,12 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     const prsResult = {
         userId,
-        userName: userData.user.name,
+        userName: nameFromFilename(
+            userData.user?.fileName ??
+            userData.user?.finalUrl ??
+            userData.user?.downloadUrl ??
+            userData.user?.genotypes?.[0]?.filename
+        ) || userData.user.name,
         userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
         pgsId,
         totalVariants: mypgs.dt.length,

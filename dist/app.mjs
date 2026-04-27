@@ -7132,19 +7132,21 @@ async function renderCluster() {
   }
 
   // Render PRS cluster plot
-  // console.log("cluster plot data:", pivoted, "clusterRows:", clusterRows, "clusterCols:", clusterCols);
-  await hclust_plot({
-     divId:  "clusterPlotMount",
-    data: pivoted,
-   // width: 500,
-    height: 350,
-    clusterRows: clusterRows,
-    clusterCols: clusterCols,
-    clusteringMethodRows: clusterMethod,
-    clusteringMethodCols: clusterMethod,
-    clusteringDistanceRows: clusterDistance,
-    clusteringDistanceCols: clusterDistance
-  });
+  console.log('[Section A] pivoted:', JSON.stringify(pivoted), 'divEl:', document.getElementById('clusterPlotMount'));
+  try {
+    await hclust_plot({
+       divId:  "clusterPlotMount",
+      data: pivoted,
+      width: 900,
+      height: 350,
+      clusterRows: clusterRows,
+      clusterCols: clusterCols,
+      clusteringMethodRows: clusterMethod,
+      clusteringMethodCols: clusterMethod,
+      clusteringDistanceRows: clusterDistance,
+      clusteringDistanceCols: clusterDistance
+    });
+  } catch(e) { console.error('[Section A] hclust_plot error:', e); }
 
   const colorScale = d3.scaleLinear().domain([0, 1, 2]).range(["#f7fbff", "#6baed6", "#103a79"]);
 

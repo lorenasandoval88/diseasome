@@ -2071,7 +2071,7 @@ async function renderCluster() {
   }
 
   // Render PRS cluster plot
-  console.log('[Section A] pivoted:', JSON.stringify(pivoted), 'divEl:', document.getElementById('clusterPlotMount'));
+  //console.log('[Section A] pivoted:', JSON.stringify(pivoted), 'divEl:', document.getElementById('clusterPlotMount'));
   try {
     await clust.hclust_plot({
        divId:  "clusterPlotMount",

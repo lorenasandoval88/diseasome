@@ -3082,6 +3082,8 @@ function Match2(mypgs, my23){
 
 const pgp = {
 	fetch23andMeParticipants,
+	fetch23andMeParticipants_fast,
+	fetchAvailableDataTypes,
 	load23andMeFile,
 	fetchProfile,
 };

@@ -21,6 +21,8 @@ import {
 
 export const pgp = {
 	fetch23andMeParticipants,
+	fetch23andMeParticipants_fast,
+	fetchAvailableDataTypes,
 	load23andMeFile,
 	fetchProfile,
 };

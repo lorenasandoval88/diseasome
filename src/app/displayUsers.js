@@ -1,4 +1,4 @@
-import { load23andMeFile, fetch23andMeParticipants, fetch23andMeParticipants_fast } from "../sdk/pgpSdk.js";
+import { load23andMeFile, fetch23andMeParticipants, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
 // console.log("displayUsers.js loaded")
 
 /**
@@ -30,7 +30,7 @@ setParticipantsLoadingProgress(20);
 const INITIAL_LIMIT = 5;
 setParticipantsLoadingProgress(50);
 // Default to 'all' mode — fast fetch with no per-profile round trips
-const data = await fetch23andMeParticipants_fast();
+const data = await allUsersMetaDataByType_fast();
 setParticipantsLoadingProgress(100);
 
 let participants = data ?? [];
@@ -200,7 +200,7 @@ window.onParticipantsVersionChange = function onParticipantsVersionChange(select
 
 /**
  * Handler invoked when the load-mode toggle changes (paged vs all).
- * In 'all' mode, fetches all participants at once via fetch23andMeParticipants_fast.
+ * In 'all' mode, fetches all participants at once via allUsersMetaDataByType_fast.
  * @param {string} mode - 'paged' or 'all'
  */
 window.onParticipantsModeChange = async function onParticipantsModeChange(mode) {
@@ -218,9 +218,9 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 		if (!allParticipantsFast) {
 			showParticipantsLoadingOverlay(true, 20, 'Fetching all participants...');
 			try {
-				allParticipantsFast = await fetch23andMeParticipants_fast();
+				allParticipantsFast = await allUsersMetaDataByType_fast();
 			} catch (err) {
-				console.error('fetch23andMeParticipants_fast error:', err);
+				console.error('allUsersMetaDataByType_fast error:', err);
 				allParticipantsFast = [];
 			} finally {
 				showParticipantsLoadingOverlay(false);

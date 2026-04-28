@@ -21,7 +21,7 @@ import {
 
 export const pgp = {
 	fetch23andMeParticipants,
-	fetch23andMeParticipants_fast,
+	allUsersMetaDataByType_fast,
 	fetchAvailableDataTypes,
 	load23andMeFile,
 	fetchProfile,
@@ -46,23 +46,3 @@ export { clustjs };
 
 export { localforage };
 
-// export {
-// 	get23meUrls,
-// 	parse23,
-// 	get23
-// } from "./src/sdk/get23me.js";
-
-// export {
-// 	searchTraits,
-// 	getPGSTxts,
-// 	getPGSTxts2,
-// 	getPGSTxtsHm,
-// 	parsePGS,
-// 	loadScore,
-// 	loadScore2,
-// 	fetchAll2,
-// 	getAllCategories,
-// 	getPGSidsForOneTraitCategory,
-// 	getPGSidsForOneTraitLabel,
-// 	getPGSIds
-// } from "./src/sdk/getPgs.js";

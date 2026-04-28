@@ -3082,7 +3082,7 @@ function Match2(mypgs, my23){
 
 const pgp = {
 	fetch23andMeParticipants,
-	fetch23andMeParticipants_fast,
+	allUsersMetaDataByType_fast,
 	fetchAvailableDataTypes,
 	load23andMeFile,
 	fetchProfile,
@@ -3102,27 +3102,6 @@ const prs = {
 	Match2, // pgsTxt, my23Txt
 	Match3,  // pgsTxt, my23Txt
 };
-
-// export {
-// 	get23meUrls,
-// 	parse23,
-// 	get23
-// } from "./src/sdk/get23me.js";
-
-// export {
-// 	searchTraits,
-// 	getPGSTxts,
-// 	getPGSTxts2,
-// 	getPGSTxtsHm,
-// 	parsePGS,
-// 	loadScore,
-// 	loadScore2,
-// 	fetchAll2,
-// 	getAllCategories,
-// 	getPGSidsForOneTraitCategory,
-// 	getPGSidsForOneTraitLabel,
-// 	getPGSIds
-// } from "./src/sdk/getPgs.js";
 
 export { clustSdk as clustjs, localforage, pgp, pgs, prs };
 //# sourceMappingURL=sdk.mjs.map

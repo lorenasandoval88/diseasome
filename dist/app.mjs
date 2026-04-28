@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-DYxi7fU2.mjs');
+        await import('./chunks/displayUsers-CiQZRfyO.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -3668,7 +3668,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			const genos = user?.genotypes ?? [];
 			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id;
 				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			console.log("fetchUsers() filePath:", user, filePath);
+			//console.log("fetchUsers() filePath:", user, filePath);
 			
 			if (!filePath) {
 				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
@@ -3680,7 +3680,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
-				console.error(`Failed to load genome for ${user.id}:`, err);
+				//console.error(`Failed to load genome for ${user.id}:`, err);
 				return null;
 			}
 		});

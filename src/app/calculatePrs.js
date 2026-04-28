@@ -632,7 +632,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
-				console.error(`Failed to load genome for ${user.id}:`, err);
+				//console.error(`Failed to load genome for ${user.id}:`, err);
 				return null;
 			}
 		});

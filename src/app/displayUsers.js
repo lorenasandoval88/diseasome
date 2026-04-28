@@ -358,7 +358,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				p.genotypes?.[0]?.download_url ??
 				p.downloadUrl ??
 				p.download_url;
-			console.log('[displayUsers] participant fields:', p.id, { fileName: p.fileName, finalUrl: p.finalUrl, downloadUrl: p.downloadUrl, geno0: p.genotypes?.[0] });
+			//console.log('[displayUsers] participant fields:', p.id, { fileName: p.fileName, finalUrl: p.finalUrl, downloadUrl: p.downloadUrl, geno0: p.genotypes?.[0] });
 			const rawName = nameFromFilename(genoFilename) || String(p.name ?? "");
 			// Enrich the participant object so selectedUsersMap stores the full name
 			p.name = rawName || p.name;

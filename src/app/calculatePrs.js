@@ -588,7 +588,7 @@ async function fetchUsers() {
 		// Get selected user IDs and users from the 23andMe Data tab or fallback
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
-console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds);
+console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds,selectedUsers);
 // console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
@@ -606,7 +606,6 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
 		}
 
-		console.log(`fetchUsers(): ${selectedIds.length} users selected:`, selectedIds, selectedUsers);
 
 		// Parse genome files for all selected users
 		loadedUsers = [];
@@ -621,7 +620,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			const genos = user?.genotypes ?? [];
 			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id
 				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			console.log("filePath:", user, filePath);
+			//console.log("fetchUsers() filePath:", user, filePath);
 			
 			if (!filePath) {
 				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
@@ -630,7 +629,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			try {
 				const parsed = await load23andMeFile(filePath, user.id);
 				// const parsed = await load23andMeFile(filePath, user.id);
-				console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
+				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
 				console.error(`Failed to load genome for ${user.id}:`, err);

@@ -91,11 +91,11 @@ function Match2(mypgs, my23){
   // Defensive checks
   if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
     console.error("Match2 error: invalid mypgs structure", mypgs);
-    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
   }
   if (!my23 || !my23.cols || !Array.isArray(my23.cols)) {
     console.error("Match2 error: invalid my23 structure", my23);
-    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
   }
 	
   let data2 = {};

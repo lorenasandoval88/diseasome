@@ -1,4 +1,5 @@
-import { load23andMeFile, fetch23andMeParticipants, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
+import { allUsersMetaDataByType_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -113,7 +114,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -543,8 +544,8 @@ window.renderLocalUsers = () => {
 	applyParticipantFilters();
 };
 
-// If the GenomicData tab is already visible on load, render immediately
-if (document.getElementById("GenomicData")?.style.display === "block") {
+// If the LocalData tab is already visible on load, render immediately
+if (document.getElementById("LocalData")?.style.display === "block") {
 	window.renderLocalUsers();
 }
 
@@ -784,3 +785,4 @@ async function computeV4V5Overlap() {
 
 // Initialize v4_v5_23andme on load
 computeV4V5Overlap();
+//# sourceMappingURL=displayUsers-D52UQDG-.mjs.map

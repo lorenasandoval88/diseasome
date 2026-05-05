@@ -44,7 +44,7 @@
                 Code</a>
         </li>
         <li class="nav-item"><a class="nav-link" target="_blank"
-                href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
+                href="https://observablehq.com/@lorenasandoval88/polygenic-risk-scores-sdk-examples">Notebook</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
@@ -70,7 +70,7 @@
                 <button class="glow-on-hover"
                     onclick="location.href='https://observablehq.com/@lorenasandoval88/polygenic-risk-scores?collection=@lorenasandoval88/pgs'"
                     type="button">
-                    Get Started</button>
+                    Try it in a Notebook</button>
             </div>
         </div>
 
@@ -89,8 +89,8 @@
     </script>
 
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Polygenic Scores</button>
-        <button class="tablinks" onclick="tabFunction(event, 'LocalData')">23andMe Data</button>
+        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Risk Models</button>
+        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">23andMe Data</button>
         <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
@@ -130,8 +130,10 @@
                     <ul>
                         <li>A. Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
                         <li>B. Inspect shared and overlapping SNP patterns across users for a selected PGS. (users × one PGS)</li>
-                         <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
-                        <li>D. Explore Similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
+                        <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
+                        <li>D. Explore similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
+                        <li>E. Genotype-level clustering across all users and shared SNPs. (users × shared SNPs)</li>
+                        <li>F. Genome-wide user × SNP genotype clustering from raw 23andMe files.</li>
                     </ul>
                     <hr class="my-3" />
                     <div id="clusterErrorDiv" class="text-danger small mb-2"></div>
@@ -164,11 +166,11 @@
                         predisposition. </p>
                     <hr class="my-3" />
 
-                    <h5 class="prs-step-header d-inline">1.) Select Weight Files</h5>
+                    <h5 class="prs-step-header d-inline">1.) Select Risk Models</h5>
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
-                    <div id=prsScoresDiv>Select at least one scoring file or click below. <a href="#"
+                    <div id=prsScoresDiv>Select at least one risk model or use the option below. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Go
                             to PGS Catalog →</a></div>
                     <button id="loadFallbackScoresBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
@@ -176,12 +178,12 @@
                     <div id="prsScoresAction"></div>
                     <hr class="my-3" />
 
-                    <h5 class="prs-step-header d-inline">2.) Select Genomic Files</h5>
+                    <h5 class="prs-step-header d-inline">2.) Select Genomic Data</h5>
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
                     <div id=prsUsersdiv>Select at least one 23andMe file or click below. <a href="#"
-                            onclick="document.querySelector('.tablinks[onclick*=LocalData]').click(); return false;">Go
+                            onclick="document.querySelector('.tablinks[onclick*=GenomicData]').click(); return false;">Go
                             to 23andMe Data →</a></div>
                     <button id="loadFallbackUsersBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
                         Users</button>
@@ -208,7 +210,7 @@
 
                 <!-- 23 and me ------------------------------------------>
 
-                <div id="LocalData" class="tabcontent">
+                <div id="GenomicData" class="tabcontent">
 
                     <h3>The Personal Genome Project (PGP)</h3>
                     <p>The Personal Genome Project (PGP) is an open-access repository of human genomic data contributed
@@ -218,9 +220,9 @@
 
                     <h3>Data Selection</h3>
                     <hr class="my-3" />
-                    <h5 id="UserTitle" class="mb-2">Load your raw 23andMe file (optional): </h5>
-                    <button id="my23Btn" class="btn btn-primary btn-sm mb-3">Upload Your 23andMe File</button>
-                    <input type="file" id="my23FileInput" accept=".txt,.csv" style="display: none;" />
+                    <h5 id="UserTitle" class="mb-2">Load your raw 23andMe file(s) — up to 5 (optional): </h5>
+                    <button id="my23Btn" class="btn btn-primary btn-sm mb-3">Upload 23andMe File(s)</button>
+                    <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
                     <div id="my23Status" class="small text-muted mb-2"></div>
                     <hr class="my-3" />
 

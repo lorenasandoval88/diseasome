@@ -710,7 +710,7 @@ function loadFallbackScores() {
 	
 	const selectedScores = FALLBACK_SCORES;
 	loadedScores = selectedScores; // Store for calculatePRS
-	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} fallback scoring file(s).`;
+	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} risk model(s).`;
 	if (prsStatus) prsStatus.textContent = ""; // Clear "No scores loaded" message
 	
 	if (resultsDiv) {
@@ -932,6 +932,16 @@ function nameFromFilename(filename) {
  * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
  */
 async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
+	/*** Helper: Calculate PRS with automatic caching
+ * Checks cache first, calculates if not found, then stores result.
+ * @param {Object} mypgs - Parsed PGS data
+ * @param {Object} my23 - Parsed 23andMe genome
+ * @param {string} userId - User ID (for cache key)
+ * @param {string} pgsId - PGS ID (for cache key)
+ * @param {Object} userData - Full user data (for result enrichment)
+ * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
+ */
+
     // Check cache first
     let cached = await getCachedPRS(userId, pgsId);
     if (cached) {
@@ -957,6 +967,9 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     // Calculate if not cached
     const result = Match2(mypgs, my23);
+	console.log("Match2 mypgs:", mypgs);
+	console.log("Match2 my23:", my23);
+	console.log("Calculated PRS result:", result);
     const organizedData = organizeResultsByAllele(result, mypgs);
     
     const prsResult = {

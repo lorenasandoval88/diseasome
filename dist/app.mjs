@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-B_MI7i4V.mjs');
+        await import('./chunks/displayUsers-D_NAy2Px.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -64,8 +64,8 @@ async function tabFunction(evt, openTab, subTab) {
         if (openTab === 'PGSCatalog') {
             try { await ensurePgsModuleLoaded(); } catch (e) { console.error('PGS module load error', e); }
         }
-        if (openTab === 'LocalData') {
-            try { await ensureLocalDataModuleLoaded(); } catch (e) { console.error('LocalData module load error', e); }
+        if (openTab === 'GenomicData') {
+            try { await ensureLocalDataModuleLoaded(); } catch (e) { console.error('GenomicData module load error', e); }
             if (typeof window.renderLocalUsers === 'function') {
                 try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
             }
@@ -3758,7 +3758,7 @@ function loadFallbackScores() {
 	
 	const selectedScores = FALLBACK_SCORES;
 	loadedScores = selectedScores; // Store for calculatePRS
-	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} fallback scoring file(s).`;
+	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} risk model(s).`;
 	if (prsStatus) prsStatus.textContent = ""; // Clear "No scores loaded" message
 	
 	if (resultsDiv) {
@@ -3980,6 +3980,16 @@ function nameFromFilename(filename) {
  * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
  */
 async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
+	/*** Helper: Calculate PRS with automatic caching
+ * Checks cache first, calculates if not found, then stores result.
+ * @param {Object} mypgs - Parsed PGS data
+ * @param {Object} my23 - Parsed 23andMe genome
+ * @param {string} userId - User ID (for cache key)
+ * @param {string} pgsId - PGS ID (for cache key)
+ * @param {Object} userData - Full user data (for result enrichment)
+ * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
+ */
+
     // Check cache first
     let cached = await getCachedPRS(userId, pgsId);
     if (cached) {
@@ -4005,6 +4015,9 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     // Calculate if not cached
     const result = Match2(mypgs, my23);
+	console.log("Match2 mypgs:", mypgs);
+	console.log("Match2 my23:", my23);
+	console.log("Calculated PRS result:", result);
     const organizedData = organizeResultsByAllele(result, mypgs);
     
     const prsResult = {
@@ -6386,11 +6399,25 @@ async function renderCluster() {
   const genotypeClusterCols = window.clusterOptions?.genotypeClusterCols ?? false;
   const genotypeClusterMethod = window.clusterOptions?.genotypeClusterMethod ?? 'complete';
   const genotypeClusterDistance = window.clusterOptions?.genotypeClusterDistance ?? 'euclidean';
+  const activeClusterSection = window.clusterOptions?.activeClusterSection ?? 'A';
 
   // Update loading message before rendering
   await updateLoading("Rendering clusters...");
 
   clusterContainer.innerHTML = `
+    <div class="mb-3">
+      <strong>Display Section:</strong>
+      <div class="btn-group ms-2 flex-wrap" role="group" aria-label="Cluster sections">
+        <button id="displayA" class="btn btn-sm ${activeClusterSection === 'A' ? 'btn-primary' : 'btn-outline-primary'}">A. PRS Clustering</button>
+        <button id="displayB" class="btn btn-sm ${activeClusterSection === 'B' ? 'btn-primary' : 'btn-outline-primary'}">B. Users × One PGS</button>
+        <button id="displayC" class="btn btn-sm ${activeClusterSection === 'C' ? 'btn-primary' : 'btn-outline-primary'}">C. PGS × One User</button>
+        <button id="displayD" class="btn btn-sm ${activeClusterSection === 'D' ? 'btn-primary' : 'btn-outline-primary'}">D. PGS × PGS Weights</button>
+        <button id="displayE" class="btn btn-sm ${activeClusterSection === 'E' ? 'btn-primary' : 'btn-outline-primary'}">E. Genotype-level Clustering</button>
+        <button id="displayF" class="btn btn-sm ${activeClusterSection === 'F' ? 'btn-primary' : 'btn-outline-primary'}">F. Genome-wide Genotypes</button>
+      </div>
+    </div>
+
+    <div id="clusterSectionA" style="display:${activeClusterSection === 'A' ? 'block' : 'none'};">
     <h5>A. PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
     <p class="text-muted small mb-3">
       Hierarchical clustering of PRS results (${pivoted.length} users × ${Object.keys(pivoted[0]).length - 1} PGS entries).
@@ -6421,9 +6448,9 @@ async function renderCluster() {
       </div>
     </div>
     <div id="clusterPlotMount"></div>
+    </div>
 
-    <hr class="my-4" />
-
+    <div id="clusterSectionB" style="display:${activeClusterSection === 'B' ? 'block' : 'none'};">
     <h5>B. Users x one PGS, ${alleleValueMode === 'risk_x_allele' ? 'risk × allele' : 'allele counts'} (${pivoted.length} Users × ${totalVariants} Variants for ${selectedPgsId})</h5>
     <p class="text-muted small mb-2">
       ${alleleValueMode === 'risk_x_allele'
@@ -6523,8 +6550,9 @@ async function renderCluster() {
       </div>
     </div>
 
-    <hr class="my-4" />
+    </div>
 
+    <div id="clusterSectionC" style="display:${activeClusterSection === 'C' ? 'block' : 'none'};">
     <h5>C. PGS vs One user, allele counts(${pgsVsSnpsPgsCount} PGS Entries for ${selectedUserName})</h5>
     <p class="text-muted small mb-2">
       Cluster PGS entries by their matched SNP allele patterns for a single user. Rows = PGS entries, Columns = SNPs.
@@ -6590,8 +6618,9 @@ async function renderCluster() {
       </div>
     </div>
 
-    <hr class="my-4" />
+    </div>
 
+    <div id="clusterSectionD" style="display:${activeClusterSection === 'D' ? 'block' : 'none'};">
     <h5>D. PGS × PGS effect wirghts (${pgsEffectPgsCount} PGS Entries)</h5>
     <p class="text-muted small mb-2">
       Cluster PGS entries by their SNP effect weights (z-scored). Rows = PGS, Columns = SNPs, Values = effect_weight.
@@ -6648,14 +6677,18 @@ async function renderCluster() {
       </div>
     </div>
 
-    <hr class="my-4" />
+    </div>
 
-    <h5>E. Genotype-level Clustering ${genotypeMatrixResult ? `(${genotypeMatrixResult.userIds.length} Users × ${genotypeMatrixResult.snpCount} Shared SNPs)` : '(No data)'}</h5>
-    <p class="text-muted small mb-3">
-      ${genotypeMatrixResult
-        ? 'Genotype similarity was quantified using allele-sharing distance, where genotypes sharing two, one, or zero alleles were assigned distances of 0, 1, and 2, respectively. Each cell shows the encoded raw genotype (AA=0, AC=1, AG=2, AT=3, CC=4, CG=5, CT=6, GG=7, GT=8, TT=9) at each SNP shared across all users.'
-        : 'Insufficient data for genotype clustering (need ≥2 users with shared matched variants).'}
-    </p>
+    <div id="clusterSectionE" style="display:${activeClusterSection === 'E' ? 'block' : 'none'};">
+    <h5>E. Genotype-level Clustering ${genotypeMatrixResult ? `(${genotypeMatrixResult.userIds.length} Users × ${genotypeMatrixResult.snpCount} Shared SNPs, all PGS combined)` : '(No data)'}</h5>
+    <div class="text-muted small mb-3">
+      <div><b>Summary:</b> ${genotypeMatrixResult ? `${genotypeMatrixResult.userIds.length} users clustered by ${genotypeMatrixResult.snpCount} SNPs shared across all users and all loaded PGS models.` : 'No summary available.'}</div>
+      <div>
+        ${genotypeMatrixResult
+          ? 'Genotype similarity was quantified using allele-sharing distance, where genotypes sharing two, one, or zero alleles were assigned distances of 0, 1, and 2, respectively. Each cell shows the encoded raw genotype (AA=0, AC=1, AG=2, AT=3, CC=4, CG=5, CT=6, GG=7, GT=8, TT=9) at each SNP shared across all users.'
+          : 'Insufficient data for genotype clustering (need ≥2 users with shared matched variants).'}
+      </div>
+    </div>
 
     ${genotypeMatrixResult ? `
       <div class="mb-2">
@@ -6698,8 +6731,9 @@ async function renderCluster() {
       </div>
     ` : `<div class="alert alert-warning mb-3">Cannot generate genotype clustering. Check that multiple users have loaded genome data with matched variants.</div>`}
 
-    <hr class="my-4" />
+    </div>
 
+    <div id="clusterSectionF" style="display:${activeClusterSection === 'F' ? 'block' : 'none'};">
     <div class="card mb-4">
       <div class="card-header">
         <strong>F. Genome-wide User × SNP Genotype Clustering</strong>
@@ -6763,7 +6797,18 @@ async function renderCluster() {
         <div id="rawGenoPlot" class="mt-3"></div>
       </div>
     </div>
+    </div>
   `;
+
+  // Section display handlers (A-F)
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach((section) => {
+    const btn = document.getElementById(`display${section}`);
+    if (!btn) return;
+    btn.onclick = () => {
+      window.clusterOptions = { ...window.clusterOptions, activeClusterSection: section };
+      renderCluster();
+    };
+  });
 
   // Attach button handlers for PRS clustering
   document.getElementById('clusterRowsBtn').onclick = () => {
@@ -7176,7 +7221,7 @@ async function renderCluster() {
     });
   }
 
-  // Render PRS cluster plot
+  // A. Render PRS cluster plot
   //console.log('[Section A] pivoted:', JSON.stringify(pivoted), 'divEl:', document.getElementById('clusterPlotMount'));
   try {
     await hclust_plot({
@@ -7232,7 +7277,7 @@ async function renderCluster() {
   })();
   const greenColorScale = d3.scaleLinear().domain([0, 1, 2]).range(["#f7fcf5", "#74c476", "#006d2c"]);
 
-  // Render 1. All Variants plot
+  // B. Render 1. All Variants plot
   if (allMatrix) {
     await hclust_plot({
        divId:  "allVariantsPlot",
@@ -7250,7 +7295,7 @@ async function renderCluster() {
     });
   }
 
-  // Render 2. Overlapping Matches plot
+  // B. Render 2. Overlapping Matches plot
   if (overlapMatrix) {
     await hclust_plot({
        divId:  "overlapPlot",
@@ -7268,7 +7313,7 @@ async function renderCluster() {
     });
   }
 
-  // Render 3. Shared Matched SNPs plot
+  // B. Render 3. Shared Matched SNPs plot
   if (sharedMatrix && Object.keys(sharedMatrix[0]).length > 1) {
     await hclust_plot({
        divId:  "sharedPlot",
@@ -7289,7 +7334,7 @@ async function renderCluster() {
       `<div class="alert alert-info">No SNPs shared across all users.</div>`;
   }
 
-  // Render PGS vs SNPs plots (three views)
+  // C. Render PGS vs SNPs plots (three views)
   if (pgsVsSnpsAllMatrix && pgsVsSnpsAllMatrix.length >= 2) {
     await hclust_plot({
        divId:  "pgsVsSnpsAllPlot",
@@ -7376,7 +7421,7 @@ async function renderCluster() {
     .domain([-effectExtent, 0, effectExtent])
     .range(["#2166ac", "#f7f7f7", "#b2182b"]);
     
-  // Render PGS Effect Weight plots (All, Overlapping, Shared)
+  // D. Render PGS Effect Weight plots (All, Overlapping, Shared)
   if (pgsEffectAll && pgsEffectAll.data.length >= 2) {
     await hclust_plot({
        divId:  "pgsEffectAllPlot",
@@ -7428,7 +7473,7 @@ async function renderCluster() {
     });
   }
 
-  // Render Section E: Genotype allele count heatmap (users × shared SNPs)
+  // E. Render Section E: Genotype allele count heatmap (users × shared SNPs)
   if (genotypeMatrix) {
     // Genotype codes 0–9: AA AC AG AT CC CG CT GG GT TT
     const genotypeColorScale = d3.scaleLinear()

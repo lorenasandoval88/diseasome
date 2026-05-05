@@ -44,8 +44,8 @@ async function tabFunction(evt, openTab, subTab) {
         if (openTab === 'PGSCatalog') {
             try { await ensurePgsModuleLoaded(); } catch (e) { console.error('PGS module load error', e); }
         }
-        if (openTab === 'LocalData') {
-            try { await ensureLocalDataModuleLoaded(); } catch (e) { console.error('LocalData module load error', e); }
+        if (openTab === 'GenomicData') {
+            try { await ensureLocalDataModuleLoaded(); } catch (e) { console.error('GenomicData module load error', e); }
             if (typeof window.renderLocalUsers === 'function') {
                 try { window.renderLocalUsers(); } catch (e) { console.error('renderLocalUsers error', e); }
             }

@@ -56,3 +56,5 @@ Public exports from `sdk.js`:
 	- `getPGSIds`
 - PRS
 	- `Match2`
+
+ - For cloud scaling see wiki

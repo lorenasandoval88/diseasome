@@ -124,11 +124,28 @@ Run `npm run build` to generate:
 
 ## Run
 
-- Open `index.html` with a local static server (e.g. VS Code Live Server)
-- For API calls, use the browser or Node SDK as shown above
+- Open `index.html` with a local static server (for example VS Code Live Server).
 
----
+## SDK API
 
-## License
+Public exports from `sdk.js`:
 
-MIT
+- 23andMe
+	- `get23meUrls`
+	- `parse23`
+	- `get23`
+- PGS
+	- `searchTraits`
+	- `getPGSTxts`
+	- `getPGSTxts2`
+	- `getPGSTxtsHm`
+	- `parsePGS`
+	- `loadScore`
+	- `loadScore2`
+	- `fetchAll2`
+	- `getAllCategories`
+	- `getPGSidsForOneTraitCategory`
+	- `getPGSidsForOneTraitLabel`
+	- `getPGSIds`
+- PRS
+	- `Match2`

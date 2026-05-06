@@ -7,4 +7,4 @@ export {
 	getScoresPerTrait,
 	getScoresPerCategory,
 	getTxts
-} from "pgs_catalog_sdk";
+} from "pgs_catalog_sdk/cloud_sdk.mjs";

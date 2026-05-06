@@ -5,4 +5,4 @@ export {
 	allUsersMetaDataByType_fast,
 	fetchProfile,
 	load23andMeFile
-} from "personal_genomes_project_sdk";
+} from "personal_genomes_project_sdk/cloud_sdk.mjs";

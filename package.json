@@ -6,11 +6,14 @@
   "main": "./dist/sdk.mjs",
   "module": "./dist/sdk.mjs",
   "exports": {
-    ".": "./dist/sdk.mjs"
+    ".": "./dist/sdk.mjs",
+    "./cloud_sdk.mjs": "./dist/cloud_sdk.mjs"
   },
   "files": [
     "dist/sdk.mjs",
     "dist/sdk.mjs.map",
+    "dist/cloud_sdk.mjs",
+    "dist/cloud_sdk.mjs.map",
     "README.md"
   ],
   "keywords": [

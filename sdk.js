@@ -1,7 +1,8 @@
 import localforage from "localforage";
 import * as clustjs from "./src/sdk/clustSdk.js";
 import {
-	fetch23andMeParticipants, fetchProfile, load23andMeFile
+	fetch23andMeParticipants, fetchProfile, load23andMeFile,
+	allUsersMetaDataByType_fast, fetchAvailableDataTypes
 } from "./src/sdk/pgpSdk.js";
 
 import {

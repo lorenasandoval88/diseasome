@@ -30,5 +30,16 @@ export default [
       format: "es",
       sourcemap: true
     }
+  },
+  // Node-safe SDK build for Cloud Run
+  {
+    input: "./src/sdk/cloudNodeEntry.js",
+    external: baseExternal,
+    plugins: basePlugins,
+    output: {
+      file: "./dist/cloud_sdk.mjs",
+      format: "es",
+      sourcemap: true
+    }
   }
 ];

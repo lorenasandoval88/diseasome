@@ -34,8 +34,18 @@ export default [
   // Node-safe SDK build for Cloud Run
   {
     input: "./src/sdk/cloudNodeEntry.js",
-    external: baseExternal,
-    plugins: basePlugins,
+    external: (id) => {
+      // Only externalize Node built-ins, not npm packages or https imports
+      const nodeBuiltins = ['fs', 'path', 'crypto', 'stream', 'util', 'http', 'https', 'net', 'os', 'zlib'];
+      return id.startsWith('node:') || nodeBuiltins.includes(id);
+    },
+    plugins: [
+      nodeResolve({ 
+        browser: false,
+        preferBuiltins: true
+      }),
+      commonjs()
+    ],
     output: {
       file: "./dist/cloud_sdk.mjs",
       format: "es",

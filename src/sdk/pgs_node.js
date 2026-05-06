@@ -6,5 +6,6 @@ export {
 	fetchTraits,
 	getScoresPerTrait,
 	getScoresPerCategory,
-	getTxts
+	getTxts,
+	loadScoreStats
 } from "pgs_catalog_sdk/cloud_sdk.mjs";

@@ -1,0 +1,126 @@
+/* =========================
+   Base resets & globals
+   ========================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+
+
+/* =========================
+   Typography
+   ========================= */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Montserrat", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+}
+
+p.lead {
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
+/* =========================
+   Navbar
+   ========================= */
+#mainNav,
+.navbar {
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+}
+
+#mainNav .navbar-brand,
+.navbar .navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+#mainNav .nav-link,
+.navbar .nav-link {
+  font-weight: 600;
+}
+
+/* =========================
+   Masthead / Hero
+   ========================= */
+.masthead {
+  padding-top: 6rem;
+  padding-bottom: 6rem;
+}
+
+.masthead-heading {
+  font-size: 2.75rem;
+}
+
+.masthead-subheading {
+  font-size: 1.25rem;
+  opacity: 0.9;
+}
+
+/* =========================
+   Divider (stars)
+   ========================= */
+.divider-custom {
+  margin: 1.25rem 0 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.divider-custom-line {
+  width: 100%;
+  max-width: 7rem;
+  height: 0.25rem;
+  background-color: #2c3e50;
+  border-radius: 1rem;
+}
+
+.divider-custom-icon {
+  color: #2c3e50;
+  font-size: 1.5rem;
+  margin: 0 1rem;
+}
+
+.divider-light .divider-custom-line {
+  background-color: #ffffff;
+}
+
+.divider-light .divider-custom-icon {
+  color: #ffffff;
+}
+
+/* =========================
+   Portfolio cards
+   ========================= */
+.portfolio-item {
+  cursor: pointer;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.portfolio-item img {
+  transition: transform 0.3s ease;
+}
+
+.portfolio-item:hover img {
+  transform: scale(1.05);
+}
+
+.portfolio-item-caption {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(44, 62, 80, 0.85);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.portfolio-item:hover .portfolio-item-caption {
+  opacity: 1;
+}

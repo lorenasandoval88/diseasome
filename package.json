@@ -27,7 +27,8 @@
   "dependencies": {
     "@xenova/transformers": "^2.17.0",
     "localforage": "^1.10.0",
-    "personal_genomes_project_sdk": "github:lorenasandoval88/personal_genomes_project_sdk"
+    "personal_genomes_project_sdk": "github:lorenasandoval88/personal_genomes_project_sdk",
+    "pgs_catalog_sdk": "github:lorenasandoval88/pgs_catalog_sdk"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.2",

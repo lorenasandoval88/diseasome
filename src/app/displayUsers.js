@@ -1,4 +1,5 @@
 import { load23andMeFile, fetch23andMeParticipants, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
+import localforage from "localforage";
 // console.log("displayUsers.js loaded")
 
 /**
@@ -634,6 +635,14 @@ if (my23Btn && my23FileInput) {
 					profileUrl: null,
 					publishedDate: publishedDate,
 				};
+
+				// Cache parsed genome data using the same key pattern as calculatePrs.js
+				try {
+					await localforage.setItem(`Genome:23andMe-txt-${userId}`, parsed);
+					console.log(`Cached uploaded genome for ${userId} (${parsed.dt.length} variants)`);
+				} catch (cacheErr) {
+					console.warn(`Failed to cache genome for ${userId}:`, cacheErr);
+				}
 
 				if (selectedUserIds.size < MAX_SELECTION) {
 					selectedUserIds.add(userId);

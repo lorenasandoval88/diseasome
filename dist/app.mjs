@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-D_NAy2Px.mjs');
+        await import('./chunks/displayUsers-DdazXxiR.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -4368,7 +4368,7 @@ function inspectFiles(result) {
     
     // Build PGS Catalog link
     const pgsCatalogUrl = `https://www.pgscatalog.org/score/${pgsId}/`;
-    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/${pgsId}.txt.gz`;
+    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/Harmonized/${pgsId}_hmPOS_GRCh37.txt.gz`;
     
     div.style.display = '';
     div.innerHTML = `
@@ -32930,4 +32930,6 @@ window.renderWebLLM = renderWebLLM;
 window.initWebLLMModel = initModel;
 window.clearWebLLMCache = clearModelCache;
 window.unloadWebLLMModel = unloadModel;
+
+export { localforage as l };
 //# sourceMappingURL=app.mjs.map

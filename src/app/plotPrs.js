@@ -58,7 +58,7 @@ function inspectFiles(result) {
     
     // Build PGS Catalog link
     const pgsCatalogUrl = `https://www.pgscatalog.org/score/${pgsId}/`;
-    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/${pgsId}.txt.gz`;
+    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/Harmonized/${pgsId}_hmPOS_GRCh37.txt.gz`;
     
     div.style.display = '';
     div.innerHTML = `

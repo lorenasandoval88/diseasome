@@ -241,12 +241,18 @@
                 <!-- PRS ------------------------------------------>
 
                 <div id="PRS" class="tabcontent" style="display: block;">
-                    <h3>PRS</h3>
-                    <p>Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining
-                        the
-                        effects of many genetic variants across the genome. Each variant contributes a small effect, and
-                        these effects are weighted and summed to produce a single score that reflects relative genetic
-                        predisposition. </p>
+                    <h3 class="d-flex align-items-center gap-2">
+                        PRS
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="focus"
+                                data-bs-placement="right"
+                                data-bs-html="true"
+                                title="What is a PRS?"
+                                data-bs-content="Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining the effects of many genetic variants across the genome. Each variant contributes a small effect, and these effects are weighted and summed to produce a single score that reflects relative genetic predisposition."
+                                aria-label="What is a PRS?">?</button>
+                    </h3>
                     <hr class="my-3" />
 
                     <h5 class="prs-step-header d-inline">1.) Select Risk Models</h5>

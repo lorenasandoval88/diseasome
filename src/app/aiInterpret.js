@@ -26,6 +26,7 @@ function summarizePrsForAI() {
 }
 
 function buildAIPrompt(question) {
+	console.log("Building AI prompt with question:", question);
 	const summary = summarizePrsForAI();
 
 	return `You are helping interpret exploratory polygenic risk score clustering results.
@@ -45,6 +46,7 @@ ${JSON.stringify(summary, null, 2)}`;
 }
 
 async function callOpenAI(apiKey, prompt) {
+	console.log("Calling OpenAI with prompt:", prompt);
 	const res = await fetch("https://api.openai.com/v1/responses", {
 		method: "POST",
 		headers: {

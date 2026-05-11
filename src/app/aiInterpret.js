@@ -344,3 +344,11 @@ document.getElementById("runAIInterpretBtn")?.addEventListener("click", async ()
 	providerEl.addEventListener("change", syncModels);
 	syncModels();
 })();
+
+// Initialize Bootstrap popovers (e.g., the "?" help button next to API Key).
+(function initAIPopovers() {
+	if (typeof bootstrap === "undefined" || !bootstrap.Popover) return;
+	document.querySelectorAll('[data-bs-toggle="popover"]').forEach(el => {
+		if (!bootstrap.Popover.getInstance(el)) new bootstrap.Popover(el);
+	});
+})();

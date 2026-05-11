@@ -192,7 +192,18 @@
                     </div>
 
                     <div class="mb-3" style="max-width:600px">
-                        <label class="form-label fw-semibold">API Key</label>
+                        <label class="form-label fw-semibold d-flex align-items-center gap-2">
+                            API Key
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    style="line-height:1;border-radius:50%;font-weight:bold"
+                                    data-bs-toggle="popover"
+                                    data-bs-trigger="focus"
+                                    data-bs-placement="right"
+                                    data-bs-html="true"
+                                    title="Model guidance"
+                                    data-bs-content="<ul class='mb-0 ps-3'><li><strong>Cheap default:</strong> <em>gpt-4.1-mini</em> (~0.1–0.5¢ per interpretation) — handles JSON summaries well.</li><li><strong>Deeper reasoning / publication-style:</strong> <em>gpt-4.1</em> or <em>claude-sonnet-4-5</em>.</li><li><strong>Image input</strong> (dendrograms, heatmaps, PCA, UMAP): <em>gpt-4o</em>.</li><li><strong>Quickest / cheapest summaries:</strong> <em>claude-haiku-4-5</em>.</li></ul><div class='mt-1'>Make sure the selected model matches the chosen provider.</div>"
+                                    aria-label="Model guidance">?</button>
+                        </label>
                         <input id="aiApiKey" type="password" class="form-control" placeholder="Paste your API key (stored only in this browser session)">
                         <div class="form-text">
                             <strong>How to get a key:</strong>

@@ -5423,6 +5423,10 @@ function invalidateClusterCache() {
 // Expose cache invalidation globally so it can be called when PRS is recalculated
 window.invalidateClusterCache = invalidateClusterCache;
 
+// Expose cluster cache via getter so AI Interpret tab can summarize clustering results.
+// Uses a getter because invalidateClusterCache() reassigns the clusterCache variable.
+window.getClusterCache = () => clusterCache;
+
 
 /**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
@@ -7531,12 +7535,185 @@ function summarizePrsForAI() {
 		trait: r.pgs?.meta?.trait_reported ?? r.pgs?.meta?.trait ?? null
 	}));
 
+	// --- Clustering-oriented derived structure ---
+	// Build a user × PGS pivot of PRS values so the model can see relative patterns.
+	const round = v => (Number.isFinite(v) ? Number(v.toFixed(4)) : null);
+	const pivot = {};
+	for (const r of results) {
+		if (!r.userId || !Number.isFinite(r.PRS)) continue;
+		const label = r.userName ?? r.userId;
+		if (!pivot[label]) pivot[label] = {};
+		pivot[label][r.pgsId] = round(r.PRS);
+	}
+
+	// Per-PGS z-scores across users → highlights who is high/low for each trait.
+	const zPivot = {};
+	for (const pgsId of pgsIds) {
+		const vals = Object.values(pivot)
+			.map(row => row[pgsId])
+			.filter(v => Number.isFinite(v));
+		if (vals.length < 2) continue;
+		const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+		const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
+		for (const label of Object.keys(pivot)) {
+			const v = pivot[label][pgsId];
+			if (!Number.isFinite(v)) continue;
+			zPivot[label] = zPivot[label] || {};
+			zPivot[label][pgsId] = round((v - mean) / sd);
+		}
+	}
+
+	// Pairwise Euclidean distances between users on z-scored PRS profiles.
+	// Compact representation of clustering "shape" without sending raw genotypes.
+	const userLabels = Object.keys(zPivot);
+	const distances = [];
+	for (let i = 0; i < userLabels.length; i++) {
+		for (let j = i + 1; j < userLabels.length; j++) {
+			const a = zPivot[userLabels[i]];
+			const b = zPivot[userLabels[j]];
+			let sumSq = 0, n = 0;
+			for (const pgsId of pgsIds) {
+				if (Number.isFinite(a[pgsId]) && Number.isFinite(b[pgsId])) {
+					sumSq += (a[pgsId] - b[pgsId]) ** 2;
+					n++;
+				}
+			}
+			if (n > 0) {
+				distances.push({
+					a: userLabels[i],
+					b: userLabels[j],
+					sharedPgs: n,
+					euclidean: round(Math.sqrt(sumSq))
+				});
+			}
+		}
+	}
+
+	// Per-PGS missingness rate across users (fraction of users missing this PGS score).
+	const missingnessPerPgs = pgsIds.map(pgsId => {
+		const total = users.length || 1;
+		const present = Object.values(pivot).filter(row => Number.isFinite(row[pgsId])).length;
+		return { pgsId, present, total, missingFraction: round(1 - present / total) };
+	});
+
+	// --- Section A–F clustering summaries (compact, no raw matrices) ---
+	const opts = window.clusterOptions || {};
+	const cache = (typeof window.getClusterCache === 'function') ? window.getClusterCache() : null;
+
+	const matrixDims = m => (Array.isArray(m) && m.length > 0)
+		? { rows: m.length, cols: Math.max(0, Object.keys(m[0]).length - 1) }
+		: null;
+
+	const sectionsRun = {};
+	if (cache) {
+		// A. PRS Clustering (users × PGS pivot)
+		if (cache.pivoted) {
+			sectionsRun.A = {
+				title: 'A. PRS Clustering (Users × PGS)',
+				dims: matrixDims(cache.pivoted),
+				options: {
+					clusterRows: opts.clusterRows ?? true,
+					clusterCols: opts.clusterCols ?? true,
+					linkage: opts.clusterMethod ?? 'complete',
+					distance: opts.clusterDistance ?? 'euclidean'
+				}
+			};
+		}
+		// B. Users × One PGS (allele/risk matrices)
+		if (cache.alleleMatrices) {
+			sectionsRun.B = {
+				title: 'B. Users × One PGS (allele matrices)',
+				selectedPgsId: opts.selectedPgsId ?? null,
+				valueMode: opts.alleleValueMode ?? 'allele',
+				dims: {
+					all: matrixDims(cache.alleleMatrices.allMatrix),
+					overlapping: matrixDims(cache.alleleMatrices.overlapMatrix),
+					shared: matrixDims(cache.alleleMatrices.sharedMatrix)
+				},
+				options: {
+					clusterRows: opts.clusterAlleleRows ?? true,
+					clusterCols: opts.clusterAlleleCols ?? true,
+					linkage: opts.alleleClusterMethod ?? 'complete',
+					distance: opts.alleleClusterDistance ?? 'euclidean'
+				}
+			};
+		}
+		// C. PGS × One User
+		if (cache.pgsVsSnpsMatrices) {
+			sectionsRun.C = {
+				title: 'C. PGS × One User (PGS rows × SNP cols)',
+				selectedUserId: opts.selectedUserId ?? null,
+				dims: {
+					all: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsAllMatrix),
+					overlapping: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsOverlapMatrix),
+					shared: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsSharedMatrix)
+				},
+				options: {
+					clusterRows: opts.pgsVsSnpsClusterRows ?? true,
+					clusterCols: opts.pgsVsSnpsClusterCols ?? false
+				}
+			};
+		}
+		// D. PGS × PGS effect weights
+		if (cache.effectMatrices) {
+			const e = cache.effectMatrices;
+			sectionsRun.D = {
+				title: 'D. PGS × SNP effect-weight clustering',
+				pgsCount: e.pgsEffectAll?.pgsCount ?? null,
+				snpCounts: {
+					all: cache.snpLists?.allSnpsList?.length ?? null,
+					overlapping: cache.snpLists?.overlapSnpsList?.length ?? null,
+					shared: cache.snpLists?.sharedSnpsList?.length ?? null
+				},
+				options: {
+					clusterRows: opts.effectClusterRows ?? true,
+					clusterCols: opts.effectClusterCols ?? false
+				}
+			};
+		}
+		// E. Genotype-level clustering (users × shared SNPs encoded genotype)
+		if (cache.genotypeDistData) {
+			const g = cache.genotypeDistData.result;
+			sectionsRun.E = {
+				title: 'E. Genotype-level Clustering (Users × shared SNPs)',
+				dims: matrixDims(cache.genotypeDistData.plotData),
+				snpCount: g?.snpCount ?? null,
+				userCount: g?.userCount ?? null,
+				options: {
+					clusterRows: opts.genotypeClusterRows ?? true,
+					clusterCols: opts.genotypeClusterCols ?? false,
+					linkage: opts.genotypeClusterMethod ?? 'complete',
+					distance: opts.genotypeClusterDistance ?? 'euclidean'
+				}
+			};
+		}
+		// F. Genome-wide raw genotype matrix
+		if (cache.rawGenoMatrix) {
+			sectionsRun.F = {
+				title: 'F. Genome-wide Genotypes',
+				dims: matrixDims(cache.rawGenoMatrix)
+			};
+		}
+	}
+
+	const activeSection = opts.activeClusterSection ?? null;
+
 	return {
 		context: "Browser-native PRS and clustering SDK. Interpret results as exploratory, not clinical.",
 		users,
 		pgsIds,
 		resultCount: results.length,
-		prsSummary
+		prsSummary,
+		clustering: {
+			note: "PRS pivot, per-PGS z-scores, and pairwise Euclidean distances between users computed from the z-scored user × PGS matrix. Use these to discuss which users group together and which PGS scores drive the separation.",
+			prsPivot: pivot,
+			zScorePivot: zPivot,
+			pairwiseUserDistances: distances,
+			missingnessPerPgs,
+			sectionsRun,
+			activeSection,
+			sectionsNote: "sectionsRun lists which clustering views (A–F) the user has computed in the Cluster tab, with matrix dimensions and the linkage/distance/cluster-axis options chosen for each. Reference these explicitly when interpreting results."
+		}
 	};
 }
 
@@ -7552,6 +7729,16 @@ Important constraints:
 - Discuss missing variants, matched variant counts, clustering patterns, and technical limitations.
 - Mention possible platform/genotyping overlap effects.
 - Write in language suitable for a Bioinformatics application note.
+
+Clustering sections present in the data summary (clustering.sectionsRun):
+- A: PRS Clustering (Users × PGS)
+- B: Users × One PGS (allele or risk × allele matrices)
+- C: PGS × One User (PGS rows × SNP columns)
+- D: PGS × SNP effect-weight clustering
+- E: Genotype-level clustering (Users × shared SNPs)
+- F: Genome-wide raw genotype matrix
+Only comment on sections that actually appear in clustering.sectionsRun. For each present
+section, reference its dimensions and chosen linkage/distance/cluster-axis options.
 
 User question:
 ${question}
@@ -7576,6 +7763,7 @@ async function callOpenAI(apiKey, prompt, model = "gpt-4.1-mini") {
 
 	if (!res.ok) throw new Error(await res.text());
 	const data = await res.json();
+	//Now aiInterpret.js shows just output_text (or Claude's joined content[].text) in the main pane, with a "View full JSON" button (Bootstrap collapse) that reveals the raw response below.
 	const text = data.output_text
 		?? data.output?.flatMap(o => o.content ?? []).map(c => c.text).filter(Boolean).join("\n")
 		?? "(no output_text returned)";
@@ -7600,6 +7788,7 @@ async function callClaude(apiKey, prompt, model = "claude-sonnet-4-5") {
 
 	if (!res.ok) throw new Error(await res.text());
 	const data = await res.json();
+	//Now aiInterpret.js shows just output_text (or Claude's joined content[].text) in the main pane, with a "View full JSON" button (Bootstrap collapse) that reveals the raw response below.
 	const text = data.content?.map(x => x.text).join("\n") ?? "(no content returned)";
 	return { text, raw: data };
 }

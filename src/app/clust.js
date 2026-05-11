@@ -108,6 +108,10 @@ function invalidateClusterCache() {
 // Expose cache invalidation globally so it can be called when PRS is recalculated
 window.invalidateClusterCache = invalidateClusterCache;
 
+// Expose cluster cache via getter so AI Interpret tab can summarize clustering results.
+// Uses a getter because invalidateClusterCache() reassigns the clusterCache variable.
+window.getClusterCache = () => clusterCache;
+
 
 /**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into

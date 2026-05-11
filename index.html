@@ -96,8 +96,12 @@
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
         <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" style="background:#fff3cd;color:#856404;border-color:#ffc107" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
         <button id="transformersjsButton" class="tablinks"
-            onclick="tabFunction(event, 'transformersjs')">Transformers.js</button>
-        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')">WebLLM</button>
+            onclick="tabFunction(event, 'transformersjs')"
+            style="background:#d1e7dd;color:#0f5132;border-color:#198754"
+            title="Runs locally in your browser — no data leaves your device">🔒 Transformers.js</button>
+        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')"
+            style="background:#d1e7dd;color:#0f5132;border-color:#198754"
+            title="Runs locally in your browser via WebGPU — no data leaves your device">🔒 WebLLM</button>
         <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')">About</button>
     </div>
     <div id="selection"></div>
@@ -163,8 +167,41 @@
                     </div>
 
                     <div class="mb-3" style="max-width:600px">
+                        <label class="form-label fw-semibold">Model</label>
+                        <select id="aiModel" class="form-select">
+                            <optgroup label="OpenAI — best balance: cheap + good interpretation">
+                                <option value="gpt-4.1-mini" selected>gpt-4.1-mini — cheap, fast, strong scientific writing (default)</option>
+                                <option value="gpt-4.1">gpt-4.1 — better reasoning, publication-style summaries (~5–10× cost)</option>
+                                <option value="gpt-4o">gpt-4o — multimodal, can interpret plots/heatmaps/PCA images</option>
+                            </optgroup>
+                            <optgroup label="Anthropic — excellent scientific writing">
+                                <option value="claude-sonnet-4-5">claude-sonnet-4-5 — strongest bioinformatics prose & cautious caveats</option>
+                                <option value="claude-haiku-4-5">claude-haiku-4-5 — cheap & fast, short cluster summaries</option>
+                            </optgroup>
+                        </select>
+                        <div class="form-text">
+                            <strong>Guidance:</strong>
+                            <ul class="mb-0 ps-3">
+                                <li><strong>Cheap default:</strong> <em>gpt-4.1-mini</em> (~0.1–0.5¢ per interpretation) — handles JSON summaries well.</li>
+                                <li><strong>Deeper reasoning / publication-style:</strong> <em>gpt-4.1</em> or <em>claude-sonnet-4-5</em>.</li>
+                                <li><strong>Image input</strong> (dendrograms, heatmaps, PCA, UMAP): <em>gpt-4o</em>.</li>
+                                <li><strong>Quickest / cheapest summaries:</strong> <em>claude-haiku-4-5</em>.</li>
+                            </ul>
+                            Make sure the selected model matches the chosen provider.
+                        </div>
+                    </div>
+
+                    <div class="mb-3" style="max-width:600px">
                         <label class="form-label fw-semibold">API Key</label>
                         <input id="aiApiKey" type="password" class="form-control" placeholder="Paste your API key (stored only in this browser session)">
+                        <div class="form-text">
+                            <strong>How to get a key:</strong>
+                            <ul class="mb-0 ps-3">
+                                <li><strong>OpenAI:</strong> go to the developer portal <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a>, sign in, open the <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">API keys</a> section, and click <em>“+ Create new secret key”</em> to generate one. Copy it immediately — it won’t be shown again.</li>
+                                <li><strong>Anthropic / Claude:</strong> go to <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>, sign in, open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Settings → API Keys</a>, and click <em>“Create Key”</em>.</li>
+                            </ul>
+                            Your key is used only from this browser tab and is not stored on any server.
+                        </div>
                     </div>
 
                     <div class="mb-3">

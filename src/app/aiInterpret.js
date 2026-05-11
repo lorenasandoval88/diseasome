@@ -45,8 +45,8 @@ Data summary:
 ${JSON.stringify(summary, null, 2)}`;
 }
 
-async function callOpenAI(apiKey, prompt) {
-	console.log("Calling OpenAI with prompt:", prompt);
+async function callOpenAI(apiKey, prompt, model = "gpt-4.1-mini") {
+	console.log("Calling OpenAI with prompt:", prompt, "model:", model);
 	const res = await fetch("https://api.openai.com/v1/responses", {
 		method: "POST",
 		headers: {
@@ -54,17 +54,20 @@ async function callOpenAI(apiKey, prompt) {
 			"Authorization": `Bearer ${apiKey}`
 		},
 		body: JSON.stringify({
-			model: "gpt-4.1-mini",
+			model,
 			input: prompt
 		})
 	});
 
 	if (!res.ok) throw new Error(await res.text());
 	const data = await res.json();
-	return data.output_text ?? JSON.stringify(data, null, 2);
+	const text = data.output_text
+		?? data.output?.flatMap(o => o.content ?? []).map(c => c.text).filter(Boolean).join("\n")
+		?? "(no output_text returned)";
+	return { text, raw: data };
 }
 
-async function callClaude(apiKey, prompt) {
+async function callClaude(apiKey, prompt, model = "claude-sonnet-4-5") {
 	const res = await fetch("https://api.anthropic.com/v1/messages", {
 		method: "POST",
 		headers: {
@@ -74,7 +77,7 @@ async function callClaude(apiKey, prompt) {
 			"anthropic-dangerous-allow-browser": "true"
 		},
 		body: JSON.stringify({
-			model: "claude-sonnet-4-5",
+			model,
 			max_tokens: 1200,
 			messages: [{ role: "user", content: prompt }]
 		})
@@ -82,12 +85,14 @@ async function callClaude(apiKey, prompt) {
 
 	if (!res.ok) throw new Error(await res.text());
 	const data = await res.json();
-	return data.content?.map(x => x.text).join("\n") ?? JSON.stringify(data, null, 2);
+	const text = data.content?.map(x => x.text).join("\n") ?? "(no content returned)";
+	return { text, raw: data };
 }
 
 document.getElementById("runAIInterpretBtn")?.addEventListener("click", async () => {
 	const output = document.getElementById("aiInterpretOutput");
 	const provider = document.getElementById("aiProvider").value;
+	const model = document.getElementById("aiModel")?.value;
 	const apiKey = document.getElementById("aiApiKey").value.trim();
 	const question = document.getElementById("aiQuestion").value.trim();
 
@@ -100,18 +105,57 @@ document.getElementById("runAIInterpretBtn")?.addEventListener("click", async ()
 
 	try {
 		const prompt = buildAIPrompt(question);
-		const text = provider === "anthropic"
-			? await callClaude(apiKey, prompt)
-			: await callOpenAI(apiKey, prompt);
+		const { text, raw } = provider === "anthropic"
+			? await callClaude(apiKey, prompt, model)
+			: await callOpenAI(apiKey, prompt, model);
 
+		const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 		output.innerHTML = `
 			<div class="card">
-				<div class="card-header"><strong>AI Interpretation</strong></div>
+				<div class="card-header d-flex justify-content-between align-items-center">
+					<strong>AI Interpretation</strong>
+					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#aiRawJson" aria-expanded="false">View full JSON</button>
+				</div>
 				<div class="card-body">
-					<pre style="white-space:pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+					<pre style="white-space:pre-wrap">${esc(text)}</pre>
+					<div id="aiRawJson" class="collapse mt-3">
+						<pre style="white-space:pre-wrap;max-height:400px;overflow:auto;background:#f8f9fa;padding:.5rem;border:1px solid #dee2e6;border-radius:.25rem">${esc(JSON.stringify(raw, null, 2))}</pre>
+					</div>
 				</div>
 			</div>`;
 	} catch (err) {
 		output.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
 	}
 });
+
+// Auto-filter model dropdown to only show models matching the selected provider.
+(function setupAIModelFilter() {
+	const providerEl = document.getElementById("aiProvider");
+	const modelEl = document.getElementById("aiModel");
+	if (!providerEl || !modelEl) return;
+
+	const defaults = { openai: "gpt-4.1-mini", anthropic: "claude-sonnet-4-5" };
+
+	function syncModels() {
+		const provider = providerEl.value;
+		let firstVisible = null;
+		Array.from(modelEl.querySelectorAll("optgroup")).forEach(group => {
+			const isOpenAI = /openai/i.test(group.label);
+			const isAnthropic = /anthropic|claude/i.test(group.label);
+			const show = (provider === "openai" && isOpenAI) || (provider === "anthropic" && isAnthropic);
+			group.hidden = !show;
+			Array.from(group.children).forEach(opt => {
+				opt.hidden = !show;
+				opt.disabled = !show;
+				if (show && !firstVisible) firstVisible = opt;
+			});
+		});
+		const current = modelEl.options[modelEl.selectedIndex];
+		if (!current || current.hidden) {
+			modelEl.value = defaults[provider] || (firstVisible && firstVisible.value) || "";
+		}
+	}
+
+	providerEl.addEventListener("change", syncModels);
+	syncModels();
+})();

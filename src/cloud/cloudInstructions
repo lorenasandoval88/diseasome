@@ -1,0 +1,87 @@
+
+
+Overview: 
+A one-shot GCS batch ingestion job — fetch all PGP users → save profile JSON + raw txt to pgp/23andme/profiles/ and pgp/23andme/raw_txt/ in the bucket, with per-user error files if any fetch fails. 
+
+index.js:
+    Node.js job — fetches all PGP 23andMe profiles + raw txt files from my.pgp-hms.org and uploads them to a Google Cloud Storage bucket
+package.json:
+	ESM module, single dep: @google-cloud/storage
+dockerfile:
+    Container image for the job
+cloudInstructions:
+    Manual steps to build & deploy as a Cloud Run Job on GCP
+
+
+✅ Step 1: Create a project folder
+
+On your machine:
+
+mkdir pgp-23andme-job
+cd pgp-23andme-job
+
+✅ Step 2: Add your files
+
+Inside that folder:
+
+pgp-23andme-job/
+  ├── index.js
+  ├── package.json
+  └── Dockerfile   (if using Option 2)
+
+✅ Step 3: Paste contents
+📄 package.json
+{
+  "type": "module",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "@google-cloud/storage": "^7.16.0"
+  }
+}
+//---------------------------------------
+📄 index.js
+
+Your job logic (fetch PGP + upload to GCS)
+
+📄 Dockerfile (if using container build)
+FROM node:20
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+CMD ["node", "index.js"]
+✅ Step 4: Deploy from THIS folder
+
+👉 This is critical
+
+Run commands inside pgp-23andme-job/
+
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/pgp-job
+
+then:
+
+gcloud run jobs deploy pgp-23andme-import \
+  --image gcr.io/YOUR_PROJECT_ID/pgp-job \
+  --region us-central1 \
+  --set-env-vars BUCKET_NAME=YOUR_BUCKET_NAME,WORKER_BASE=YOUR_WORKER
+
+  ----------------------------
+  🧠 Mental model (important)
+
+Think of this folder as:
+
+👉 your mini backend service
+
+index.js = your pipeline logic
+package.json = dependencies
+Dockerfile = runtime environment
+folder = what gets deployed to GCP
+🔬 Pro tip for your workflow
+
+Since you’re doing genomic ingestion:
+
+Add later:
+
+progress.json → track last processed user
+retry logic → PGP is flaky
+batching → avoid memory issues

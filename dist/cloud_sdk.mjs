@@ -22192,12 +22192,30 @@ function computeTraitSummary(traits = []) {
 	return { traits, categories };
 }
 
-async function fetchJson(url) {
-	const response = await fetch(url);
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status} on ${url}`);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchJson(url, { retries = 5, baseDelayMs = 1500 } = {}) {
+	for (let attempt = 1; attempt <= retries; attempt++) {
+		const response = await fetch(url, {
+			headers: {
+				Accept: "application/json",
+				"User-Agent": "Mozilla/5.0",
+			},
+		});
+
+		if (response.ok) {
+			return response.json();
+		}
+
+		const retryable = [429, 500, 502, 503, 504].includes(response.status);
+		if (!retryable || attempt === retries) {
+			throw new Error(`HTTP ${response.status} on ${url}`);
+		}
+
+		const waitMs = baseDelayMs * attempt;
+		console.warn(`Retry ${attempt}/${retries} after HTTP ${response.status}. Waiting ${waitMs} ms.`);
+		await sleep(waitMs);
 	}
-	return response.json();
 }
 
 async function fetchAllApiScores({ pageSize = 200 } = {}) {
@@ -22219,7 +22237,7 @@ async function fetchAllApiScores({ pageSize = 200 } = {}) {
 		if (!Array.isArray(data) && data.next == null && results.length < pageSize) break;
 
 		offset += results.length;
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await sleep(250);
 	}
 
 	return all;
@@ -22258,7 +22276,7 @@ async function fetchSomeScores(ids, ...args) {
 		} catch {
 			// keep behavior resilient for partial failures
 		}
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await sleep(250);
 	}
 
 	return {
@@ -22285,6 +22303,7 @@ async function fetchTraits({ pageSize = 200 } = {}) {
 		if (!Array.isArray(data) && data.next == null && results.length < pageSize) break;
 
 		offset += results.length;
+		await sleep(250);
 	}
 
 	return {

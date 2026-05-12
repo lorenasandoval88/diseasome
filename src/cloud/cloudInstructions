@@ -1,87 +1,190 @@
 
 
-Overview: 
-A one-shot GCS batch ingestion job — fetch all PGP users → save profile JSON + raw txt to pgp/23andme/profiles/ and pgp/23andme/raw_txt/ in the bucket, with per-user error files if any fetch fails. 
-
-index.js:
-    Node.js job — fetches all PGP 23andMe profiles + raw txt files from my.pgp-hms.org and uploads them to a Google Cloud Storage bucket
-package.json:
-	ESM module, single dep: @google-cloud/storage
-dockerfile:
-    Container image for the job
-cloudInstructions:
-    Manual steps to build & deploy as a Cloud Run Job on GCP
+/////// OVERVIEW: 
+A one-shot GCS batch ingestion job for running the full PRS workflow in Google Cloud composed of 4 files:
+index.js
+package.json
+dockerfile
+cloud_sdk.mjs
 
 
-✅ Step 1: Create a project folder
 
-On your machine:
+/////// STEPS 1-10:
+1. Create the prs-job folder
+cd ~
+mkdir -p prs-job
+cd prs-job
+2. Add index.js
 
-mkdir pgp-23andme-job
-cd pgp-23andme-job
+Open the Cloud Shell editor:
 
-✅ Step 2: Add your files
+cloudshell edit index.js
 
-Inside that folder:
+Paste the index.js code you uploaded. It imports fetchAllScores, getTxts, PGP functions, and Match2 from ./cloud_sdk.mjs, then runs the full workflow:
 
-pgp-23andme-job/
-  ├── index.js
-  ├── package.json
-  └── Dockerfile   (if using Option 2)
+PGP users → 23andMe files → PGS models → PRS results → GCS
 
-✅ Step 3: Paste contents
-📄 package.json
+Your uploaded index.js saves outputs under:
+
+prs_workflow/
+  pgp/
+  pgs/
+  prs_results/
+  manifests/
+  errors/
+
+and requires cloud_sdk.mjs in the same folder.
+
+3. Add cloud_sdk.mjs
+
+Copy the working cloud SDK from your polygenic_risk_scores build:
+
+cp ~/polygenic_risk_scores/dist/cloud_sdk.mjs ~/prs-job/cloud_sdk.mjs
+
+Test it:
+
+node -e "import('./cloud_sdk.mjs').then(m => console.log(Object.keys(m))).catch(console.error)"
+
+You should see exports like:
+
+fetchAllScores
+getTxts
+fetchAvailableDataTypes
+allUsersMetaDataByType_fast
+fetchProfile
+load23andMeFile
+Match2
+4. Create package.json
+cat > package.json <<'EOF'
 {
   "type": "module",
-  "scripts": { "start": "node index.js" },
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "@google-cloud/storage": "^7.16.0"
   }
 }
-//---------------------------------------
-📄 index.js
-
-Your job logic (fetch PGP + upload to GCS)
-
-📄 Dockerfile (if using container build)
+EOF
+5. Create Dockerfile
+cat > Dockerfile <<'EOF'
 FROM node:20
+
 WORKDIR /app
+
 COPY package*.json ./
 RUN npm install
+
 COPY . .
+
 CMD ["node", "index.js"]
-✅ Step 4: Deploy from THIS folder
+EOF
+6. Check the folder
+ls
 
-👉 This is critical
+You should see:
 
-Run commands inside pgp-23andme-job/
-
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/pgp-job
-
-then:
-
-gcloud run jobs deploy pgp-23andme-import \
-  --image gcr.io/YOUR_PROJECT_ID/pgp-job \
+Dockerfile
+cloud_sdk.mjs
+index.js
+package.json
+7. Build the container
+gcloud builds submit --tag gcr.io/personalgenomes/prs-job
+8. Deploy the Cloud Run Job
+gcloud run jobs deploy prs-import \
+  --image gcr.io/personalgenomes/prs-job \
   --region us-central1 \
-  --set-env-vars BUCKET_NAME=YOUR_BUCKET_NAME,WORKER_BASE=YOUR_WORKER
+  --memory 4Gi \
+  --task-timeout 60m \
+  --set-env-vars BUCKET_NAME=personalgenomes-23andme-data,USER_LIMIT=3,PGS_LIMIT=3,BATCH_SIZE=1
+9. Run it
+gcloud run jobs execute prs-import \
+  --region us-central1
+10. Check outputs
+gcloud storage ls gs://personalgenomes-23andme-data/prs_workflow/
+gcloud storage ls gs://personalgenomes-23andme-data/prs_workflow/prs_results/
+gcloud storage ls gs://personalgenomes-23andme-data/prs_workflow/errors/
 
-  ----------------------------
-  🧠 Mental model (important)
+Keep USER_LIMIT=3 and PGS_LIMIT=3 for the first test. After it works, increase them gradually.
 
-Think of this folder as:
 
-👉 your mini backend service
 
-index.js = your pipeline logic
-package.json = dependencies
-Dockerfile = runtime environment
-folder = what gets deployed to GCP
-🔬 Pro tip for your workflow
+////////////////// SUMMARY:
 
-Since you’re doing genomic ingestion:
+What each file does
+File	Purpose
+index.js	Main workflow script. It fetches PGP 23andMe users, loads genotype files, fetches PGS Catalog scoring files, runs PRS matching with Match2, and saves outputs to Google Cloud Storage.
+cloud_sdk.mjs	Node-safe SDK bundle used by index.js. It should export PGP, PGS, and PRS functions without browser-only code such as Plotly, LocalForage, window, or document.
+package.json	Defines the Node.js project settings and dependencies, especially @google-cloud/storage.
+Dockerfile	Builds the container image that Cloud Run executes.
 
-Add later:
+Your uploaded index.js imports fetchAllScores, getTxts, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetchProfile, load23andMeFile, and Match2 from ./cloud_sdk.mjs. It also sets USER_LIMIT, PGS_LIMIT, and BATCH_SIZE from environment variables.
 
-progress.json → track last processed user
-retry logic → PGP is flaky
-batching → avoid memory issues
+Workflow
+
+The job runs this pipeline:
+
+PGP public 23andMe metadata
+  → fetch participant profiles
+  → download/load 23andMe genotype files
+  → fetch PGS Catalog score metadata
+  → download/load selected PGS scoring files
+  → run PRS matching for every user × PGS pair
+  → save results to Google Cloud Storage
+Output folder in GCS
+
+The script saves everything under:
+
+gs://personalgenomes-23andme-data/prs_workflow/
+
+Expected structure:
+
+prs_workflow/
+  pgp/
+    profiles/
+      huXXXXXX.json
+    raw_txt/
+      huXXXXXX.txt
+    parsed_23andme/
+      huXXXXXX.json
+    metadata/
+      huXXXXXX.json
+
+  pgs/
+    metadata/
+      PGS000001.json
+    txt/
+      PGS000001.json
+
+  prs_results/
+    huXXXXXX/
+      PGS000001.json
+      PGS000002.json
+
+  manifests/
+    available_data_types.json
+    all_23andme_metadata.json
+    all_pgs_scores_metadata.json
+    selected_pgs_models.json
+    import_and_prs_results.json
+
+  errors/
+    users/
+      huXXXXXX.json
+    prs/
+      huXXXXXX_PGS000001.json
+Key steps inside index.js
+
+The script first checks the available PGP data types, then fetches all 23andMe participant metadata. It limits the number of users with USER_LIMIT, then loads each user’s profile and genotype data in batches.
+
+It then fetches all PGS Catalog score metadata, selects the first PGS_LIMIT scores, downloads their scoring files with getTxts, and saves both metadata and parsed score files to GCS.
+
+Finally, it creates every user × PGS pair and runs:
+
+Match2(pgsObj.txt, userObj.genotype)
+
+Each PRS result is saved under:
+
+prs_workflow/prs_results/{userId}/{pgsId}.json
+
+If a result already exists, the script skips it, which gives you basic checkpointing.

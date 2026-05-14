@@ -38,6 +38,15 @@ export const pgs = {
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 
+export async function getBrowserStorageInfo() {
+	const storageEstimate = await navigator.storage.estimate();
+	return {
+		usageGB: (storageEstimate.usage / 1024 ** 3).toFixed(2),
+		quotaGB: (storageEstimate.quota / 1024 ** 3).toFixed(2),
+		percentUsed: ((storageEstimate.usage / storageEstimate.quota) * 100).toFixed(1) + "%"
+	};
+}
+
 export const prs = {
 	Match2, // pgsTxt, my23Txt
 	Match3,  // pgsTxt, my23Txt

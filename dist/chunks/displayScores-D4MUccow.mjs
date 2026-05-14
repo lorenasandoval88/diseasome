@@ -1,4 +1,4 @@
-import { fetchAllScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 /*
  Module: displayScores.js
@@ -1041,17 +1041,4 @@ const fetchScoresBtn = document.getElementById("fetchScoresBtn");
 if (fetchScoresBtn) {
 	fetchScoresBtn.addEventListener("click", fetchScoresTxts);
 }
-
-// --- window.sdk namespace (scores/catalog) ---
-window.sdk = Object.assign(window.sdk ?? {}, {
-	// PGS selection
-	getSelectedPgsIds: () => Array.from(selectedPgsIds),
-	getSelectedScores: () => Array.from(selectedScoresMap.values()),
-	clearSelectedScores: window.clearSelectedScores,
-
-	// Catalog UI
-	onPgsTraitChange: window.onPgsTraitChange,
-	compareSnpOverlap,
-	fetchScoresTxts,
-	updatePrsScoresDisplay,
-});
+//# sourceMappingURL=displayScores-D4MUccow.mjs.map

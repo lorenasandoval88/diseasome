@@ -25,15 +25,18 @@ async function saveJson(path, obj) {
   });
 }
 
-async function saveText(path, text) {
-  await bucket.file(path).save(text, {
-    contentType: "text/plain"
-  });
-}
+
+//add explicit cache/checkpoint logs so each user/PGS model says either:
+//USING EXISTING,FETCHING,SAVED,FAILED
 
 async function fileExists(path) {
   const [exists] = await bucket.file(path).exists();
   return exists;
+}
+
+async function readJson(path) {
+  const [contents] = await bucket.file(path).download();
+  return JSON.parse(contents.toString("utf8"));
 }
 
 function normalizeLoaded23andMe(loaded) {
@@ -85,31 +88,43 @@ async function runInBatches(items, batchSize, fn) {
 async function loadOneUser(user, index, total) {
   const id = user.id;
 
+  const profilePath = `${BASE_PATH}/pgp/profiles/${id}.json`;
+  const parsedPath = `${BASE_PATH}/pgp/parsed_23andme/${id}.json`;
+  const metadataPath = `${BASE_PATH}/pgp/metadata/${id}.json`;
+
   try {
     console.log(`Loading user ${index + 1}/${total}: ${id}`);
 
-    const profilePath = `${BASE_PATH}/pgp/profiles/${id}.json`;
-    const parsedPath = `${BASE_PATH}/pgp/parsed_23andme/${id}.json`;
-    const rawPath = `${BASE_PATH}/pgp/raw_txt/${id}.txt`;
-    const metadataPath = `${BASE_PATH}/pgp/metadata/${id}.json`;
+    const parsedExists = await fileExists(parsedPath);
+
+    if (parsedExists) {
+      console.log(`USING EXISTING 23andMe parsed file from bucket: ${id}`);
+
+      const genotype = await readJson(parsedPath);
+
+      return {
+        id,
+        user,
+        profile: null,
+        genotype,
+        status: "existing"
+      };
+    }
+
+    console.log(`FETCHING 23andMe file from PGP: ${id}`);
 
     const [profile, loaded23] = await Promise.all([
       fetchProfile(id),
       load23andMeFile(user.downloadUrl, id, false)
     ]);
 
-    const { raw, parsed } = normalizeLoaded23andMe(loaded23);
+    const { parsed } = normalizeLoaded23andMe(loaded23);
 
     await saveJson(profilePath, profile);
     await saveJson(metadataPath, user);
-
-    if (raw) {
-      await saveText(rawPath, raw);
-    }
-
     await saveJson(parsedPath, parsed ?? loaded23);
 
-    console.log(`Saved user ${id}`);
+    console.log(`SAVED new 23andMe parsed file: ${id}`);
 
     return {
       id,
@@ -120,7 +135,7 @@ async function loadOneUser(user, index, total) {
     };
 
   } catch (err) {
-    console.error(`Failed user ${id}: ${err.message}`);
+    console.error(`FAILED user ${id}: ${err.message}`);
 
     await saveJson(`${BASE_PATH}/errors/users/${id}.json`, {
       id,
@@ -139,52 +154,211 @@ async function loadOneUser(user, index, total) {
     };
   }
 }
+// async function loadOneUser(user, index, total) {
+//   const id = user.id;
+
+//   try {
+//     console.log(`Loading user ${index + 1}/${total}: ${id}`);
+
+//     const profilePath = `${BASE_PATH}/pgp/profiles/${id}.json`;
+//     const parsedPath = `${BASE_PATH}/pgp/parsed_23andme/${id}.json`;
+//     const metadataPath = `${BASE_PATH}/pgp/metadata/${id}.json`;
+
+//     const [profile, loaded23] = await Promise.all([
+//       fetchProfile(id),
+//       load23andMeFile(user.downloadUrl, id, false)
+//     ]);
+
+//     const { parsed } = normalizeLoaded23andMe(loaded23);
+
+//     await saveJson(profilePath, profile);
+//     await saveJson(metadataPath, user);
+//     await saveJson(parsedPath, parsed ?? loaded23);
+
+//     console.log(`Saved user ${id}`);
+
+//     return {
+//       id,
+//       user,
+//       profile,
+//       genotype: parsed ?? loaded23,
+//       status: "success"
+//     };
+
+//   } catch (err) {
+//     console.error(`Failed user ${id}: ${err.message}`);
+
+//     await saveJson(`${BASE_PATH}/errors/users/${id}.json`, {
+//       id,
+//       user,
+//       error: err.message,
+//       failedAt: new Date().toISOString()
+//     });
+
+//     return {
+//       id,
+//       user,
+//       profile: null,
+//       genotype: null,
+//       status: "failed",
+//       error: err.message
+//     };
+//   }
+// }
 
 async function loadPgsModels() {
   console.log("Fetching PGS Catalog score metadata...");
 
-  const allScoresResult = await fetchAllScores();
+const allScoresResult = await fetchAllScores();
 
-  const scores = Array.isArray(allScoresResult)
-    ? allScoresResult
-    : allScoresResult.scores ?? allScoresResult.results ?? [];
+if (allScoresResult?.errorMessage) {
+  throw new Error(`fetchAllScores failed: ${allScoresResult.errorMessage}`);
+}
+console.log("fetchAllScores result type:", typeof allScoresResult);
+console.log("fetchAllScores is array:", Array.isArray(allScoresResult));
+console.log("fetchAllScores keys:", Object.keys(allScoresResult ?? {}));
+console.log(
+  "fetchAllScores preview:",
+  JSON.stringify(allScoresResult, null, 2).slice(0, 1000)
+);
 
-  console.log(`Found ${scores.length} PGS models.`);
+const scores = Array.isArray(allScoresResult)
+  ? allScoresResult
+  : allScoresResult.scores ??
+    allScoresResult.results ??
+    allScoresResult.data ??
+    allScoresResult.items ??
+    [];
 
-  await saveJson(`${BASE_PATH}/manifests/all_pgs_scores_metadata.json`, scores);
+console.log(`Found ${scores.length} PGS models.`);
 
-  const selectedScores = scores.slice(0, PGS_LIMIT);
-  const selectedIds = selectedScores.map(s => s.id);
+// await saveJson(`${BASE_PATH}/manifests/all_pgs_scores_metadata.json`, scores);
+// Do not save all 5,000+ PGS metadata records for now.
+// This keeps the ingestion job lighter and avoids failing right after fetchAllScores().
+console.log("Skipping save of all_pgs_scores_metadata.json for this run.");
 
-  console.log(`Fetching first ${selectedIds.length} PGS scoring files: ${selectedIds.join(", ")}`);
+const MAX_VARIANTS = Number(process.env.MAX_VARIANTS || 1000);
 
-  const txts = await getTxts(selectedIds);
+console.log("Filtering PGS models by variant count...");
 
-  await saveJson(`${BASE_PATH}/manifests/selected_pgs_models.json`, selectedScores);
+const filteredScores = scores.filter(score => {
+  const nVariants = Number(score.variants_number);
+  return Number.isFinite(nVariants) && nVariants < MAX_VARIANTS;
+});
 
-  const models = selectedIds.map((id, i) => {
-    let txtObj;
+console.log(
+  `Found ${filteredScores.length} PGS models with variants_number < ${MAX_VARIANTS}.`
+);
+console.log("Saving filtered PGS manifest...");
 
-    if (Array.isArray(txts)) {
-      txtObj = txts.find(x => x?.id === id) ?? txts[i];
-    } else {
-      txtObj = txts[id] ?? txts[i];
-    }
+await saveJson(
+  `${BASE_PATH}/manifests/pgs_scores_under_${MAX_VARIANTS}_variants.json`,
+  filteredScores
+);
+console.log("Saved filtered PGS manifest.");
 
-    return {
+const selectedScores = filteredScores.slice(0, PGS_LIMIT);
+const selectedIds = selectedScores.map(s => s.id);
+
+console.log(`Preparing first ${selectedIds.length} PGS scoring files: ${selectedIds.join(", ")}`);
+
+await saveJson(`${BASE_PATH}/manifests/selected_pgs_models.json`, selectedScores);
+
+const models = [];
+
+for (let i = 0; i < selectedIds.length; i++) {
+  const id = selectedIds[i];
+  const meta = selectedScores[i];
+
+  const metaPath = `${BASE_PATH}/pgs/metadata/${id}.json`;
+  const txtPath = `${BASE_PATH}/pgs/txt/${id}.json`;
+
+  const txtExists = await fileExists(txtPath);
+
+  if (txtExists) {
+    console.log(`USING EXISTING PGS file from bucket: ${id}`);
+
+    const txt = await readJson(txtPath);
+
+    models.push({
       id,
-      meta: selectedScores[i],
-      txt: normalizePGSTxt(txtObj)
-    };
-  });
+      meta,
+      txt: normalizePGSTxt(txt)
+    });
 
-  for (const model of models) {
-    await saveJson(`${BASE_PATH}/pgs/metadata/${model.id}.json`, model.meta);
-    await saveJson(`${BASE_PATH}/pgs/txt/${model.id}.json`, model.txt);
+    continue;
   }
 
-  return models;
+  // check if pgs files are in bucket first
+  console.log(`FETCHING PGS scoring file from PGS Catalog/EBI: ${id}`);
+
+  try {
+    const fetched = await getTxts([id]);
+
+    const txtObj = Array.isArray(fetched)
+      ? fetched[0]
+      : fetched[id] ?? fetched[0] ?? fetched;
+
+    const normalizedTxt = normalizePGSTxt(txtObj);
+
+    await saveJson(metaPath, meta);
+    await saveJson(txtPath, normalizedTxt);
+
+    console.log(`SAVED new PGS scoring file: ${id}`);
+
+    models.push({
+      id,
+      meta,
+      txt: normalizedTxt
+    });
+
+    // small pause to avoid hitting EBI too fast
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+  } catch (err) {
+    console.error(`FAILED PGS ${id}: ${err.message}`);
+
+    await saveJson(`${BASE_PATH}/errors/pgs/${id}.json`, {
+      id,
+      meta,
+      error: err.message,
+      failedAt: new Date().toISOString()
+    });
+  }
 }
+
+return models;
+}
+//   console.log(`Fetching first ${selectedIds.length} PGS scoring files: ${selectedIds.join(", ")}`);
+
+//   const txts = await getTxts(selectedIds);
+
+//   await saveJson(`${BASE_PATH}/manifests/selected_pgs_models.json`, selectedScores);
+
+//   const models = selectedIds.map((id, i) => {
+//     let txtObj;
+
+//     if (Array.isArray(txts)) {
+//       txtObj = txts.find(x => x?.id === id) ?? txts[i];
+//     } else {
+//       txtObj = txts[id] ?? txts[i];
+//     }
+
+//     return {
+//       id,
+//       meta: selectedScores[i],
+//       txt: normalizePGSTxt(txtObj)
+//     };
+//   });
+
+//   for (const model of models) {
+//     await saveJson(`${BASE_PATH}/pgs/metadata/${model.id}.json`, model.meta);
+//     await saveJson(`${BASE_PATH}/pgs/txt/${model.id}.json`, model.txt);
+
+//   }
+
+//   return models;
+// }
 
 async function runPrsForPair({ userObj, pgsObj }) {
   const userId = userObj.id;
@@ -269,35 +443,53 @@ async function main() {
 
   const pgsModels = await loadPgsModels();
 
-  const pairs = [];
+//   const pairs = [];
 
-  for (const userObj of validUsers) {
-    for (const pgsObj of pgsModels) {
-      pairs.push({ userObj, pgsObj });
-    }
-  }
+//   for (const userObj of validUsers) {
+//     for (const pgsObj of pgsModels) {
+//       pairs.push({ userObj, pgsObj });
+//     }
+//   }
 
-  console.log(`Running ${pairs.length} PRS comparisons.`);
+//   console.log(`Running ${pairs.length} PRS comparisons.`);
 
-  const prsResults = await runInBatches(
-    pairs,
-    BATCH_SIZE,
-    async pair => runPrsForPair(pair)
-  );
+//   const prsResults = await runInBatches(
+//     pairs,
+//     BATCH_SIZE,
+//     async pair => runPrsForPair(pair)
+//   );
 
-  await saveJson(`${BASE_PATH}/manifests/import_and_prs_results.json`, {
-    userLimit: USER_LIMIT,
-    pgsLimit: PGS_LIMIT,
-    totalUsersRequested: users.length,
-    totalUsersLoaded: validUsers.length,
-    totalPgsModels: pgsModels.length,
-    totalPrsRuns: prsResults.length,
-    success: prsResults.filter(r => r.status === "success").length,
-    skipped: prsResults.filter(r => r.status === "skipped").length,
-    failed: prsResults.filter(r => r.status === "failed").length,
-    prsResults,
-    completedAt: new Date().toISOString()
-  });
+const prsResults = [];
+
+console.log("Skipping PRS computation for this run. Ingestion only.");
+
+//   await saveJson(`${BASE_PATH}/manifests/import_and_prs_results.json`, {
+//     userLimit: USER_LIMIT,
+//     pgsLimit: PGS_LIMIT,
+//     totalUsersRequested: users.length,
+//     totalUsersLoaded: validUsers.length,
+//     totalPgsModels: pgsModels.length,
+//     totalPrsRuns: prsResults.length,
+//     success: prsResults.filter(r => r.status === "success").length,
+//     skipped: prsResults.filter(r => r.status === "skipped").length,
+//     failed: prsResults.filter(r => r.status === "failed").length,
+//     prsResults,
+//     completedAt: new Date().toISOString()
+//   });
+await saveJson(`${BASE_PATH}/manifests/import_and_prs_results.json`, {
+  mode: "ingestion_only",
+  userLimit: USER_LIMIT,
+  pgsLimit: PGS_LIMIT,
+  totalUsersRequested: users.length,
+  totalUsersLoaded: validUsers.length,
+  totalPgsModels: pgsModels.length,
+  totalPrsRuns: 0,
+  success: 0,
+  skipped: 0,
+  failed: 0,
+  prsResults,
+  completedAt: new Date().toISOString()
+});
 
   console.log("PRS Cloud Run workflow complete.");
 }

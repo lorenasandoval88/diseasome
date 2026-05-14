@@ -903,6 +903,17 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
+/** Return browser storage usage statistics via the Storage Estimation API. */
+async function getBrowserStorageInfo() {
+	const storageEstimate = await navigator.storage.estimate();
+	return {
+		usageGB: (storageEstimate.usage / 1024 ** 3).toFixed(2),
+		quotaGB: (storageEstimate.quota / 1024 ** 3).toFixed(2),
+		percentUsed: ((storageEstimate.usage / storageEstimate.quota) * 100).toFixed(1) + "%"
+	};
+}
+window.getBrowserStorageInfo = getBrowserStorageInfo;
+
 /**
  * Derive a human-readable name from a 23andMe / PGP genome filename.
  * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
@@ -967,8 +978,8 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     // Calculate if not cached
     const result = Match2(mypgs, my23);
-	console.log("Match2 mypgs:", mypgs);
-	console.log("Match2 my23:", my23);
+	// console.log("Match2 mypgs:", mypgs);
+	// console.log("Match2 my23:", my23);
 	console.log("Calculated PRS result:", result);
     const organizedData = organizeResultsByAllele(result, mypgs);
     
@@ -1072,6 +1083,16 @@ async function calculatePRS() {
         let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
         const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
         console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
+
+        // Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
+        const checkedScoreIds = new Set(
+            Array.from(document.querySelectorAll(".prs-select-cb:checked")).map(cb => cb.value)
+        );
+        if (checkedScoreIds.size > 0 && selectedScoresList.length > 0) {
+            selectedScoresList = selectedScoresList.filter(s => checkedScoreIds.has(s.id));
+            console.log(`Filtered to ${selectedScoresList.length} checked score(s):`, Array.from(checkedScoreIds));
+        }
+
         const selectedIds = selectedScoresList.map(s => s.id);
 
         if (selectedIds.length === 0) {
@@ -1093,6 +1114,7 @@ async function calculatePRS() {
                 return `
                     <tr>
                         <td>${idx + 1}</td>
+                        <td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
                         <td>${id}</td>
                         <td>${name}</td>
                         <td>${trait}</td>
@@ -1105,6 +1127,7 @@ async function calculatePRS() {
                     <thead class="table-dark">
                         <tr>
                             <th>#</th>
+                            <th>Select</th>
                             <th>PGS ID</th>
                             <th>Name</th>
                             <th>Trait</th>
@@ -1260,3 +1283,31 @@ if (calculatePrsBtn) {
 }
 
 // window.calculatePRS = calculatePRS;
+
+// --- window.sdk namespace ---
+// Collect all public functions under window.sdk so they are accessible as
+// window.sdk.getBrowserStorageInfo(), window.sdk.clearPRSCache(), etc.
+// Object.assign merges with any entries already added by other modules.
+window.sdk = Object.assign(window.sdk ?? {}, {
+    // Storage utilities
+    getBrowserStorageInfo,
+    clearPRSCache,
+    clearPGSCache,
+    clearGenomeCache,
+    isOnline,
+
+    // PRS calculation
+    calculatePRS,
+    organizeResultsByAllele,
+
+    // Score / user loading
+    fetchScores,
+    fetchUsers,
+    fetch23andMeFiles,
+    loadFallbackScores,
+    loadFallbackUsers,
+
+    // Fallback data
+    FALLBACK_SCORES,
+    FALLBACK_USERS,
+});

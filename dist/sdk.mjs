@@ -3098,10 +3098,19 @@ const pgs = {
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 
+async function getBrowserStorageInfo() {
+	const storageEstimate = await navigator.storage.estimate();
+	return {
+		usageGB: (storageEstimate.usage / 1024 ** 3).toFixed(2),
+		quotaGB: (storageEstimate.quota / 1024 ** 3).toFixed(2),
+		percentUsed: ((storageEstimate.usage / storageEstimate.quota) * 100).toFixed(1) + "%"
+	};
+}
+
 const prs = {
 	Match2, // pgsTxt, my23Txt
 	Match3,  // pgsTxt, my23Txt
 };
 
-export { clustSdk as clustjs, localforage, pgp, pgs, prs };
+export { clustSdk as clustjs, getBrowserStorageInfo, localforage, pgp, pgs, prs };
 //# sourceMappingURL=sdk.mjs.map

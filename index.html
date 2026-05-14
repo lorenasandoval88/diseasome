@@ -95,8 +95,8 @@
         <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Risk Models</button>
         <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">23andMe Data</button>
         <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
-        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
-        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
+        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Inspect Individual PRS Results</button>
+        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster PRS Results / Users / Models</button>
         <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" style="background:#fff3cd;color:#856404;border-color:#ffc107" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
         <button id="transformersjsButton" class="tablinks"
             onclick="tabFunction(event, 'transformersjs')"
@@ -114,7 +114,7 @@
         <ul class="navbar-nav">
             <li class="nav-item">
                 <div id="PlotPRS" class="tabcontent">
-                    <h3>Plot PRS</h3>
+                    <h3>Inspect Individual PRS Results</h3>
                     <p>Visualize PRS calculation results by matched allele counts.</p>
                     <hr class="my-3" />
                     <div id="errorDiv" class="text-danger small mb-2"></div>

@@ -1342,9 +1342,15 @@ async function renderCluster() {
 
     <div id="clusterSectionA" style="display:${activeClusterSection === 'A' ? 'block' : 'none'};">
     <h5>A. PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
-    <p class="text-muted small mb-3">
+    <p class="text-muted small mb-2">
       Hierarchical clustering of PRS results (${pivoted.length} users × ${Object.keys(pivoted[0]).length - 1} PGS entries).
     </p>
+    <div class="mb-3">
+      <button id="downloadPrsMatrixBtn" class="btn btn-outline-secondary btn-sm">
+        ⬇ Download PRS Matrix JSON
+      </button>
+      <span class="text-muted small ms-2">ClustJS-compatible format: array of row objects with a <code>label</code> field and one field per PGS ID.</span>
+    </div>
     <div class="mb-2">
       <strong>Cluster by:</strong>
       <div class="btn-group ms-2" role="group">
@@ -1732,6 +1738,20 @@ async function renderCluster() {
       renderCluster();
     };
   });
+
+  // Download PRS matrix as JSON (ClustJS-compatible)
+  document.getElementById('downloadPrsMatrixBtn').onclick = () => {
+    const data = clusterCache.pivoted ?? pivotPrsResults(window.prsResults);
+    if (!data) { alert('No PRS matrix available. Run a PRS calculation first.'); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'prs_matrix.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Attach button handlers for PRS clustering
   document.getElementById('clusterRowsBtn').onclick = () => {
@@ -2442,4 +2462,21 @@ Object.defineProperty(window, "clusterCache", {
     return clusterCache;
   },
   configurable: true,
+});
+
+// --- window.sdk namespace (cluster) ---
+window.sdk = Object.assign(window.sdk ?? {}, {
+    renderCluster,
+    invalidateClusterCache,
+    getClusterCache: () => clusterCache,
+});
+
+// Add live getters for pivoted and clusterCache into window.sdk
+Object.defineProperty(window.sdk, "pivoted", {
+    get() { return clusterCache.pivoted; },
+    configurable: true,
+});
+Object.defineProperty(window.sdk, "clusterCache", {
+    get() { return clusterCache; },
+    configurable: true,
 });

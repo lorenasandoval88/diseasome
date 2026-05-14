@@ -1209,6 +1209,7 @@ async function calculatePRS() {
         
         console.log("PRS results:", prsResults);
         window.prsResults = prsResults;  // expose for cluster tab
+        if (window.sdk) window.sdk.prsResults = prsResults;  // mirror into namespace
         
         // Invalidate cluster cache when PRS results change
         if (typeof window.invalidateClusterCache === 'function') {

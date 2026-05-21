@@ -640,6 +640,12 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		loadedUsers = results.filter(Boolean);
 		window.loadedUsers = loadedUsers; // expose for cluster tab
 
+		const loadedFilesCount = document.getElementById('loadedFilesCount');
+		if (loadedFilesCount) {
+			loadedFilesCount.textContent = `Loaded Data: ${loadedUsers.length} / ${selectedUsers.length}`;
+			loadedFilesCount.style.display = '';
+		}
+
 		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
 
 		// Render table

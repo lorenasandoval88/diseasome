@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-DjEOjvYN.mjs');
+        await import('./chunks/displayUsers-DFsbN9K9.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -3687,6 +3687,12 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		const results = await Promise.all(parsePromises);
 		loadedUsers = results.filter(Boolean);
 		window.loadedUsers = loadedUsers; // expose for cluster tab
+
+		const loadedFilesCount = document.getElementById('loadedFilesCount');
+		if (loadedFilesCount) {
+			loadedFilesCount.textContent = `Loaded Data: ${loadedUsers.length} / ${selectedUsers.length}`;
+			loadedFilesCount.style.display = '';
+		}
 
 		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
 

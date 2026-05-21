@@ -759,6 +759,7 @@ function loadFallbackScores() {
 
 /** * Load fallback users directly into the users table. */
 async function loadFallbackUsers() {
+	console.log("Loading fallback users...");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
@@ -781,6 +782,7 @@ async function loadFallbackUsers() {
 			// Check cache first
 			const cached = await getCachedGenome(user.id);
 			if (cached) {
+				console.log(`Using cached genome for ${user.id}: ${cached.dt.length} variants`,cached);
 				cachedCount++;
 				if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)... (${cachedCount} from cache)`;
 				return { user, parsed: cached };
@@ -788,6 +790,7 @@ async function loadFallbackUsers() {
 			
 			// Not cached - fetch and parse
 			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${selectedUsers.length})`;
+			console.log(`Fallback user NOT CACHED, Fetching genome for ${user.id} from filePath:`, filePath);
 			const parsed = await load23andMeFile(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
 			

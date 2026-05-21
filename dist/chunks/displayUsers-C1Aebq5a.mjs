@@ -1,5 +1,9 @@
-import { load23andMeFile, fetch23andMeParticipants, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -52,51 +56,17 @@ window.getSelectedUserIds = () => Array.from(selectedUserIds);
 /** Get the currently selected users with full metadata. */
 window.getSelectedUsers = () => Array.from(selectedUsersMap.values());
 
-/** Clear only PGP participant selections (leaves uploaded files intact). */
-window.clearPGPSelections = function () {
-	for (const [id, user] of selectedUsersMap) {
-		if (user.dataSource !== "file Upload") {
-			selectedUsersMap.delete(id);
-			selectedUserIds.delete(id);
-		}
-	}
-	// Uncheck all PGP checkboxes in the participant table
-	document.querySelectorAll('#localUsersDiv input[type="checkbox"]').forEach(cb => cb.checked = false);
-	updateGlobalSelectionCount();
-};
-
-/** Clear only uploaded local file selections (leaves PGP participants intact). */
-window.clearUploadedFiles = function () {
-	for (const [id, user] of selectedUsersMap) {
-		if (user.dataSource === "file Upload") {
-			selectedUsersMap.delete(id);
-			selectedUserIds.delete(id);
-		}
-	}
-	const statusEl = document.getElementById("my23Status");
-	if (statusEl) statusEl.textContent = "";
-	updateGlobalSelectionCount();
-};
-
 
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
 	// Update count on 23andMe Data tab
 	const el = document.getElementById("globalSelectionCount2");
-	if (el) el.textContent = `Uploaded & Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
+	if (el) el.textContent = `Selected: ${selectedUserIds.size} / ${MAX_SELECTION}`;
 
 	// Show/hide Fetch button based on whether any users are selected
 	const fetchBtn = document.getElementById("fetchUsersBtn");
 	if (fetchBtn) fetchBtn.style.display = selectedUserIds.size > 0 ? '' : 'none';
-
-	// Show/hide unselect buttons based on what is selected
-	const hasUploaded = Array.from(selectedUsersMap.values()).some(u => u.dataSource === 'file Upload');
-	const hasPGP = Array.from(selectedUsersMap.values()).some(u => u.dataSource !== 'file Upload');
-	const clearUploadedBtn = document.getElementById('clearUploadedBtn');
-	const clearPGPBtn = document.getElementById('clearPGPBtn');
-	if (clearUploadedBtn) clearUploadedBtn.style.display = hasUploaded ? '' : 'none';
-	if (clearPGPBtn) clearPGPBtn.style.display = hasPGP ? '' : 'none';
-
+	
 	// Also update PRS tab user section to reflect selection
 	const prsUsersdiv = document.getElementById("prsUsersdiv");
 	if (prsUsersdiv && selectedUserIds.size > 0) {
@@ -148,7 +118,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -850,3 +820,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-C1Aebq5a.mjs.map

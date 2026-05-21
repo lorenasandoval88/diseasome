@@ -92,18 +92,16 @@
     </script>
 
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Risk Models</button>
-        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">23andMe Data</button>
-        <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
-        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Inspect Individual PRS Results</button>
-        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster PRS Results / Users / Models</button>
-        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" style="background:#fff3cd;color:#856404;border-color:#ffc107" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
+        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">1. Select/Upload 23andMe Users</button>
+        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">2. Select Risk Models</button>
+        <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">3. Calculate PRS</button>
+        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">4. Inspect Individual PRS Results</button>
+        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">5. Cluster PRS Results / Users / Models</button>
+        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
         <button id="transformersjsButton" class="tablinks"
             onclick="tabFunction(event, 'transformersjs')"
-            style="background:#d1e7dd;color:#0f5132;border-color:#198754"
             title="Runs locally in your browser — no data leaves your device">🔒 Transformers.js</button>
         <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')"
-            style="background:#d1e7dd;color:#0f5132;border-color:#198754"
             title="Runs locally in your browser via WebGPU — no data leaves your device">🔒 WebLLM</button>
         <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')" style="display:none">About</button>
     </div>
@@ -374,48 +372,99 @@ user3        1      2      4     -1</pre>
 
                 <div id="GenomicData" class="tabcontent">
 
-                    <h3>The Personal Genome Project (PGP)</h3>
-                    <p>The Personal Genome Project (PGP) is an open-access repository of human genomic data contributed
-                        by volunteer
-                        participants. The project provides publicly available genotype and sequencing datasets that can
-                        be used for research, education, and the development of genomic analysis tools.</p>
+                    <h3 class="d-flex align-items-center gap-2">
+                        Select Genomic Data
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="focus"
+                                data-bs-placement="right"
+                                data-bs-html="true"
+                                title="About Genomic Data"
+                                data-bs-content="<p class='mb-2'><strong>Personal Genome Project (PGP)</strong> is an open-access repository of human genomic data contributed by volunteer participants. The project provides publicly available genotype and sequencing datasets for research, education, and the development of genomic analysis tools.</p><p class='mb-0'><strong>Accepted file types:</strong> Raw 23andMe export files (<code>.txt</code> or <code>.csv</code>). These are tab-delimited text files with columns for rsid, chromosome, position, and genotype.</p>"
+                                aria-label="About Genomic Data">?</button>
+                    </h3>
 
-                    <h3>Data Selection</h3>
-                    <hr class="my-3" />
-                    <h5 id="UserTitle" class="mb-2">Load your raw 23andMe file(s) — up to 5 (optional): </h5>
-                    <button id="my23Btn" class="btn btn-primary btn-sm mb-3">Upload 23andMe File(s)</button>
-                    <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
-                    <div id="my23Status" class="small text-muted mb-2"></div>
-                    <hr class="my-3" />
+                    <div class="row g-3 mt-1 mb-4">
 
-                    <h5 style="color: rgb(6, 137, 231);">Choose up to 10 participants below:
-                        <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
-                            Or load fallback users →
-                        </a>
-                    </h5>
-                    <hr class="my-3" />
-                    <div class="my-3 d-flex flex-wrap align-items-end gap-3">
-                        <div>
-                            <label class="form-label mb-1"><b>Load Mode</b></label>
-                            <div class="btn-group d-block" role="group">
-                                <button id="modePagedBtn" class="btn btn-sm btn-outline-primary"
-                                    onclick="onParticipantsModeChange('paged')">Paged</button>
-                                <button id="modeAllBtn" class="btn btn-sm btn-primary"
-                                    onclick="onParticipantsModeChange('all')">All Participants</button>
+                        <!-- Card A: Upload local files -->
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-primary">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">Option A — Upload Local Files</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Upload your own raw 23andMe export file(s) directly from your device. Up to 5 files accepted.</p>
+                                    <button id="my23Btn" class="btn btn-primary btn-sm mb-2">Upload Local 23andMe Files</button>
+                                    <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
+                                    <div id="my23Status" class="small text-muted"></div>
+                                    <p class="small text-muted mt-2 mb-2"><i class="fa fa-lock me-1"></i>Files are processed locally in your browser and are never uploaded to a server.</p>
+                                    <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>
+                                </div>
                             </div>
-                            <div class="text-muted small mt-1"><b>All</b> loads every participant instantly (no version/name lookup). <b>Paged</b> is slower — it fetches each profile individually to get the chip version and full name.</div>
                         </div>
-                        <div>
-                            <label for="participantsVersionSelect" class="form-label mb-1"><b>Filter by Version</b></label>
-                            <select id="participantsVersionSelect" class="form-select form-select-sm" style="max-width: 180px;"
-                                onchange="onParticipantsVersionChange(this.value)">
-                                <option value="">All Versions</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3" style="display:none;">Fetch 23andMe Text Files</button>
-                    <div id="globalSelectionCount2" class="small text-muted mt-1">Selected: 0 / 10</div>
 
+                        <!-- Card B: Public PGP participants -->
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-success">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">Option B — Public PGP Participants</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available participants from the Personal Genome Project for demo or research workflows.</p>
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                        <div>
+                                            <label class="form-label mb-1 small"><b>Load Mode</b></label>
+                                            <div class="btn-group d-block" role="group">
+                                                <button id="modeAllBtn" class="btn btn-sm btn-success"
+                                                    onclick="onParticipantsModeChange('all'); document.getElementById('participantsVersionFilterDiv').style.display='none'; this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modePagedBtn').classList.replace('btn-success','btn-outline-success');">Load All PGP Participants</button>
+                                                <button id="modePagedBtn" class="btn btn-sm btn-outline-success"
+                                                    onclick="onParticipantsModeChange('paged'); document.getElementById('participantsVersionFilterDiv').style.display='block'; this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">Load With Profile Details</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                                    style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.75rem"
+                                                    data-bs-toggle="popover"
+                                                    data-bs-trigger="focus"
+                                                    data-bs-placement="top"
+                                                    data-bs-html="true"
+                                                    title="Load modes"
+                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly — no version or name lookup.<br><br><strong>Load With Profile Details</strong> is slower; it fetches each profile individually to retrieve the chip version and full name, and enables the version filter."
+                                                    aria-label="Load mode info">?</button>
+                                            </div>
+                                        </div>
+                                        <div id="participantsVersionFilterDiv" style="display:none;">
+                                            <label for="participantsVersionSelect" class="form-label mb-1 small"><b>Filter by Version</b></label>
+                                            <select id="participantsVersionSelect" class="form-select form-select-sm" style="max-width:160px;"
+                                                onchange="onParticipantsVersionChange(this.value)">
+                                                <option value="">All Versions</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button id="clearPGPBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;" onclick="window.clearPGPSelections && window.clearPGPSelections()">Unselect PGP Participants</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card C: Fallback / example users -->
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-secondary">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">Option C — Example Users</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Load a set of pre-bundled example participants to quickly explore PRS calculations without uploading any files.</p>
+                                    <button class="btn btn-secondary btn-sm mb-2"
+                                        onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
+                                        Load Example Participants
+                                    </button>
+                                    <p class="small text-muted mt-2 mb-0">No file upload required — useful for testing and demonstrations.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Actions below cards -->
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <button id="fetchUsersBtn" class="btn btn-danger btn-sm" style="display:none;"
+                            onclick="this.classList.remove('btn-danger'); this.classList.add('btn-success');">Load Uploaded & Selected Files</button>
+                        <div id="globalSelectionCount2" class="small text-muted">Uploaded & Selected: 0 / 10</div>
+                    </div>
+
+                    <!-- PGP participant list (populated by Option B) -->
                     <div id="localUsersDiv">
                         <div class="d-flex flex-column align-items-center my-4">
                             <div class="spinner-border text-primary my-3" role="status">
@@ -489,11 +538,24 @@ user3        1      2      4     -1</pre>
                             </div>
                         </div>
 
+                        <!-- Direct PGS ID entry -->
                         <div class="mb-3">
-                            <label class="form-label"><b>3.) Load PGS scoring files</b></label>
-                            <button id="fetchScoresBtn" class="btn btn-success">Fetch Files</button>
-                            <span id="fetchScoresStatus" class="ms-2 small text-muted"></span>
+                            <label for="directPgsInput" class="form-label"><b>Or enter PGS IDs directly:</b></label>
+                            <div class="d-flex gap-2 align-items-start" style="max-width: 420px;">
+                                <textarea id="directPgsInput" class="form-control form-control-sm"
+                                    rows="2" placeholder="e.g. PGS000001, PGS000004, PGS000055"
+                                    style="font-family: monospace; resize: vertical;"></textarea>
+                                <button id="addPgsByIdBtn" class="btn btn-sm btn-outline-success text-nowrap">Add IDs</button>
+                            </div>
+                            <div id="directPgsStatus" class="small text-muted mt-1"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <span id="fetchScoresStatus" class="small text-muted"></span>
                             <div id="globalSelectionCount" class="small text-muted mt-1">Selected: 0 / 10</div>
+                            <button id="fetchPgsFilesBtn" class="btn btn-success mt-2" style="display:none;">
+                                 Fetch PGS Files
+                            </button>
                         </div>
                         <div id="scoreTxtsDiv" style="display: none;">
                             <div class="my-3"></div>

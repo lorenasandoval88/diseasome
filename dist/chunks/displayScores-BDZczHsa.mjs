@@ -1,4 +1,4 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 /*
  Module: displayScores.js
@@ -90,12 +90,6 @@ window.clearSelectedScores = () => {
 function updateGlobalSelectionCount() {
 	const el = document.getElementById("globalSelectionCount");
 	if (el) el.textContent = `Selected: ${selectedPgsIds.size} / ${MAX_SELECTION}`;
-
-	// Show/hide the contextual "Fetch PGS Files" button
-	const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
-	if (fetchPgsFilesBtn) {
-		fetchPgsFilesBtn.style.display = selectedPgsIds.size > 0 ? "" : "none";
-	}
 
 	// Also update PRS tab scores section (mirrors displayUsers.js behavior for prsUsersdiv/prsUsersAction)
 	const prsScoresDiv = document.getElementById("prsScoresDiv");
@@ -1051,11 +1045,6 @@ if (fetchScoresBtn) {
 	fetchScoresBtn.addEventListener("click", fetchScoresTxts);
 }
 
-const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
-if (fetchPgsFilesBtn) {
-	fetchPgsFilesBtn.addEventListener("click", fetchScoresTxts);
-}
-
 // --- Direct PGS ID entry ---
 
 /**
@@ -1184,3 +1173,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-BDZczHsa.mjs.map

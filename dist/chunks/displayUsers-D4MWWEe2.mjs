@@ -1,5 +1,9 @@
-import { load23andMeFile, fetch23andMeParticipants, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -87,12 +91,7 @@ function updateGlobalSelectionCount() {
 
 	// Show/hide Fetch button based on whether any users are selected
 	const fetchBtn = document.getElementById("fetchUsersBtn");
-	if (fetchBtn) {
-		fetchBtn.style.display = selectedUserIds.size > 0 ? '' : 'none';
-		// Reset to red whenever selection changes (new upload or PGP selection)
-		fetchBtn.classList.remove('btn-secondary');
-		fetchBtn.classList.add('btn-danger');
-	}
+	if (fetchBtn) fetchBtn.style.display = selectedUserIds.size > 0 ? '' : 'none';
 
 	// Show/hide unselect buttons based on what is selected
 	const hasUploaded = Array.from(selectedUsersMap.values()).some(u => u.dataSource === 'file Upload');
@@ -153,7 +152,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -469,10 +468,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 		container.innerHTML = `
 			<div class="d-flex justify-content-between align-items-center my-2">
 				<h5 class="mb-0">${escapeHtml(title)}</h5>
-				<div class="d-flex align-items-center gap-2">
+				<div>
 					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
-					<button id="deselectAllParticipants_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;">Deselect all</button>
 				</div>
 			</div>
 			<div class="table-responsive">
@@ -506,7 +504,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 		`;
 
 		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
-		const deselectAllBtn = document.getElementById(`deselectAllParticipants_${key}`);
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
@@ -523,16 +520,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 					loadMoreBtn.disabled = false;
 					loadMoreBtn.textContent = 'Load 5 more';
 				}
-			});
-		}
-
-		if (deselectAllBtn) {
-			deselectAllBtn.addEventListener('click', () => {
-				selectedIds.clear();
-				selectedUsersMap.clear();
-				if (selectAll) selectAll.checked = false;
-				renderPage();
-				updateGlobalSelectionCount();
 			});
 		}
 
@@ -867,3 +854,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-D4MWWEe2.mjs.map

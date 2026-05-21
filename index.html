@@ -397,7 +397,7 @@ user3        1      2      4     -1</pre>
                                     <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
                                     <div id="my23Status" class="small text-muted"></div>
                                     <p class="small text-muted mt-2 mb-2"><i class="fa fa-lock me-1"></i>Files are processed locally in your browser and are never uploaded to a server.</p>
-                                    <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>
+                                    <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>
                                 </div>
                             </div>
                         </div>
@@ -435,7 +435,7 @@ user3        1      2      4     -1</pre>
                                             </select>
                                         </div>
                                     </div>
-                                    <button id="clearPGPBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;" onclick="window.clearPGPSelections && window.clearPGPSelections()">Unselect PGP Participants</button>
+                                    <button id="clearPGPBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearPGPSelections && window.clearPGPSelections()">Unselect PGP Participants</button>
                                 </div>
                             </div>
                         </div>
@@ -460,7 +460,7 @@ user3        1      2      4     -1</pre>
                     <!-- Actions below cards -->
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <button id="fetchUsersBtn" class="btn btn-danger btn-sm" style="display:none;"
-                            onclick="this.classList.remove('btn-danger'); this.classList.add('btn-success');">Load Uploaded & Selected Files</button>
+                            onclick="this.classList.remove('btn-danger'); this.classList.add('btn-secondary');">Load Uploaded & Selected Files</button>
                         <div id="globalSelectionCount2" class="small text-muted">Uploaded & Selected: 0 / 10</div>
                     </div>
 

@@ -30,7 +30,7 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-BkeFqarN.mjs');
+        await import('./chunks/displayScores-DZjSkUbi.mjs');
         pgsModuleLoaded = true;
     }
 }
@@ -6491,6 +6491,9 @@ async function renderCluster() {
       <button id="downloadPrsMatrixBtn" class="btn btn-outline-secondary btn-sm">
         ⬇ Download PRS Matrix JSON
       </button>
+      <button id="downloadPrsCsvBtn" class="btn btn-outline-secondary btn-sm ms-2">
+        ⬇ Build matrix &amp; download CSV
+      </button>
       <span class="text-muted small ms-2">ClustJS-compatible format: array of row objects with a <code>label</code> field and one field per PGS ID.</span>
     </div>
     <div class="mb-2">
@@ -6590,7 +6593,7 @@ async function renderCluster() {
 
     <!-- 1. All Variants -->
     <div class="card mb-4">
-      <div class="card-header"><strong>1. All Variants</strong> <span class="text-muted small">— Broad view, includes non-matches (black = missing)</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>1. All Variants</strong> <span class="text-muted small">— Broad view, includes non-matches (black = missing)</span></span>${allMatrix ? '<button id="downloadBAllBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${allMatrix ? `
           <p class="text-muted small mb-2">${allMatrix.length} users × ${allCount} variants (of ${totalVariants} total in PGS)</p>
@@ -6601,7 +6604,7 @@ async function renderCluster() {
 
     <!-- 2. Overlapping Matches -->
     <div class="card mb-4">
-      <div class="card-header"><strong>2. Overlapping Matches</strong> <span class="text-muted small">— SNPs matched in ≥1 user (cleaner view)</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>2. Overlapping Matches</strong> <span class="text-muted small">— SNPs matched in ≥1 user (cleaner view)</span></span>${overlapMatrix ? '<button id="downloadBOverlapBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${overlapMatrix ? `
           <p class="text-muted small mb-2">${overlapMatrix.length} users × ${overlapCount} variants (${overlapPct}% of total)</p>
@@ -6612,7 +6615,7 @@ async function renderCluster() {
 
     <!-- 3. Shared Matched SNPs -->
     <div class="card mb-4">
-      <div class="card-header"><strong>3. Shared Matched SNPs</strong> <span class="text-muted small">— SNPs matched in ALL users (best for direct comparison)</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>3. Shared Matched SNPs</strong> <span class="text-muted small">— SNPs matched in ALL users (best for direct comparison)</span></span>${sharedMatrix ? '<button id="downloadBSharedBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${sharedMatrix ? `
           <p class="text-muted small mb-2">${sharedMatrix.length} users × ${sharedCount} variants (${sharedPct}% of total)</p>
@@ -6658,7 +6661,7 @@ async function renderCluster() {
 
     <!-- 1. All SNPs -->
     <div class="card mb-4">
-      <div class="card-header"><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all matched SNPs across PGS entries</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all matched SNPs across PGS entries</span></span>${pgsVsSnpsAllMatrix ? '<button id="downloadCAllBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsVsSnpsAllMatrix ? `
           <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsAllCount} SNPs</p>
@@ -6669,7 +6672,7 @@ async function renderCluster() {
 
     <!-- 2. Overlapping SNPs -->
     <div class="card mb-4">
-      <div class="card-header"><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs matched in ≥2 PGS entries</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs matched in ≥2 PGS entries</span></span>${pgsVsSnpsOverlapMatrix ? '<button id="downloadCOverlapBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsVsSnpsOverlapMatrix ? `
           <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsOverlapCount} SNPs</p>
@@ -6680,7 +6683,7 @@ async function renderCluster() {
 
     <!-- 3. Shared SNPs -->
     <div class="card mb-4">
-      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs matched in ALL PGS entries</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs matched in ALL PGS entries</span></span>${pgsVsSnpsSharedMatrix ? '<button id="downloadCSharedBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsVsSnpsSharedMatrix ? `
           <p class="text-muted small mb-2">${pgsVsSnpsPgsCount} PGS entries × ${pgsVsSnpsSharedCount} SNPs</p>
@@ -6717,7 +6720,7 @@ async function renderCluster() {
 
     <!-- 1. All SNPs Effect Weight -->
     <div class="card mb-4">
-      <div class="card-header"><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all SNPs across PGS entries</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>1. All SNPs</strong> <span class="text-muted small">— Union of all SNPs across PGS entries</span></span>${pgsEffectAll ? '<button id="downloadDAllBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsEffectAll ? `
           <p class="text-muted small mb-2">${pgsEffectAll.pgsCount} PGS × ${pgsEffectAll.snpCount} SNPs (after removing constant columns)</p>
@@ -6728,7 +6731,7 @@ async function renderCluster() {
 
     <!-- 2. Overlapping SNPs Effect Weight -->
     <div class="card mb-4">
-      <div class="card-header"><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs found in ≥2 PGS entries</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>2. Overlapping SNPs</strong> <span class="text-muted small">— SNPs found in ≥2 PGS entries</span></span>${pgsEffectOverlap ? '<button id="downloadDOverlapBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsEffectOverlap ? `
           <p class="text-muted small mb-2">${pgsEffectOverlap.pgsCount} PGS × ${pgsEffectOverlap.snpCount} SNPs</p>
@@ -6739,7 +6742,7 @@ async function renderCluster() {
 
     <!-- 3. Shared SNPs Effect Weight -->
     <div class="card mb-4">
-      <div class="card-header"><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs found in every PGS model</span></div>
+      <div class="card-header d-flex justify-content-between align-items-center"><span><strong>3. Shared SNPs (All PGS)</strong> <span class="text-muted small">— SNPs found in every PGS model</span></span>${pgsEffectShared ? '<button id="downloadDSharedBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>' : ''}</div>
       <div class="card-body">
         ${pgsEffectShared ? `
           <p class="text-muted small mb-2">${pgsEffectShared.pgsCount} PGS × ${pgsEffectShared.snpCount} SNPs</p>
@@ -6789,7 +6792,7 @@ async function renderCluster() {
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span><strong>Users × SNPs Allele Count Heatmap</strong> <span class="text-muted small">— ${genotypeMatrixResult.userIds.length} users × ${genotypeMatrixResult.snpCount} shared SNPs (all PGS combined)</span></span>
-          <button id="genotypeDownloadBtn" class="btn btn-sm btn-outline-secondary">⬇ Download CSV</button>
+          <button id="genotypeDownloadBtn" class="btn btn-sm btn-outline-secondary">⬇ Build matrix &amp; download CSV</button>
         </div>
         <div class="card-body">
           <div id="genotypeDistPlot" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
@@ -7095,6 +7098,40 @@ async function renderCluster() {
       downloadMatrixAsCsv(genotypeMatrix, `genotype_matrix_E_${genotypeMatrixResult.snpCount}snps.csv`);
     };
   }
+
+  // Wire Section A CSV download
+  const downloadPrsCsvBtn = document.getElementById('downloadPrsCsvBtn');
+  if (downloadPrsCsvBtn) {
+    downloadPrsCsvBtn.onclick = () => {
+      const data = clusterCache.pivoted ?? pivotPrsResults(window.prsResults);
+      if (!data) { alert('No PRS matrix available.'); return; }
+      downloadMatrixAsCsv(data, `prs_matrix_A_${data.length}users.csv`);
+    };
+  }
+
+  // Wire Section B CSV downloads
+  const downloadBAllBtn = document.getElementById('downloadBAllBtn');
+  if (downloadBAllBtn && allMatrix) downloadBAllBtn.onclick = () => downloadMatrixAsCsv(allMatrix, `allele_matrix_B_all_${selectedPgsId}.csv`);
+  const downloadBOverlapBtn = document.getElementById('downloadBOverlapBtn');
+  if (downloadBOverlapBtn && overlapMatrix) downloadBOverlapBtn.onclick = () => downloadMatrixAsCsv(overlapMatrix, `allele_matrix_B_overlap_${selectedPgsId}.csv`);
+  const downloadBSharedBtn = document.getElementById('downloadBSharedBtn');
+  if (downloadBSharedBtn && sharedMatrix) downloadBSharedBtn.onclick = () => downloadMatrixAsCsv(sharedMatrix, `allele_matrix_B_shared_${selectedPgsId}.csv`);
+
+  // Wire Section C CSV downloads
+  const downloadCAllBtn = document.getElementById('downloadCAllBtn');
+  if (downloadCAllBtn && pgsVsSnpsAllMatrix) downloadCAllBtn.onclick = () => downloadMatrixAsCsv(pgsVsSnpsAllMatrix, `pgs_snp_matrix_C_all_${selectedUserId}.csv`);
+  const downloadCOverlapBtn = document.getElementById('downloadCOverlapBtn');
+  if (downloadCOverlapBtn && pgsVsSnpsOverlapMatrix) downloadCOverlapBtn.onclick = () => downloadMatrixAsCsv(pgsVsSnpsOverlapMatrix, `pgs_snp_matrix_C_overlap_${selectedUserId}.csv`);
+  const downloadCSharedBtn = document.getElementById('downloadCSharedBtn');
+  if (downloadCSharedBtn && pgsVsSnpsSharedMatrix) downloadCSharedBtn.onclick = () => downloadMatrixAsCsv(pgsVsSnpsSharedMatrix, `pgs_snp_matrix_C_shared_${selectedUserId}.csv`);
+
+  // Wire Section D CSV downloads
+  const downloadDAllBtn = document.getElementById('downloadDAllBtn');
+  if (downloadDAllBtn && pgsEffectAll?.data) downloadDAllBtn.onclick = () => downloadMatrixAsCsv(pgsEffectAll.data, `effect_matrix_D_all_${pgsEffectAll.pgsCount}pgs.csv`);
+  const downloadDOverlapBtn = document.getElementById('downloadDOverlapBtn');
+  if (downloadDOverlapBtn && pgsEffectOverlap?.data) downloadDOverlapBtn.onclick = () => downloadMatrixAsCsv(pgsEffectOverlap.data, `effect_matrix_D_overlap_${pgsEffectOverlap.pgsCount}pgs.csv`);
+  const downloadDSharedBtn = document.getElementById('downloadDSharedBtn');
+  if (downloadDSharedBtn && pgsEffectShared?.data) downloadDSharedBtn.onclick = () => downloadMatrixAsCsv(pgsEffectShared.data, `effect_matrix_D_shared_${pgsEffectShared.pgsCount}pgs.csv`);
 
   // Section F — lazy-loaded on button click
   // Local state for Section F options (persisted on window.clusterOptions)

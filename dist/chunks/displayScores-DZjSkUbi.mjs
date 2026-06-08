@@ -1,4 +1,4 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 /*
  Module: displayScores.js
@@ -1193,3 +1193,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-DZjSkUbi.mjs.map

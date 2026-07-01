@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-_wri8UWg.mjs');
+        await import('./chunks/displayUsers-BiI20wl_.mjs');
         localDataModuleLoaded = true;
     }
 }

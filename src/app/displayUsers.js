@@ -32,7 +32,7 @@ setParticipantsLoadingProgress(50);
 // Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
 let curatedJsonParticipants = null;
 try {
-	const res = await fetch('data/PGP_participants.json');
+	const res = await fetch('data/PGP_participants_1017.json');
 	if (!res.ok) throw new Error(`HTTP ${res.status}`);
 	curatedJsonParticipants = await res.json();
 } catch (err) {
@@ -429,13 +429,13 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 		if (!curatedJsonParticipants) {
 			showParticipantsLoadingOverlay(true, 20, 'Loading curated JSON list...');
 			try {
-				const res = await fetch('data/PGP_participants.json');
+				const res = await fetch('data/PGP_participants_1017.json');
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				curatedJsonParticipants = await res.json();
 			} catch (err) {
 				console.error('Failed to load curated JSON:', err);
 				curatedJsonParticipants = [];
-				alert(`Failed to load data/PGP_participants.json: ${err.message}`);
+				alert(`Failed to load data/PGP_participants_1017.json: ${err.message}`);
 			} finally {
 				showParticipantsLoadingOverlay(false);
 			}
@@ -760,7 +760,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			downloadJsonBtn.addEventListener('click', () => {
 				downloadAsFile(
 					JSON.stringify(displayList, null, 2),
-					`PGP_participants.json`,
+					`PGP_participants_1017.json`,
 					'application/json'
 				);
 			});
@@ -769,7 +769,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			downloadCsvBtn.addEventListener('click', () => {
 				downloadAsFile(
 					participantsToCsv(displayList),
-					`PGP_participants.csv`,
+					`PGP_participants_1017.csv`,
 					'text/csv'
 				);
 			});

@@ -412,10 +412,10 @@ user3        1      2      4     -1</pre>
                                         <div>
                                             <label class="form-label mb-1 small"><b>Display Mode</b></label>
                                             <div class="btn-group d-block" role="group">
-                                                <button id="modeAllBtn" class="btn btn-sm btn-outline-success"
-                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">Fetch All Participants from PGP</button>
                                                 <button id="modeJsonBtn" class="btn btn-sm btn-success"
                                                     onclick="onParticipantsModeChange('json'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">From Curated JSON (with build) &mdash; updated 06-2026</button>
+                                                <button id="modeAllBtn" class="btn btn-sm btn-outline-success"
+                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">Fetch All Participants from PGP</button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
                                                     style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.75rem"
                                                     data-bs-toggle="popover"
@@ -423,8 +423,12 @@ user3        1      2      4     -1</pre>
                                                     data-bs-placement="top"
                                                     data-bs-html="true"
                                                     title="Load modes"
-                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly — no version or name lookup.<br><br><strong>From Curated JSON</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
+                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly &mdash; no version or name lookup. Result is cached locally; use <em>Update</em> to re-fetch.<br><br><strong>From Curated JSON</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
                                                     aria-label="Load mode info">?</button>
+                                            </div>
+                                            <div id="allParticipantsCacheInfo" class="small text-muted mt-1" style="display:none;">
+                                                <span id="allParticipantsCacheDate"></span>
+                                                <button id="allParticipantsUpdateBtn" type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.75rem;vertical-align:baseline;" onclick="window.refreshAllParticipants && window.refreshAllParticipants()">Update</button>
                                             </div>
                                         </div>
                                         <div id="participantsVersionFilterDiv">

@@ -1,5 +1,9 @@
-import { load23andMeFile, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -170,7 +174,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -178,20 +182,21 @@ function sanitizeKey(value) {
 
 /**
  * extractVersion(item)
- * Extract 23andMe chip version(s) from a genome filename.
- * Returns a comma-joined string when multiple versions are present,
- * e.g. "genome_Mark_Jones_v2_v3_v5_Full_..." -> "v2,v3,v5".
- * @param {Object} item
- * @returns {string|null}
+ * Extract the 23andMe chip version (e.g., "v4", "v5") from genotype filenames.
+ * @param {Object} item - Participant object with genotypes array
+ * @returns {string|null} Version string like "v4", "v5", or null if not found
  */
 function extractVersion(item) {
-	const filename = item.innerFilename ?? item.filename ?? item.fileName ?? item.genotypes?.[0]?.filename ?? item.name ?? '';
-	const s = String(filename);
-	// Restrict to the "genome_..._Full" section when present to avoid false matches elsewhere
-	const section = s.match(/genome_.*?_Full/i)?.[0] ?? s;
-	const nums = [...section.matchAll(/_v(\d+)/gi)].map(m => m[1]);
-	if (nums.length === 0) return null;
-	return nums.map(n => `v${n}`).join(',');
+	const filename = item.fileName ?? item.name ?? '';
+	// console.log("Extracting version from filename:", filename,item);
+	// Match patterns like _v4_, _v5_, v4_Full, v5_Full, etc.
+	const match = String(filename).match(/_v(\d+)_|v(\d+)_Full/i);
+	if (match) {
+		const version = match[1] ?? match[2];
+		// console.log("Found version:", version);
+		return `v${version}`;
+	}
+	return null;
 }
 
 /**
@@ -428,7 +433,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const version = extractVersion(p) ?? '-';
 
 			// Curated-JSON extras
-			const filename = p.innerFilename ?? p.filename ?? p.fileName ?? p.genotypes?.[0]?.filename ?? '';
+			const filename = p.filename ?? p.fileName ?? p.innerFilename ?? p.genotypes?.[0]?.filename ?? '';
 			const filenameHtml = filename ? escapeHtml(filename) : '-';
 			const build = p.genomeBuild ?? p.build ?? '-';
 			const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? null;
@@ -930,3 +935,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-BGp-sQmL.mjs.map

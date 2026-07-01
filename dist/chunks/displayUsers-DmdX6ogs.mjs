@@ -1,5 +1,9 @@
-import { load23andMeFile, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -28,14 +32,16 @@ function setParticipantsLoadingProgress(progress) {
 // Show initial loading state
 setParticipantsLoadingProgress(20);
 
+const INITIAL_LIMIT = 5;
 setParticipantsLoadingProgress(50);
 // Default to 'all' mode — fast fetch with no per-profile round trips
 const data = await allUsersMetaDataByType_fast();
 setParticipantsLoadingProgress(100);
 
 let participants = data ?? [];
+let currentLimit = INITIAL_LIMIT;
+let participantLoadMode = 'all'; // 'paged' | 'all'
 let allParticipantsFast = participants; // already loaded
-let curatedJsonParticipants = null; // cached JSON dataset
 
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10;
@@ -164,7 +170,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -221,13 +227,17 @@ window.populateVersionSelect = populateVersionSelect;
 function applyParticipantFilters() {
 	const versionSel = document.getElementById('participantsVersionSelect');
 	const version = versionSel?.value ?? '';
-
+	
 	let list = participants;
-
+	
 	if (version && version !== '') {
 		list = list.filter(p => (extractVersion(p) ?? 'Unknown') === version);
 	}
 
+	// Hide/show Load More button based on mode
+	const loadMoreBtn = document.getElementById('loadMore_participants');
+	if (loadMoreBtn) loadMoreBtn.style.display = participantLoadMode === 'all' ? 'none' : '';
+	
 	const key = sanitizeKey('participants') || 'participants';
 	const filterLabel = version && version !== '' ? version : 'All';
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
@@ -246,27 +256,22 @@ window.onParticipantsVersionChange = function onParticipantsVersionChange(select
 };
 
 /**
- * Handler invoked when the load-mode toggle changes ('all' vs 'json').
- * @param {'all'|'json'} mode
+ * Handler invoked when the load-mode toggle changes (paged vs all).
+ * In 'all' mode, fetches all participants at once via allUsersMetaDataByType_fast.
+ * @param {string} mode - 'paged' or 'all'
  */
 window.onParticipantsModeChange = async function onParticipantsModeChange(mode) {
-	if (mode === 'json') {
-		if (!curatedJsonParticipants) {
-			showParticipantsLoadingOverlay(true, 20, 'Loading curated JSON list...');
-			try {
-				const res = await fetch('data/PGP_participants.json');
-				if (!res.ok) throw new Error(`HTTP ${res.status}`);
-				curatedJsonParticipants = await res.json();
-			} catch (err) {
-				console.error('Failed to load curated JSON:', err);
-				curatedJsonParticipants = [];
-				alert(`Failed to load data/PGP_participants.json: ${err.message}`);
-			} finally {
-				showParticipantsLoadingOverlay(false);
-			}
-		}
-		participants = curatedJsonParticipants ?? [];
-	} else {
+	participantLoadMode = mode;
+
+	// Update button styles
+	const pagedBtn = document.getElementById('modePagedBtn');
+	const allBtn = document.getElementById('modeAllBtn');
+	if (pagedBtn) pagedBtn.classList.toggle('btn-primary', mode === 'paged');
+	if (pagedBtn) pagedBtn.classList.toggle('btn-outline-primary', mode !== 'paged');
+	if (allBtn) allBtn.classList.toggle('btn-primary', mode === 'all');
+	if (allBtn) allBtn.classList.toggle('btn-outline-primary', mode !== 'all');
+
+	if (mode === 'all') {
 		if (!allParticipantsFast) {
 			showParticipantsLoadingOverlay(true, 20, 'Fetching all participants...');
 			try {
@@ -279,6 +284,10 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 			}
 		}
 		participants = allParticipantsFast ?? [];
+	} else {
+		// Revert to the initial paged data
+		const paged = await fetch23andMeParticipants(currentLimit);
+		participants = paged ?? [];
 	}
 
 	populateVersionSelect();
@@ -332,6 +341,47 @@ function showParticipantsLoadingOverlay(show, progress = 0, message = 'Loading..
 		if (overlay) overlay.remove();
 	}
 }
+
+/**
+ * Load more participants by fetching additional rows.
+ * @param {number} count - Number of additional participants to load (default: 5)
+ * @returns {Promise<void>}
+ */
+async function loadMoreParticipants(count = 5) {
+	const newLimit = currentLimit + count;
+	
+	// console.log(`Loading more participants: ${currentLimit} -> ${newLimit}`);
+	showParticipantsLoadingOverlay(true, 10, `Loading ${count} more participants...`);
+	
+	try {
+		showParticipantsLoadingOverlay(true, 30, 'Fetching participant data...');
+		const newData = await fetch23andMeParticipants(newLimit);
+		showParticipantsLoadingOverlay(true, 70, 'Processing data...');
+		
+		// console.log(`Fetched ${newData?.length ?? 0} participants (requested ${newLimit})`);
+		if (newData && newData.length > participants.length) {
+			participants = newData;
+			currentLimit = newLimit;
+			showParticipantsLoadingOverlay(true, 90, 'Updating table...');
+			populateVersionSelect();
+			applyParticipantFilters();
+			// console.log(`Loaded ${newData.length} participants total`);
+		} else if (newData && newData.length === participants.length && newData.length < newLimit) {
+			// All available participants already loaded
+			// console.log('All available participants already loaded');
+			alert(`All ${participants.length} available participants are already loaded.`);
+		} else {
+			// console.log('No additional participants available');
+			alert('No additional participants available.');
+		}
+	} catch (err) {
+		console.error('Error loading more participants:', err);
+		alert('Failed to load more participants.');
+	} finally {
+		showParticipantsLoadingOverlay(false);
+	}
+}
+window.loadMoreParticipants = loadMoreParticipants;
 
 /**
  * Render a paginated participants table with selection and pagination controls.
@@ -415,13 +465,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
 			const version = extractVersion(p) ?? '-';
 
-			// Curated-JSON extras
-			const filename = p.filename ?? p.fileName ?? p.innerFilename ?? p.genotypes?.[0]?.filename ?? '';
-			const filenameHtml = filename ? escapeHtml(filename) : '-';
-			const build = p.genomeBuild ?? p.build ?? '-';
-			const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? null;
-			const sizeHtml = (sizeMB != null) ? `${Number(sizeMB).toFixed(2)}` : '-';
-
 			return `
 				<tr>
 					<td>${startIndex + i + 1}</td>
@@ -429,9 +472,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
 					<td>${version}</td>
-					<td>${escapeHtml(String(build))}</td>
-					<td>${sizeHtml}</td>
-					<td title="${escapeHtml(filename)}">${filenameHtml}</td>
 					<td>${published}</td>
 					<td>${profileHtml}</td>
 					<td>${downloadHtml}</td>
@@ -461,9 +501,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Participant ID</th>
 							<th>Name</th>
 							<th>Version</th>
-							<th>Build</th>
-							<th>Size (MB)</th>
-							<th>Filename</th>
 							<th>Published Date</th>
 							<th>Profile</th>
 							<th>Download URL</th>
@@ -477,6 +514,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			<div class="d-flex justify-content-between align-items-center mt-2">
 			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
+					<button id="loadMore_${key}" class="btn btn-sm btn-outline-primary">Load 5 more</button>
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
 					<button id="nextPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
@@ -489,6 +527,21 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+		const loadMoreBtn = document.getElementById(`loadMore_${key}`);
+
+		if (loadMoreBtn) {
+			loadMoreBtn.style.display = participantLoadMode === 'all' ? 'none' : '';
+			loadMoreBtn.addEventListener('click', async () => {
+				loadMoreBtn.disabled = true;
+				loadMoreBtn.textContent = 'Loading...';
+				try {
+					await loadMoreParticipants(5);
+				} finally {
+					loadMoreBtn.disabled = false;
+					loadMoreBtn.textContent = 'Load 5 more';
+				}
+			});
+		}
 
 		if (deselectAllBtn) {
 			deselectAllBtn.addEventListener('click', () => {
@@ -914,7 +967,9 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	renderLocalUsers: window.renderLocalUsers,
 	applyParticipantFilters,
 	populateVersionSelect,
+	loadMoreParticipants,
 	onParticipantsVersionChange: window.onParticipantsVersionChange,
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-DmdX6ogs.mjs.map

@@ -388,7 +388,7 @@ user3        1      2      4     -1</pre>
                     <div class="row g-3 mt-1 mb-4">
 
                         <!-- Card A: Upload local files -->
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-3">
                             <div class="card h-100 border-primary">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Option A — Upload Local Files</h5>
@@ -403,7 +403,7 @@ user3        1      2      4     -1</pre>
                         </div>
 
                         <!-- Card B: Public PGP participants -->
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-3">
                             <div class="card h-100 border-success">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Option B — Public PGP Participants</h5>
@@ -413,9 +413,9 @@ user3        1      2      4     -1</pre>
                                             <label class="form-label mb-1 small"><b>Display Mode</b></label>
                                             <div class="btn-group d-block" role="group">
                                                 <button id="modeAllBtn" class="btn btn-sm btn-success"
-                                                    onclick="onParticipantsModeChange('all'); document.getElementById('participantsVersionFilterDiv').style.display='none'; this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modePagedBtn').classList.replace('btn-success','btn-outline-success');">All Participants</button>
-                                                <button id="modePagedBtn" class="btn btn-sm btn-outline-success"
-                                                    onclick="onParticipantsModeChange('paged'); document.getElementById('participantsVersionFilterDiv').style.display='block'; this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">All Participants with Profile Details</button>
+                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">All Participants</button>
+                                                <button id="modeJsonBtn" class="btn btn-sm btn-outline-success"
+                                                    onclick="onParticipantsModeChange('json'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">From Curated JSON (with build)</button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
                                                     style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.75rem"
                                                     data-bs-toggle="popover"
@@ -423,7 +423,7 @@ user3        1      2      4     -1</pre>
                                                     data-bs-placement="top"
                                                     data-bs-html="true"
                                                     title="Load modes"
-                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly — no version or name lookup.<br><br><strong>Load With Profile Details</strong> is slower; it fetches each profile individually to retrieve the chip version and full name, and enables the version filter."
+                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly — no version or name lookup.<br><br><strong>From Curated JSON</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
                                                     aria-label="Load mode info">?</button>
                                             </div>
                                         </div>
@@ -441,7 +441,7 @@ user3        1      2      4     -1</pre>
                         </div>
 
                         <!-- Card C: Fallback / example users -->
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-3">
                             <div class="card h-100 border-secondary">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Option C — Example Users</h5>
@@ -451,6 +451,30 @@ user3        1      2      4     -1</pre>
                                         Load Example Participants
                                     </button>
                                     <p class="small text-muted mt-2 mb-0">No file upload required — useful for testing and demonstrations.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card D: Load by ID + Download URL -->
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <div class="card h-100 border-info">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">Option D — Load by ID + URL</h5>
+                                    <p class="card-text text-muted small">Fetch a single 23andMe file from a direct download URL and register it under the given ID.</p>
+                                    <div class="mb-2">
+                                        <label for="loadByUrlId" class="form-label mb-1 small"><b>User ID</b></label>
+                                        <input type="text" id="loadByUrlId" class="form-control form-control-sm" placeholder="e.g. hu09B28E" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="loadByUrlDownload" class="form-label mb-1 small"><b>Download URL</b></label>
+                                        <input type="url" id="loadByUrlDownload" class="form-control form-control-sm" placeholder="https://.../genome.txt" />
+                                    </div>
+                                    <button id="loadByUrlBtn" class="btn btn-info btn-sm mt-auto" style="width:fit-content;">Load</button>
+                                    <div class="small text-muted mt-2">
+                                        Example: <code>hu4B2FD9</code> · <code>https://my.pgp-hms.org/user_file/download/3864</code>
+                                        <button type="button" id="loadByUrlExampleBtn" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.7rem;vertical-align:baseline;">Copy example</button>
+                                    </div>
+                                    <div id="loadByUrlStatus" class="small text-muted mt-2"></div>
                                 </div>
                             </div>
                         </div>
@@ -466,6 +490,16 @@ user3        1      2      4     -1</pre>
                             <button class="btn btn-outline-primary btn-sm" id="nextToModelsBtn" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Next: Select Disease / Trait Models →</button>
                         </div>
                         <div id="loadedFilesCount" class="small text-muted mt-1" style="display:none;">Loaded Data: 0 / 10</div>
+                    </div>
+
+                    <!-- Genome cache management -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="small text-muted"><b>Genome Cache:</b></span>
+                            <button id="showGenomicCacheBtn" class="btn btn-outline-secondary btn-sm" style="font-size:0.75rem;">Show Genomic Cache</button>
+                            <button id="clearGenomicCacheBtn" class="btn btn-outline-danger btn-sm" style="font-size:0.75rem;">Clear Genomic Cache</button>
+                        </div>
+                        <div id="genomicCacheList" class="mt-2"></div>
                     </div>
 
                     <!-- PGP participant list (populated by Option B) -->

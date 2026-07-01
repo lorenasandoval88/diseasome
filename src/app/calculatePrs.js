@@ -17,7 +17,8 @@ async function getCachedGenome(userId) {
 		const cached = await localforage.getItem(key);
 		if (cached) {
 			console.log(`Using cached genome for ${userId}`);
-			return cached;
+			// SDK's cacheAndReturn wraps payload under .data; local caching stores {cols, dt, meta} directly.
+			return cached?.data ?? cached;
 		}
 		return null;
 	} catch (err) {
@@ -763,62 +764,71 @@ function loadFallbackScores() {
 	}
 }
 
-/** * Load fallback users directly into the users table. */
+/** * Load fallback users directly into the users table.
+ * Appends to any already-loaded users (from the Genomic Data tab selection) instead of replacing them. */
 async function loadFallbackUsers() {
 	console.log("Loading fallback users...");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
-	
-	const selectedUsers = FALLBACK_USERS;
-	loadedUsers = selectedUsers; // Store for calculatePRS
-	loadedUsers = []; // Clear previous parsed data
-	
-	if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)...`;
+
+	// Preserve existing loaded users; only add fallback users not already loaded (by id).
+	const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
+	const existingIds = new Set(existing.map(entry => entry?.user?.id).filter(Boolean));
+	const toLoad = FALLBACK_USERS.filter(u => !existingIds.has(u.id));
+
+	if (toLoad.length === 0) {
+		if (statusEl) statusEl.textContent = `All ${FALLBACK_USERS.length} fallback participant(s) are already loaded.`;
+		return;
+	}
+
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
-	
+
 	// Fetch and parse each user's genome file (with caching)
 	let cachedCount = 0;
-	const parsePromises = selectedUsers.map(async (user, idx) => {
+	const parsePromises = toLoad.map(async (user, idx) => {
 		const genos = user?.genotypes ?? [];
 		const filePath = genos[0]?.download_url ?? genos[0]?.file;
 		if (!filePath) return null;
-		
+
 		try {
 			// Check cache first
 			const cached = await getCachedGenome(user.id);
 			if (cached) {
-				console.log(`Using cached genome for ${user.id}: ${cached.dt.length} variants`,cached);
+				console.log(`Using cached genome for ${user.id}: ${cached?.dt?.length ?? 0} variants`);
 				cachedCount++;
-				if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)... (${cachedCount} from cache)`;
+				if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)... (${cachedCount} from cache)`;
 				return { user, parsed: cached };
 			}
-			
+
 			// Not cached - fetch and parse
-			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${selectedUsers.length})`;
+			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${toLoad.length})`;
 			console.log(`Fallback user NOT CACHED, Fetching genome for ${user.id} from filePath:`, filePath);
 			const parsed = await load23andMeFile(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
-			
+
 			// Cache the result
 			await setCachedGenome(user.id, parsed);
-			
+
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
 			return null;
 		}
 	});
-	
+
 	const results = await Promise.all(parsePromises);
-	loadedUsers = results.filter(Boolean);
+	const added = results.filter(Boolean);
+	loadedUsers = existing.concat(added);
 	window.loadedUsers = loadedUsers; // expose for cluster tab
-	
+
 	const cacheMsg = cachedCount > 0 ? ` (${cachedCount} from cache)` : '';
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s)${cacheMsg}.`;
-	
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} fallback${cacheMsg}.`;
+
 	if (resultsDiv) {
-		const rows = selectedUsers.map((user, idx) => {
+		const displayUsers = loadedUsers.map(entry => entry.user);
+		const rows = displayUsers.map((user, idx) => {
 			const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
 			const name = escapeHtml(user?.name ?? "");
 			const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");

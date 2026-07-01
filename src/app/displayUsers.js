@@ -29,21 +29,30 @@ function setParticipantsLoadingProgress(progress) {
 setParticipantsLoadingProgress(20);
 
 setParticipantsLoadingProgress(50);
-// Default to 'all' mode — fast fetch with no per-profile round trips
-const data = await allUsersMetaDataByType_fast();
+// Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
+let curatedJsonParticipants = null;
+try {
+	const res = await fetch('data/PGP_participants.json');
+	if (!res.ok) throw new Error(`HTTP ${res.status}`);
+	curatedJsonParticipants = await res.json();
+} catch (err) {
+	console.error('Failed to load curated JSON:', err);
+	curatedJsonParticipants = [];
+}
 setParticipantsLoadingProgress(100);
 
-let participants = data ?? [];
-let allParticipantsFast = participants; // already loaded
-let curatedJsonParticipants = null; // cached JSON dataset
+let participants = curatedJsonParticipants ?? [];
+let allParticipantsFast = null; // fetched lazily when user switches to 'all' mode
+let participantLoadMode = 'json'; // 'all' | 'json' — sorting is only enabled in 'json' mode
+let sortState = { key: null, dir: 'asc' }; // key: 'version' | 'build' | 'size' | null
 
-// Reflect count on the "Fetch All Participants" button now that it's loaded
+// Reflect count on the curated JSON button now that it's loaded
 {
-	const allBtn = document.getElementById('modeAllBtn');
-	if (allBtn) allBtn.textContent = `All Participants from PGP (${participants.length}, cached)`;
+	const jsonBtn = document.getElementById('modeJsonBtn');
+	if (jsonBtn) jsonBtn.textContent = `From Curated JSON with build (${participants.length}) — updated 06-2026`;
 }
 
-const ROWS_PER_PAGE = 50;
+const ROWS_PER_PAGE = 200;
 const MAX_SELECTION = 10;
 
 // Module-level selected users (shared across renders)
@@ -185,7 +194,7 @@ function sanitizeKey(value) {
  * @returns {string|null}
  */
 function extractVersion(item) {
-	const filename = item.innerFilename ?? item.filename ?? item.fileName ?? item.genotypes?.[0]?.filename ?? item.name ?? '';
+	const filename = item.gcsfilename ?? item.innerFilename ?? item.filename ?? item.fileName ?? item.genotypes?.[0]?.filename ?? item.name ?? '';
 	const s = String(filename);
 	// Restrict to the "genome_..._Full" section when present to avoid false matches elsewhere
 	const section = s.match(/genome_.*?_Full/i)?.[0] ?? s;
@@ -220,21 +229,85 @@ function populateVersionSelect() {
 window.populateVersionSelect = populateVersionSelect;
 
 /**
- * Apply version filter to participants and re-render the table.
+ * Populate the build dropdown from the current participants list.
+ */
+function populateBuildSelect() {
+	const sel = document.getElementById('participantsBuildSelect');
+	if (!sel) return;
+	const counts = new Map();
+	participants.forEach((p) => {
+		const raw = p.genomeBuild ?? p.build;
+		const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
+		counts.set(key, (counts.get(key) || 0) + 1);
+	});
+	const builds = Array.from(counts.keys())
+		.filter(k => k !== 'Unknown')
+		.sort((a, b) => {
+			const na = parseInt(a, 10), nb = parseInt(b, 10);
+			if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+			return String(a).localeCompare(String(b));
+		});
+	const opts = [`<option value="">All Builds (${participants.length})</option>`]
+		.concat(builds.map(v => `<option value="${v}">${v} (${counts.get(v)})</option>`));
+	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')})</option>`);
+	const prev = sel.value;
+	sel.innerHTML = opts.join('');
+	// Preserve previous selection if still valid
+	if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+window.populateBuildSelect = populateBuildSelect;
+
+/**
+ * Apply all filters (version, build, size range) to participants and re-render the table.
  * @returns {void}
  */
 function applyParticipantFilters() {
 	const versionSel = document.getElementById('participantsVersionSelect');
+	const buildSel = document.getElementById('participantsBuildSelect');
+	const sizeMinEl = document.getElementById('participantsSizeMin');
+	const sizeMaxEl = document.getElementById('participantsSizeMax');
 	const version = versionSel?.value ?? '';
+	const build = buildSel?.value ?? '';
+	const sizeMinRaw = sizeMinEl?.value ?? '';
+	const sizeMaxRaw = sizeMaxEl?.value ?? '';
+	const sizeMin = sizeMinRaw === '' ? null : Number(sizeMinRaw);
+	const sizeMax = sizeMaxRaw === '' ? null : Number(sizeMaxRaw);
 
 	let list = participants;
 
 	if (version && version !== '') {
 		list = list.filter(p => (extractVersion(p) ?? 'Unknown') === version);
 	}
+	if (build && build !== '') {
+		list = list.filter(p => {
+			const raw = p.genomeBuild ?? p.build;
+			const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
+			return key === build;
+		});
+	}
+	if (sizeMin != null || sizeMax != null) {
+		list = list.filter(p => {
+			const n = Number(p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB);
+			if (!Number.isFinite(n)) return false;
+			if (sizeMin != null && n < sizeMin) return false;
+			if (sizeMax != null && n > sizeMax) return false;
+			return true;
+		});
+	}
+
+	// Hide build/size filter controls when not in JSON mode (fields aren't available)
+	const buildDiv = document.getElementById('participantsBuildFilterDiv');
+	const sizeDiv = document.getElementById('participantsSizeFilterDiv');
+	const showJsonOnly = participantLoadMode === 'json';
+	if (buildDiv) buildDiv.style.display = showJsonOnly ? '' : 'none';
+	if (sizeDiv) sizeDiv.style.display = showJsonOnly ? '' : 'none';
 
 	const key = sanitizeKey('participants') || 'participants';
-	const filterLabel = version && version !== '' ? version : 'All';
+	const labelParts = [];
+	if (version) labelParts.push(version);
+	if (build) labelParts.push(`build ${build}`);
+	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`);
+	const filterLabel = labelParts.length ? labelParts.join(', ') : 'All';
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
 }
 window.applyParticipantFilters = applyParticipantFilters;
@@ -250,11 +323,24 @@ window.onParticipantsVersionChange = function onParticipantsVersionChange(select
 	applyParticipantFilters();
 };
 
+window.onParticipantsBuildChange = function onParticipantsBuildChange(selectedBuild) {
+	const sel = document.getElementById('participantsBuildSelect');
+	if (sel && selectedBuild !== undefined) sel.value = selectedBuild;
+	applyParticipantFilters();
+};
+
+window.onParticipantsSizeChange = function onParticipantsSizeChange() {
+	applyParticipantFilters();
+};
+
 /**
  * Handler invoked when the load-mode toggle changes ('all' vs 'json').
  * @param {'all'|'json'} mode
  */
 window.onParticipantsModeChange = async function onParticipantsModeChange(mode) {
+	participantLoadMode = mode === 'json' ? 'json' : 'all';
+	// Reset sort state when leaving JSON mode
+	if (participantLoadMode !== 'json') sortState = { key: null, dir: 'asc' };
 	if (mode === 'json') {
 		if (!curatedJsonParticipants) {
 			showParticipantsLoadingOverlay(true, 20, 'Loading curated JSON list...');
@@ -294,6 +380,7 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 	}
 
 	populateVersionSelect();
+	populateBuildSelect();
 	applyParticipantFilters();
 };
 
@@ -362,10 +449,41 @@ function renderParticipantsTable(list, targetId, title, key) {
 	const selectedIds = selectedUserIds; // Use module-level set
 
 	const renderPage = () => {
-		const totalPages = Math.max(1, Math.ceil(list.length / ROWS_PER_PAGE));
+		// Sort a copy of the list based on the current sortState
+		const sortGetters = {
+			version: (p) => {
+				const v = extractVersion(p);
+				if (!v) return -Infinity;
+				const m = v.match(/v(\d+)/i);
+				return m ? parseInt(m[1], 10) : -Infinity;
+			},
+			build: (p) => {
+				const n = parseInt(p.genomeBuild ?? p.build, 10);
+				return Number.isFinite(n) ? n : -Infinity;
+			},
+			size: (p) => {
+				const n = Number(p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB);
+				return Number.isFinite(n) ? n : -Infinity;
+			},
+		};
+		let displayList = list;
+		if (participantLoadMode === 'json' && sortState.key && sortGetters[sortState.key]) {
+			const get = sortGetters[sortState.key];
+			const mult = sortState.dir === 'asc' ? 1 : -1;
+			displayList = [...list].sort((a, b) => {
+				const av = get(a), bv = get(b);
+				if (av === bv) return 0;
+				return (av < bv ? -1 : 1) * mult;
+			});
+		}
+		const sortable = participantLoadMode === 'json';
+		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
+		const sortAttrs = (k) => sortable ? `class="sortable" data-sort="${k}" style="cursor:pointer;user-select:none;"` : '';
+
+		const totalPages = Math.max(1, Math.ceil(displayList.length / ROWS_PER_PAGE));
 		currentPage = Math.min(Math.max(1, currentPage), totalPages);
 		const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
-		const pageItems = list.slice(startIndex, startIndex + ROWS_PER_PAGE);
+		const pageItems = displayList.slice(startIndex, startIndex + ROWS_PER_PAGE);
 
 		const rowsHtml = pageItems.map((p, i) => {
 			const rawId = p.id ?? p.participant_id ?? p.name ?? `user_${startIndex + i + 1}`;
@@ -428,7 +546,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const version = extractVersion(p) ?? '-';
 
 			// Curated-JSON extras
-			const filename = p.innerFilename ?? p.filename ?? p.fileName ?? p.genotypes?.[0]?.filename ?? '';
+			const filename = p.gcsfilename ?? p.innerFilename ?? p.filename ?? p.fileName ?? p.genotypes?.[0]?.filename ?? '';
 			const filenameHtml = filename ? escapeHtml(filename) : '-';
 			const build = p.genomeBuild ?? p.build ?? '-';
 			const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? null;
@@ -472,9 +590,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
-							<th>Version</th>
-							<th>Build</th>
-							<th>Size (MB)</th>
+							<th ${sortAttrs('version')}>Version${sortArrow('version')}</th>
+							<th ${sortAttrs('build')}>Build${sortArrow('build')}</th>
+							<th ${sortAttrs('size')}>Size (MB)${sortArrow('size')}</th>
 							<th>Filename</th>
 							<th>Published Date</th>
 							<th>Profile</th>
@@ -501,6 +619,21 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+
+		// Sortable column headers
+		container.querySelectorAll('th.sortable').forEach((th) => {
+			th.addEventListener('click', () => {
+				const k = th.dataset.sort;
+				if (sortState.key === k) {
+					sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+				} else {
+					sortState.key = k;
+					sortState.dir = 'asc';
+				}
+				currentPage = 1;
+				renderPage();
+			});
+		});
 
 		if (deselectAllBtn) {
 			deselectAllBtn.addEventListener('click', () => {
@@ -578,6 +711,7 @@ if (document.getElementById("GenomicData")?.style.display === "block") {
 
 // populate version select after definitions
 populateVersionSelect();
+populateBuildSelect();
 
 // --- Upload Your 23andMe File Button Handler ---
 
@@ -926,7 +1060,10 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	renderLocalUsers: window.renderLocalUsers,
 	applyParticipantFilters,
 	populateVersionSelect,
+	populateBuildSelect,
 	onParticipantsVersionChange: window.onParticipantsVersionChange,
+	onParticipantsBuildChange: window.onParticipantsBuildChange,
+	onParticipantsSizeChange: window.onParticipantsSizeChange,
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });

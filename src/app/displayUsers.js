@@ -221,6 +221,54 @@ function sanitizeKey(value) {
 		.replaceAll(/^_+|_+$/g, "");
 }
 
+/** Trigger a browser download of `content` as a file. */
+function downloadAsFile(content, filename, mime = 'text/plain') {
+	const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Escape a single CSV field per RFC 4180. */
+function csvEscape(value) {
+	if (value == null) return '';
+	const s = String(value);
+	return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+}
+
+/** Convert a participants list to CSV using a curated, human-friendly column set. */
+function participantsToCsv(list) {
+	const cols = [
+		'id', 'name', 'version', 'build', 'sizeMB', 'filename',
+		'publishedDate', 'profileUrl', 'downloadUrl', 'finalUrl'
+	];
+	const rows = list.map((p) => {
+		const version = extractVersion(p) ?? '';
+		const build = p.genomeBuild ?? p.build ?? '';
+		const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? '';
+		const filename = p.gcsfilename ?? p.innerFilename ?? p.filename ?? p.fileName ?? p.genotypes?.[0]?.filename ?? '';
+		const published = p.publishedDate ?? p.published_date ?? p.date ?? p.created ?? '';
+		return [
+			p.id ?? p.participant_id ?? '',
+			p.name ?? '',
+			version,
+			build,
+			sizeMB,
+			filename,
+			published,
+			p.profileUrl ?? p.profile_url ?? '',
+			p.downloadUrl ?? p.download_url ?? p.url ?? '',
+			p.finalUrl ?? '',
+		].map(csvEscape).join(',');
+	});
+	return [cols.join(','), ...rows].join('\r\n');
+}
+
 /**
  * extractVersion(item)
  * Extract 23andMe chip version(s) from a genome filename.
@@ -658,9 +706,11 @@ function renderParticipantsTable(list, targetId, title, key) {
 		if (fallbackTable) fallbackTable.innerHTML = '';
 
 		container.innerHTML = `
-			<div class="d-flex justify-content-between align-items-center my-2">
+			<div class="d-flex justify-content-between align-items-center my-2 flex-wrap gap-2">
 				<h5 class="mb-0">${escapeHtml(title)}</h5>
-				<div class="d-flex align-items-center gap-2">
+				<div class="d-flex align-items-center gap-2 flex-wrap">
+					<button id="downloadJsonBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as JSON">Download JSON</button>
+					<button id="downloadCsvBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as CSV">Download CSV</button>
 					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
 					<button id="deselectAllParticipants_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;">Deselect all</button>
@@ -700,9 +750,30 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
 		const deselectAllBtn = document.getElementById(`deselectAllParticipants_${key}`);
+		const downloadJsonBtn = document.getElementById(`downloadJsonBtn_${key}`);
+		const downloadCsvBtn = document.getElementById(`downloadCsvBtn_${key}`);
 		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
+
+		if (downloadJsonBtn) {
+			downloadJsonBtn.addEventListener('click', () => {
+				downloadAsFile(
+					JSON.stringify(displayList, null, 2),
+					`PGP_participants.json`,
+					'application/json'
+				);
+			});
+		}
+		if (downloadCsvBtn) {
+			downloadCsvBtn.addEventListener('click', () => {
+				downloadAsFile(
+					participantsToCsv(displayList),
+					`PGP_participants.csv`,
+					'text/csv'
+				);
+			});
+		}
 
 		// Sortable column headers
 		container.querySelectorAll('th.sortable').forEach((th) => {

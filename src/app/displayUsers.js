@@ -43,8 +43,43 @@ setParticipantsLoadingProgress(100);
 
 let participants = curatedJsonParticipants ?? [];
 let allParticipantsFast = null; // fetched lazily when user switches to 'all' mode
+let allParticipantsFetchedAt = null; // ISO date string of last successful fetch
+const ALL_PARTICIPANTS_CACHE_KEY = 'PGP:AllParticipantsFast';
 let participantLoadMode = 'json'; // 'all' | 'json' — sorting is only enabled in 'json' mode
 let sortState = { key: null, dir: 'asc' }; // key: 'version' | 'build' | 'size' | null
+
+// Restore any prior cached "All Participants" fetch from localforage
+try {
+	const cached = await localforage.getItem(ALL_PARTICIPANTS_CACHE_KEY);
+	if (cached && Array.isArray(cached.data)) {
+		allParticipantsFast = cached.data;
+		allParticipantsFetchedAt = cached.fetchedAt ?? null;
+	}
+} catch (err) {
+	console.warn('Failed to read cached All Participants:', err);
+}
+
+/** Format an ISO date string as a short human-readable local date/time. */
+function formatFetchedAt(iso) {
+	if (!iso) return '';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '';
+	return d.toLocaleString();
+}
+
+/** Update the "cached since <date>" info line under the Fetch All Participants button. */
+function updateAllParticipantsCacheInfoUI() {
+	const wrap = document.getElementById('allParticipantsCacheInfo');
+	const dateEl = document.getElementById('allParticipantsCacheDate');
+	if (!wrap || !dateEl) return;
+	if (allParticipantsFetchedAt) {
+		dateEl.textContent = `Cached: ${formatFetchedAt(allParticipantsFetchedAt)}${allParticipantsFast ? ` (${allParticipantsFast.length})` : ''}`;
+		wrap.style.display = '';
+	} else {
+		wrap.style.display = 'none';
+	}
+}
+updateAllParticipantsCacheInfoUI();
 
 // Reflect count on the curated JSON button now that it's loaded
 {
@@ -364,6 +399,15 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 			showParticipantsLoadingOverlay(true, 20, 'Fetching all participants...');
 			try {
 				allParticipantsFast = await allUsersMetaDataByType_fast();
+				allParticipantsFetchedAt = new Date().toISOString();
+				try {
+					await localforage.setItem(ALL_PARTICIPANTS_CACHE_KEY, {
+						data: allParticipantsFast,
+						fetchedAt: allParticipantsFetchedAt,
+					});
+				} catch (cacheErr) {
+					console.warn('Failed to cache All Participants:', cacheErr);
+				}
 			} catch (err) {
 				console.error('allUsersMetaDataByType_fast error:', err);
 				allParticipantsFast = [];
@@ -377,11 +421,49 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 				? `All Participants from PGP (${participants.length}, cached)`
 				: `Fetch All Participants from PGP (${participants.length})`;
 		}
+		updateAllParticipantsCacheInfoUI();
 	}
 
 	populateVersionSelect();
 	populateBuildSelect();
 	applyParticipantFilters();
+};
+
+/**
+ * Force a re-fetch of the All-Participants list, overwriting the cache and timestamp.
+ */
+window.refreshAllParticipants = async function refreshAllParticipants() {
+	const allBtn = document.getElementById('modeAllBtn');
+	const updateBtn = document.getElementById('allParticipantsUpdateBtn');
+	if (updateBtn) updateBtn.disabled = true;
+	showParticipantsLoadingOverlay(true, 20, 'Re-fetching all participants...');
+	try {
+		const fresh = await allUsersMetaDataByType_fast();
+		allParticipantsFast = fresh ?? [];
+		allParticipantsFetchedAt = new Date().toISOString();
+		try {
+			await localforage.setItem(ALL_PARTICIPANTS_CACHE_KEY, {
+				data: allParticipantsFast,
+				fetchedAt: allParticipantsFetchedAt,
+			});
+		} catch (cacheErr) {
+			console.warn('Failed to cache All Participants:', cacheErr);
+		}
+		if (participantLoadMode === 'all') {
+			participants = allParticipantsFast;
+			if (allBtn) allBtn.textContent = `All Participants from PGP (${participants.length}, cached)`;
+			populateVersionSelect();
+			populateBuildSelect();
+			applyParticipantFilters();
+		}
+		updateAllParticipantsCacheInfoUI();
+	} catch (err) {
+		console.error('refreshAllParticipants failed:', err);
+		alert(`Failed to refresh All Participants: ${err.message}`);
+	} finally {
+		showParticipantsLoadingOverlay(false);
+		if (updateBtn) updateBtn.disabled = false;
+	}
 };
 
 /**

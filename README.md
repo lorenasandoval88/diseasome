@@ -12,12 +12,21 @@ A browser-native and Node-compatible JavaScript SDK and demo application for cal
 
 ## Overview
 
-This toolkit enables:
+This project combines a programmable SDK (toolkit functionalities) with an interactive web app (UI exploration tabs).
+
+Toolkit functionalities
 - Automated retrieval and parsing of 23andMe and PGS Catalog data
 - Calculation of polygenic risk scores (PRS) for local or public genomes
 - Browser-based and Node.js/Cloud Run compatible workflows
 - Simple developer APIs for PRS research and visualization
 
+## UI exploration tabs
+- PGP Tab: Explore public genome profiles and participant metadata, and load available genotype records for analysis.
+- PGS Catalog Tab: Browse polygenic score models by trait/category, inspect model metadata, and select scores to analyze.
+- PRS Tab: Run score matching between genotype inputs and selected PGS models, then review comparative PRS outputs.
+- Cluster Tab: Interactively visualize and group samples/scores to identify similarity patterns and trait-level structure.
+- AI Interpretation – Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
+- AI Interpretation – Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
 ---
 
 ## Quick Start

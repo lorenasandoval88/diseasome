@@ -5,8 +5,8 @@ live at: https://lorenasandoval88.github.io/diseasome/
 A browser-native and Node-compatible JavaScript SDK and demo application for calculating polygenic risk scores (PRS) from 23andMe and PGS Catalog data.
 
 
+<img width="416" height="580" alt="image" src="https://github.com/user-attachments/assets/181e43f3-e9f2-4146-acbe-2e8f43def16e" />
 
-[<img width="755" height="778" alt="image" src="https://github.com/user-attachments/assets/24506e93-3aef-4e5d-9402-32686acf056d" />](https://lorenasandoval88.github.io/polygenic_risk_scores/)
 
 ---
 

@@ -446,7 +446,7 @@ const FALLBACK_SCORES = [
 function parsePGS(id, txt) {
 	const obj = { id };
 	obj.txt = txt;
-	const rows = txt.split(/[\r\n]/g);
+	const rows = txt.split(/\r\n|\r|\n/g);
 	const metaL = rows.filter(r => r[0] === '#').length;
 	obj.meta = { txt: rows.slice(0, metaL) };
 	

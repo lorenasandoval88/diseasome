@@ -444,6 +444,7 @@ const FALLBACK_SCORES = [
  * @returns {Object} Parsed PGS data with cols and dt arrays
  */
 function parsePGS(id, txt) {
+	console.log(`Parsing PGS scoring file ${id} (${txt.length} chars)`);
 	const obj = { id };
 	obj.txt = txt;
 	const rows = txt.split(/\r\n|\r|\n/g);
@@ -485,11 +486,13 @@ function parsePGS(id, txt) {
  * @returns {Promise<Object>} Parsed PGS data
  */
 async function loadLocalPGSFile(id, path) {
+	console.log(`489 loadLocalPGSFile`);
 	const response = await fetch(path);
 	if (!response.ok) {
 		throw new Error(`Failed to load ${path}: ${response.status}`);
 	}
 	const txt = await response.text();
+	console.log(`Loaded local PGS file ${id} from ${path}`,txt.slice(0,50));
 	return parsePGS(id, txt);
 }
 
@@ -1191,6 +1194,7 @@ async function calculatePRS() {
                     try {
                         if (score.local_file) {
                             // Load from local file
+							console.log("1197***loadLocalPGSFile")
                             const parsed = await loadLocalPGSFile(score.id, score.local_file);
                             pgsTxts.push(parsed);
                             console.log(`Loaded local PGS file: ${score.local_file}`);

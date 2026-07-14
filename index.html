@@ -96,13 +96,8 @@
         <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">2. Select Risk Models</button>
         <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">3. Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">4. Inspect Individual PRS Results</button>
-        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">5. Cluster PRS Results / Users / Models</button>
-        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
-        <button id="transformersjsButton" class="tablinks"
-            onclick="tabFunction(event, 'transformersjs')"
-            title="Runs locally in your browser — no data leaves your device">🔒 Transformers.js</button>
-        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')"
-            title="Runs locally in your browser via WebGPU — no data leaves your device">🔒 WebLLM</button>
+        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">5. Cluster PRS Results</button>
+        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Interpret PRS results with a cloud API (your key) or a fully local in-browser model">🤖 AI Interpret</button>
         <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')" style="display:none">About</button>
     </div>
     <div id="selection"></div>
@@ -148,44 +143,22 @@
                                 <div class="modal-body">
                                     <p>This page defines the <strong>Cluster Analysis for the PRS</strong>. It imports the ClustJS SDK and builds multiple clustering views from <code>window.prsResults</code>.</p>
 
-                                    <h6 class="mt-3">Clustering views</h6>
+                                    <h6 class="mt-3">Clustering view</h6>
                                     <ul>
                                         <li><strong>PRS clustering</strong> — converts flat PRS results into a <em>user × PGS</em> matrix. Rows are users, columns are PGS models, values are PRS scores. Used to cluster users and/or PGS entries.</li>
-                                        <li><strong>Users × one PGS</strong> — builds a <em>user × SNP</em> matrix for one selected PGS model. Values can be allele counts or risk × allele. Supports all variants, overlapping variants, and shared variants. Missing variants can be shown as <code>-1</code> (typically colored black).</li>
-                                        <li><strong>PGS × one user</strong> — builds a <em>PGS × SNP</em> matrix for one selected user. Rows are PGS entries, columns are SNPs, values are allele counts. Useful for comparing how multiple PGS models overlap within one person.</li>
-                                        <li><strong>PGS × PGS effect-weight clustering</strong> — builds a matrix from PGS scoring-file <code>effect_weight</code> values. Rows are PGS models, columns are SNPs, values are effect weights (often z-scored by row). Compares PGS entries by their SNP effect profiles.</li>
-                                        <li><strong>Genotype-level clustering (E)</strong> — builds a <em>users × shared SNPs</em> matrix using only the SNP positions that appear in every loaded user's genome. Values are encoded genotypes. Useful for seeing population-level allele patterns at the positions all users share.</li>
-                                        <li>
-                                            <strong>Genome-wide genotype clustering (F)</strong> — clusters users using their raw 23andMe genotype files directly, rather than restricting to SNPs that appear in a PGS model.
-                                            <ul class="mt-1">
-                                                <li>In PGS-based views the SNP set comes from a selected PGS file (e.g. 77 variants for PGS000001). Section F ignores PGS models entirely and reads across the raw 23andMe files themselves.</li>
-                                                <li>The matrix is <em>users × SNPs</em>. Values are encoded genotypes — <code>encodeGenotype()</code> maps diploid calls such as <code>AA</code>, <code>AG</code>, or <code>TT</code> to integers 0–9. Missing or invalid calls become <code>-1</code> (the sentinel value), typically colored black so absent SNPs are immediately visible.</li>
-                                                <li>Example layout:
-                                                    <pre class="small bg-light p-2 mt-1 mb-0 rounded" style="font-size:0.78rem;">          rs123  rs456  rs789  rs999
-user1        0      2     -1      7
-user2        0     -1      4      7
-user3        1      2      4     -1</pre>
-                                                </li>
-                                                <li>Instead of asking <em>"Are users similar for this one PGS?"</em>, Section F asks <em>"Are users similar across many raw 23andMe SNPs?"</em></li>
-                                                <li>Useful for clustering by general genotype similarity, platform missingness patterns, or broad ancestry-like structure — not restricted to disease-specific PRS variants.</li>
-                                            </ul>
-                                        </li>
                                     </ul>
 
                                     <h6 class="mt-3">Session cache</h6>
                                     <ul>
-                                        <li>Stores pivoted PRS matrices, selected PGS/user IDs, allele matrices, PGS-vs-SNP matrices, effect-weight matrices, SNP lists, and raw genotype matrices so they are not recomputed on every re-render.</li>
+                                        <li>Stores the pivoted PRS matrix so it is not recomputed on every re-render.</li>
                                     </ul>
 
                                     <h6 class="mt-3">Helper functions</h6>
                                     <ul>
                                         <li>Pivot <code>window.prsResults</code> into matrix format.</li>
                                         <li>Extract unique PGS IDs and user IDs.</li>
-                                        <li>Compute allele-sharing distance between genotypes.</li>
-                                        <li>Encode genotypes (e.g. <code>AA</code>, <code>AG</code>, <code>TT</code>) into numeric values.</li>
-                                        <li>Build raw genotype matrices across users.</li>
-                                        <li>Export matrices as CSV.</li>
-                                        <li>Build matrices for heatmaps and dendrograms.</li>
+                                        <li>Export the matrix as CSV or JSON.</li>
+                                        <li>Build the matrix for the heatmap and dendrogram.</li>
                                     </ul>
 
                                     <h6 class="mt-3">UI controls</h6>
@@ -193,12 +166,10 @@ user3        1      2      4     -1</pre>
                                         <li>Row &amp; column clustering toggles.</li>
                                         <li>Linkage methods: <em>complete, single, average, ward</em>.</li>
                                         <li>Distance metrics: <em>Euclidean, Manhattan, cosine</em>.</li>
-                                        <li>Dropdowns for selecting PGS models or users.</li>
-                                        <li>Buttons for switching between sections A–F.</li>
                                         <li>D3 / ClustJS heatmap and dendrogram rendering.</li>
                                     </ul>
 
-                                    <p class="text-muted small mt-3">In short: this page turns PRS and genotype-matching results into matrices, then renders interactive clustering views so you can explore patterns across users, PGS models, SNPs, allele counts, and effect weights.</p>
+                                    <p class="text-muted small mt-3">In short: this page turns PRS results into a matrix, then renders an interactive clustering view so you can explore patterns across users and PGS models.</p>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -211,12 +182,7 @@ user3        1      2      4     -1</pre>
                         variants using interactive clustering.
                     </p>
                     <ul>
-                        <li>A. Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
-                        <li>B. Inspect shared and overlapping SNP patterns across users for a selected PGS. (users × one PGS)</li>
-                        <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
-                        <li>D. Explore similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
-                        <li>E. Genotype-level clustering across all users and shared SNPs. (users × shared SNPs)</li>
-                        <li>F. Genome-wide user × SNP genotype clustering from raw 23andMe files.</li>
+                        <li>Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
                     </ul>
                     <hr class="my-3" />
                     <div id="clusterErrorDiv" class="text-danger small mb-2"></div>
@@ -225,15 +191,26 @@ user3        1      2      4     -1</pre>
 
                 <!-- AI Interpret tab -->
                 <div id="AIInterpret" class="tabcontent">
+                    <h3>AI Interpretation</h3>
+                    <p class="text-muted">Interpret your PRS and clustering results using a cloud API (your own key) or a fully local model that runs entirely in your browser — no data leaves your device.</p>
+
+                    <!-- Mode switcher -->
+                    <div class="btn-group mb-3 flex-wrap" role="group" aria-label="AI interpretation mode">
+                        <button id="aiModeCloudBtn" type="button" class="btn btn-outline-primary active" onclick="selectAIMode('cloud')">🔓 Cloud API</button>
+                        <button id="aiModeWebLLMBtn" type="button" class="btn btn-outline-primary" onclick="selectAIMode('webllm')">🔒 Local · WebGPU</button>
+                        <button id="aiModeTransformersBtn" type="button" class="btn btn-outline-primary" onclick="selectAIMode('transformers')">🔒 Local · Transformers.js</button>
+                    </div>
+
+                    <!-- Cloud API panel -->
+                    <div id="aiModeCloud" class="ai-mode-panel">
                     <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
                         <span style="font-size:1.3em">🔓</span>
                         <div>
-                            <strong>Not private:</strong> This tab sends a summary of your results to an external AI service (OpenAI or Anthropic) using your own API key.
+                            <strong>Not private:</strong> This mode sends a summary of your results to an external AI service (OpenAI or Anthropic) using your own API key.
                             Raw genotype files are <strong>not</strong> transmitted — only aggregated PRS scores and variant counts.
                         </div>
                     </div>
 
-                    <h3>AI Interpretation</h3>
                     <p class="text-muted">Interpret clustering and PRS results using your own OpenAI or Claude API key. Only summarized results are sent — no raw genotype data.</p>
 
                     <div class="mb-3" style="max-width:400px">
@@ -294,19 +271,32 @@ user3        1      2      4     -1</pre>
                     <button id="runAIInterpretBtn" class="btn btn-warning">Interpret Results</button>
 
                     <div id="aiInterpretOutput" class="mt-3"></div>
-                </div>
-                <div id="transformersjs" class="tabcontent">
-                    <h3>Transformers.js (Flan-T5)</h3>
-                    <p>Use Transformers.js with Flan-T5 model running locally to analyze your PRS results.</p>
-                    <div id="transformersjsDiv"></div>
-                </div>
+                    </div>
+                    <!-- /Cloud API panel -->
 
-                <!-- WebLLM tab -->
-                <div id="WebLLM" class="tabcontent">
-                    <h3>WebLLM (Local AI)</h3>
-                    <p>Run AI models locally via WebGPU to analyze your PRS results. Choose from Phi-3, Llama 3, Qwen 2.5, Gemma 2, and more.</p>
-                    <p>WebLLM runs large language models directly in your browser using GPU acceleration—no server or data upload required.</p>
-                    <div id="webLLMDiv"></div>
+                    <!-- Local · WebGPU (WebLLM) panel -->
+                    <div id="aiModeWebLLM" class="ai-mode-panel" style="display:none;">
+                        <div class="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+                            <span style="font-size:1.3em">🔒</span>
+                            <div>
+                                <strong>Private:</strong> WebLLM runs large language models directly in your browser via WebGPU. No server or data upload required.
+                            </div>
+                        </div>
+                        <div id="webLLMDiv"></div>
+                    </div>
+                    <!-- /Local · WebGPU panel -->
+
+                    <!-- Local · Transformers.js panel -->
+                    <div id="aiModeTransformers" class="ai-mode-panel" style="display:none;">
+                        <div class="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+                            <span style="font-size:1.3em">🔒</span>
+                            <div>
+                                <strong>Private:</strong> Transformers.js runs Google's Flan-T5 model locally in your browser. No data leaves your device.
+                            </div>
+                        </div>
+                        <div id="transformersjsDiv"></div>
+                    </div>
+                    <!-- /Local · Transformers.js panel -->
                 </div>
 
                 <!-- PRS ------------------------------------------>
@@ -542,7 +532,7 @@ user3        1      2      4     -1</pre>
                     <!-- Actions below cards: sticky selection status + primary actions -->
                     <div id="selectionStickyBar" class="sticky-top bg-white border-bottom shadow-sm py-2 mb-3" style="top:0; z-index:1020;">
                         <div class="d-flex align-items-center gap-3 flex-wrap">
-                            <div style="min-width:240px; flex:0 0 auto;">
+                            <div style="min-width:200px; flex:0 0 auto;">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <span id="globalSelectionCount2" class="fw-semibold small text-dark">0 of 10 selected</span>
                                     <span id="selectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>

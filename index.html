@@ -97,12 +97,7 @@
         <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">3. Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">4. Inspect Individual PRS Results</button>
         <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">5. Cluster PRS Results</button>
-        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
-        <button id="transformersjsButton" class="tablinks"
-            onclick="tabFunction(event, 'transformersjs')"
-            title="Runs locally in your browser — no data leaves your device">🔒 Transformers.js</button>
-        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')"
-            title="Runs locally in your browser via WebGPU — no data leaves your device">🔒 WebLLM</button>
+        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Interpret PRS results with a cloud API (your key) or a fully local in-browser model">🤖 AI Interpret</button>
         <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')" style="display:none">About</button>
     </div>
     <div id="selection"></div>
@@ -196,15 +191,26 @@
 
                 <!-- AI Interpret tab -->
                 <div id="AIInterpret" class="tabcontent">
+                    <h3>AI Interpretation</h3>
+                    <p class="text-muted">Interpret your PRS and clustering results using a cloud API (your own key) or a fully local model that runs entirely in your browser — no data leaves your device.</p>
+
+                    <!-- Mode switcher -->
+                    <div class="btn-group mb-3 flex-wrap" role="group" aria-label="AI interpretation mode">
+                        <button id="aiModeCloudBtn" type="button" class="btn btn-outline-primary active" onclick="selectAIMode('cloud')">🔓 Cloud API</button>
+                        <button id="aiModeWebLLMBtn" type="button" class="btn btn-outline-primary" onclick="selectAIMode('webllm')">🔒 Local · WebGPU</button>
+                        <button id="aiModeTransformersBtn" type="button" class="btn btn-outline-primary" onclick="selectAIMode('transformers')">🔒 Local · Transformers.js</button>
+                    </div>
+
+                    <!-- Cloud API panel -->
+                    <div id="aiModeCloud" class="ai-mode-panel">
                     <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
                         <span style="font-size:1.3em">🔓</span>
                         <div>
-                            <strong>Not private:</strong> This tab sends a summary of your results to an external AI service (OpenAI or Anthropic) using your own API key.
+                            <strong>Not private:</strong> This mode sends a summary of your results to an external AI service (OpenAI or Anthropic) using your own API key.
                             Raw genotype files are <strong>not</strong> transmitted — only aggregated PRS scores and variant counts.
                         </div>
                     </div>
 
-                    <h3>AI Interpretation</h3>
                     <p class="text-muted">Interpret clustering and PRS results using your own OpenAI or Claude API key. Only summarized results are sent — no raw genotype data.</p>
 
                     <div class="mb-3" style="max-width:400px">
@@ -265,19 +271,32 @@
                     <button id="runAIInterpretBtn" class="btn btn-warning">Interpret Results</button>
 
                     <div id="aiInterpretOutput" class="mt-3"></div>
-                </div>
-                <div id="transformersjs" class="tabcontent">
-                    <h3>Transformers.js (Flan-T5)</h3>
-                    <p>Use Transformers.js with Flan-T5 model running locally to analyze your PRS results.</p>
-                    <div id="transformersjsDiv"></div>
-                </div>
+                    </div>
+                    <!-- /Cloud API panel -->
 
-                <!-- WebLLM tab -->
-                <div id="WebLLM" class="tabcontent">
-                    <h3>WebLLM (Local AI)</h3>
-                    <p>Run AI models locally via WebGPU to analyze your PRS results. Choose from Phi-3, Llama 3, Qwen 2.5, Gemma 2, and more.</p>
-                    <p>WebLLM runs large language models directly in your browser using GPU acceleration—no server or data upload required.</p>
-                    <div id="webLLMDiv"></div>
+                    <!-- Local · WebGPU (WebLLM) panel -->
+                    <div id="aiModeWebLLM" class="ai-mode-panel" style="display:none;">
+                        <div class="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+                            <span style="font-size:1.3em">🔒</span>
+                            <div>
+                                <strong>Private:</strong> WebLLM runs large language models directly in your browser via WebGPU. No server or data upload required.
+                            </div>
+                        </div>
+                        <div id="webLLMDiv"></div>
+                    </div>
+                    <!-- /Local · WebGPU panel -->
+
+                    <!-- Local · Transformers.js panel -->
+                    <div id="aiModeTransformers" class="ai-mode-panel" style="display:none;">
+                        <div class="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+                            <span style="font-size:1.3em">🔒</span>
+                            <div>
+                                <strong>Private:</strong> Transformers.js runs Google's Flan-T5 model locally in your browser. No data leaves your device.
+                            </div>
+                        </div>
+                        <div id="transformersjsDiv"></div>
+                    </div>
+                    <!-- /Local · Transformers.js panel -->
                 </div>
 
                 <!-- PRS ------------------------------------------>

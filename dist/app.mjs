@@ -4275,6 +4275,7 @@ async function calculatePRS() {
                         } else {
                             // Fetch from remote
                             const remote = await getTxts([score.id]);
+							console.log("score.id",score.id);
                             pgsTxts.push(...remote);
                         }
                     } catch (err) {

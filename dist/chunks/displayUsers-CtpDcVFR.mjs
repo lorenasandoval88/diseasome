@@ -1,5 +1,9 @@
-import { load23andMeFile, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -167,17 +171,8 @@ function updateGlobalSelectionCount() {
 	// Also update PRS tab user section to reflect selection
 	const prsUsersdiv = document.getElementById("prsUsersdiv");
 	if (prsUsersdiv && selectedUserIds.size > 0) {
-		const users = Array.from(selectedUsersMap.values());
-		const nameCounts = new Map();
-		users.forEach(u => {
-			const n = u.name || u.id;
-			nameCounts.set(n, (nameCounts.get(n) || 0) + 1);
-		});
-		const userList = users
-			.map(u => {
-				const n = u.name || u.id;
-				return nameCounts.get(n) > 1 ? `${n} (${u.id})` : n;
-			})
+		const userList = Array.from(selectedUsersMap.values())
+			.map(u => u.name || u.id)
 			.join(", ");
 		prsUsersdiv.textContent = `${selectedUserIds.size} user(s) selected: ${userList}`;
 	}
@@ -283,7 +278,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -999,7 +994,7 @@ if (my23Btn && my23FileInput) {
 				const userId = file.name;
 				const user = {
 					id: userId,
-					name: file.name,
+					name: nameFromFilename(file.name) || file.name,
 					fileName: file.name,
 					dataSource: "file Upload",
 					dataType: "23andMe",
@@ -1044,121 +1039,94 @@ if (my23Btn && my23FileInput) {
 	});
 }
 
-// --- Option D: Load by list of IDs (URLs looked up from curated list) ---
+// --- Option D: Load by ID + Download URL ---
 const loadByUrlBtn = document.getElementById("loadByUrlBtn");
 const loadByUrlExampleBtn = document.getElementById("loadByUrlExampleBtn");
 if (loadByUrlExampleBtn) {
 	loadByUrlExampleBtn.addEventListener("click", () => {
-		const idsInput = document.getElementById("loadByUrlIds");
-		if (idsInput) idsInput.value = "huA08F4D, huC8B936";
+		const idInput = document.getElementById("loadByUrlId");
+		const urlInput = document.getElementById("loadByUrlDownload");
+		if (idInput) idInput.value = "hu4B2FD9";
+		if (urlInput) urlInput.value = "https://my.pgp-hms.org/user_file/download/3864";
 	});
 }
-
-/** Split a free-form list of IDs (comma / whitespace / newline separated) into a
- *  de-duplicated array, preserving order. */
-function parseIdList(raw) {
-	if (!raw) return [];
-	const seen = new Set();
-	const out = [];
-	for (const token of String(raw).split(/[\s,;]+/)) {
-		const id = token.trim();
-		if (!id || seen.has(id)) continue;
-		seen.add(id);
-		out.push(id);
-	}
-	return out;
-}
-
 if (loadByUrlBtn) {
 	loadByUrlBtn.addEventListener("click", async () => {
-		const idsInput = document.getElementById("loadByUrlIds");
+		const idInput = document.getElementById("loadByUrlId");
+		const urlInput = document.getElementById("loadByUrlDownload");
 		const statusEl = document.getElementById("loadByUrlStatus");
-		const ids = parseIdList(idsInput?.value);
+		const id = (idInput?.value ?? "").trim();
+		const url = (urlInput?.value ?? "").trim();
 
-		if (ids.length === 0) {
-			if (statusEl) statusEl.textContent = "Enter at least one participant ID.";
+		if (!id || !url) {
+			if (statusEl) statusEl.textContent = "Both ID and Download URL are required.";
+			return;
+		}
+		if (selectedUserIds.has(id)) {
+			if (statusEl) statusEl.textContent = `ID "${id}" is already selected.`;
+			return;
+		}
+		if (selectedUserIds.size >= MAX_SELECTION) {
+			if (statusEl) statusEl.textContent = `Maximum ${MAX_SELECTION} selections reached.`;
 			return;
 		}
 
-		// Build a quick lookup from the curated participants list
-		const byId = new Map();
-		for (const p of participants) {
-			const pid = p?.id ?? p?.participant_id;
-			if (pid) byId.set(String(pid), p);
-		}
-
+		if (statusEl) statusEl.textContent = `Loading ${id}...`;
 		loadByUrlBtn.disabled = true;
-		const messages = [];
 
 		try {
-			for (const id of ids) {
-				if (selectedUserIds.has(id)) {
-					messages.push(`\u26A0 ${escapeHtml(id)}: already selected.`);
-					continue;
-				}
-				if (selectedUserIds.size >= MAX_SELECTION) {
-					messages.push(`\u26A0 ${escapeHtml(id)}: max selection (${MAX_SELECTION}) reached.`);
-					break;
-				}
+			let parsed = await load23andMeFile(url, id, false);
+			if (!parsed || !parsed.dt) {
+				throw new Error("load23andMeFile did not return expected parsed data.");
+			}
+			// SDK returns: { url, finalUrl, filename, meta, cols, dt }.
+			// Prefer the inner filename (e.g. "hu..._genome_First_Last_v5_Full_....txt") for name/display,
+			// fall back to the resolved inner url, then finalUrl (often just a /download/N endpoint), then input url.
+			const innerFilename = parsed.filename ?? '';
+			const finalUrl = parsed.finalUrl ?? parsed.meta?.finalUrl ?? url;
+			const innerUrl = parsed.url ?? '';
+			const nameSource =
+				(innerFilename && nameFromFilename(innerFilename) && innerFilename) ||
+				(innerUrl && nameFromFilename(innerUrl) && innerUrl) ||
+				(finalUrl && nameFromFilename(finalUrl) && finalUrl) ||
+				url;
+			parsed = {
+				cols: parsed.cols || [],
+				dt: parsed.dt || [],
+				meta: parsed.meta || "",
+			};
 
-				const record = byId.get(id);
-				if (!record) {
-					messages.push(`\u2717 ${escapeHtml(id)}: not found in curated participants list.`);
-					continue;
-				}
-				const url = record.downloadUrl ?? record.download_url ?? record.url ?? null;
-				if (!url) {
-					messages.push(`\u2717 ${escapeHtml(id)}: no download URL in curated list.`);
-					continue;
-				}
-
-				if (statusEl) statusEl.textContent = `Loading ${id}...`;
-
-				try {
-					let parsed = await load23andMeFile(url, id, false);
-					if (!parsed || !parsed.dt) {
-						throw new Error("load23andMeFile did not return expected parsed data.");
-					}
-					const innerFilename = parsed.filename ?? '';
-					const finalUrl = parsed.finalUrl ?? parsed.meta?.finalUrl ?? record.finalUrl ?? url;
-					parsed = {
-						cols: parsed.cols || [],
-						dt: parsed.dt || [],
-						meta: parsed.meta || "",
-					};
-
-					try {
-						await localforage.setItem(`Genome:23andMe-txt-${id}`, parsed);
-					} catch (cacheErr) {
-						console.warn(`Failed to cache genome for ${id}:`, cacheErr);
-					}
-
-					const user = {
-						id,
-						name: record.name || nameFromFilename(innerFilename || record.filename || finalUrl) || id,
-						fileName: innerFilename || record.filename || String(finalUrl).split("/").pop() || id,
-						dataSource: "url",
-						dataType: record.dataType || "23andMe",
-						downloadUrl: url,
-						finalUrl,
-						profileUrl: record.profileUrl ?? null,
-						publishedDate: record.publishedDate ?? new Date().toISOString().slice(0, 10),
-						_parsed: parsed,
-					};
-
-					selectedUserIds.add(id);
-					selectedUsersMap.set(id, user);
-					updateGlobalSelectionCount();
-
-					messages.push(`\u2713 ${escapeHtml(id)}: ${parsed.dt.length.toLocaleString()} variants loaded and cached.`);
-				} catch (err) {
-					console.error(`Load by ID failed for ${id}:`, err);
-					messages.push(`\u2717 ${escapeHtml(id)}: ${escapeHtml(err.message)}`);
-				}
+			try {
+				await localforage.setItem(`Genome:23andMe-txt-${id}`, parsed);
+			} catch (cacheErr) {
+				console.warn(`Failed to cache genome for ${id}:`, cacheErr);
 			}
 
-			if (statusEl) statusEl.innerHTML = messages.join('<br>');
-			if (idsInput) idsInput.value = "";
+			const user = {
+				id,
+				name: nameFromFilename(nameSource) || id,
+				fileName: innerFilename || String(finalUrl).split("/").pop() || id,
+				dataSource: "url",
+				dataType: "23andMe",
+				downloadUrl: url,
+				finalUrl,
+				profileUrl: null,
+				publishedDate: new Date().toISOString().slice(0, 10),
+				_parsed: parsed,
+			};
+
+			selectedUserIds.add(id);
+			selectedUsersMap.set(id, user);
+			updateGlobalSelectionCount();
+
+			if (statusEl) {
+				statusEl.innerHTML = `\u2713 ${escapeHtml(id)}: ${parsed.dt.length.toLocaleString()} variants loaded and cached.`;
+			}
+			idInput.value = "";
+			urlInput.value = "";
+		} catch (err) {
+			console.error("Load by URL failed:", err);
+			if (statusEl) statusEl.textContent = `\u2717 ${err.message}`;
 		} finally {
 			loadByUrlBtn.disabled = false;
 		}
@@ -1327,3 +1295,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-CtpDcVFR.mjs.map

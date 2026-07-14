@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-DokoqwLm.mjs');
+        await import('./chunks/displayUsers-DXHancpE.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -4027,12 +4027,14 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
         if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
             organizedData = organizeResultsByAllele(cached, mypgs);
         }
-        const freshName = nameFromFilename(
-            userData.user?.fileName ??
-            userData.user?.finalUrl ??
-            userData.user?.downloadUrl ??
-            userData.user?.genotypes?.[0]?.filename
-        ) || userData.user.name;
+        const freshName = (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name);
         console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
         return {
             ...cached,
@@ -4052,12 +4054,14 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     const prsResult = {
         userId,
-        userName: nameFromFilename(
-            userData.user?.fileName ??
-            userData.user?.finalUrl ??
-            userData.user?.downloadUrl ??
-            userData.user?.genotypes?.[0]?.filename
-        ) || userData.user.name,
+        userName: (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name),
         userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
         pgsId,
         totalVariants: mypgs.dt.length,
@@ -5756,7 +5760,9 @@ function buildRawGenotypeMatrix(loadedUsers, { missingValue = -1, maxSnps = 5000
 
   for (const entry of loadedUsers) {
     const userId = entry.user?.id ?? entry.user?.participant_id;
-    const userLabel = entry.user?.name ?? userId;
+    const userLabel = (entry.user?.dataSource === 'file Upload' && entry.user?.fileName)
+      ? entry.user.fileName
+      : (entry.user?.name ?? userId);
     const parsed = entry.parsed;
     if (!userId || !parsed?.cols || !Array.isArray(parsed.dt)) {
       console.warn('[F] Skipping user — missing parsed data:', userId, { hasCols: !!parsed?.cols, hasDt: Array.isArray(parsed?.dt) });

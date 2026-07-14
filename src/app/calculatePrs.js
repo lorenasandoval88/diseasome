@@ -979,12 +979,14 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
         if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
             organizedData = organizeResultsByAllele(cached, mypgs);
         }
-        const freshName = nameFromFilename(
-            userData.user?.fileName ??
-            userData.user?.finalUrl ??
-            userData.user?.downloadUrl ??
-            userData.user?.genotypes?.[0]?.filename
-        ) || userData.user.name;
+        const freshName = (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name);
         console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
         return {
             ...cached,
@@ -1004,12 +1006,14 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     const prsResult = {
         userId,
-        userName: nameFromFilename(
-            userData.user?.fileName ??
-            userData.user?.finalUrl ??
-            userData.user?.downloadUrl ??
-            userData.user?.genotypes?.[0]?.filename
-        ) || userData.user.name,
+        userName: (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name),
         userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
         pgsId,
         totalVariants: mypgs.dt.length,

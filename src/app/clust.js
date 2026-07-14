@@ -604,7 +604,9 @@ function buildRawGenotypeMatrix(loadedUsers, { missingValue = -1, maxSnps = 5000
 
   for (const entry of loadedUsers) {
     const userId = entry.user?.id ?? entry.user?.participant_id;
-    const userLabel = entry.user?.name ?? userId;
+    const userLabel = (entry.user?.dataSource === 'file Upload' && entry.user?.fileName)
+      ? entry.user.fileName
+      : (entry.user?.name ?? userId);
     const parsed = entry.parsed;
     if (!userId || !parsed?.cols || !Array.isArray(parsed.dt)) {
       console.warn('[F] Skipping user — missing parsed data:', userId, { hasCols: !!parsed?.cols, hasDt: Array.isArray(parsed?.dt) });

@@ -5831,7 +5831,7 @@ function summarizePrsForAI() {
 		return { pgsId, present, total, missingFraction: round(1 - present / total) };
 	});
 
-	// --- Section A–F clustering summaries (compact, no raw matrices) ---
+	// --- PRS clustering summary (compact, no raw matrices) ---
 	const opts = window.clusterOptions || {};
 	const cache = (typeof window.getClusterCache === 'function') ? window.getClusterCache() : null;
 
@@ -5841,10 +5841,10 @@ function summarizePrsForAI() {
 
 	const sectionsRun = {};
 	if (cache) {
-		// A. PRS Clustering (users × PGS pivot)
+		// PRS Clustering (users × PGS pivot)
 		if (cache.pivoted) {
 			sectionsRun.A = {
-				title: 'A. PRS Clustering (Users × PGS)',
+				title: 'PRS Clustering (Users × PGS)',
 				dims: matrixDims(cache.pivoted),
 				options: {
 					clusterRows: opts.clusterRows ?? true,
@@ -5852,81 +5852,6 @@ function summarizePrsForAI() {
 					linkage: opts.clusterMethod ?? 'complete',
 					distance: opts.clusterDistance ?? 'euclidean'
 				}
-			};
-		}
-		// B. Users × One PGS (allele/risk matrices)
-		if (cache.alleleMatrices) {
-			sectionsRun.B = {
-				title: 'B. Users × One PGS (allele matrices)',
-				selectedPgsId: opts.selectedPgsId ?? null,
-				valueMode: opts.alleleValueMode ?? 'allele',
-				dims: {
-					all: matrixDims(cache.alleleMatrices.allMatrix),
-					overlapping: matrixDims(cache.alleleMatrices.overlapMatrix),
-					shared: matrixDims(cache.alleleMatrices.sharedMatrix)
-				},
-				options: {
-					clusterRows: opts.clusterAlleleRows ?? true,
-					clusterCols: opts.clusterAlleleCols ?? true,
-					linkage: opts.alleleClusterMethod ?? 'complete',
-					distance: opts.alleleClusterDistance ?? 'euclidean'
-				}
-			};
-		}
-		// C. PGS × One User
-		if (cache.pgsVsSnpsMatrices) {
-			sectionsRun.C = {
-				title: 'C. PGS × One User (PGS rows × SNP cols)',
-				selectedUserId: opts.selectedUserId ?? null,
-				dims: {
-					all: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsAllMatrix),
-					overlapping: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsOverlapMatrix),
-					shared: matrixDims(cache.pgsVsSnpsMatrices.pgsVsSnpsSharedMatrix)
-				},
-				options: {
-					clusterRows: opts.pgsVsSnpsClusterRows ?? true,
-					clusterCols: opts.pgsVsSnpsClusterCols ?? false
-				}
-			};
-		}
-		// D. PGS × PGS effect weights
-		if (cache.effectMatrices) {
-			const e = cache.effectMatrices;
-			sectionsRun.D = {
-				title: 'D. PGS × SNP effect-weight clustering',
-				pgsCount: e.pgsEffectAll?.pgsCount ?? null,
-				snpCounts: {
-					all: cache.snpLists?.allSnpsList?.length ?? null,
-					overlapping: cache.snpLists?.overlapSnpsList?.length ?? null,
-					shared: cache.snpLists?.sharedSnpsList?.length ?? null
-				},
-				options: {
-					clusterRows: opts.effectClusterRows ?? true,
-					clusterCols: opts.effectClusterCols ?? false
-				}
-			};
-		}
-		// E. Genotype-level clustering (users × shared SNPs encoded genotype)
-		if (cache.genotypeDistData) {
-			const g = cache.genotypeDistData.result;
-			sectionsRun.E = {
-				title: 'E. Genotype-level Clustering (Users × shared SNPs)',
-				dims: matrixDims(cache.genotypeDistData.plotData),
-				snpCount: g?.snpCount ?? null,
-				userCount: g?.userCount ?? null,
-				options: {
-					clusterRows: opts.genotypeClusterRows ?? true,
-					clusterCols: opts.genotypeClusterCols ?? false,
-					linkage: opts.genotypeClusterMethod ?? 'complete',
-					distance: opts.genotypeClusterDistance ?? 'euclidean'
-				}
-			};
-		}
-		// F. Genome-wide raw genotype matrix
-		if (cache.rawGenoMatrix) {
-			sectionsRun.F = {
-				title: 'F. Genome-wide Genotypes',
-				dims: matrixDims(cache.rawGenoMatrix)
 			};
 		}
 	}
@@ -5947,7 +5872,7 @@ function summarizePrsForAI() {
 			missingnessPerPgs,
 			sectionsRun,
 			activeSection,
-			sectionsNote: "sectionsRun lists which clustering views (A–F) the user has computed in the Cluster tab, with matrix dimensions and the linkage/distance/cluster-axis options chosen for each. Reference these explicitly when interpreting results."
+			sectionsNote: "sectionsRun lists the PRS clustering view the user has computed in the Cluster tab, with matrix dimensions and the linkage/distance/cluster-axis options chosen. Reference these explicitly when interpreting results."
 		}
 	};
 }
@@ -5965,15 +5890,9 @@ Important constraints:
 - Mention possible platform/genotyping overlap effects.
 - Write in language suitable for a Bioinformatics application note.
 
-Clustering sections present in the data summary (clustering.sectionsRun):
+Clustering section present in the data summary (clustering.sectionsRun):
 - A: PRS Clustering (Users × PGS)
-- B: Users × One PGS (allele or risk × allele matrices)
-- C: PGS × One User (PGS rows × SNP columns)
-- D: PGS × SNP effect-weight clustering
-- E: Genotype-level clustering (Users × shared SNPs)
-- F: Genome-wide raw genotype matrix
-Only comment on sections that actually appear in clustering.sectionsRun. For each present
-section, reference its dimensions and chosen linkage/distance/cluster-axis options.
+Reference its dimensions and chosen linkage/distance/cluster-axis options.
 
 User question:
 ${question}

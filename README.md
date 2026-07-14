@@ -1,7 +1,7 @@
 # polygenic_risk_scores (diseasome)
 Calculating risk scores from 23andme data using a local-only dataset of 5 users for now .
 
-live at: https://lorenasandoval88.github.io/polygenic_risk_scores/
+live at: https://lorenasandoval88.github.io/diseasome/
 
 
 [<img width="755" height="778" alt="image" src="https://github.com/user-attachments/assets/24506e93-3aef-4e5d-9402-32686acf056d" />

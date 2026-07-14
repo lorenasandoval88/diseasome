@@ -469,6 +469,11 @@ user3        1      2      4     -1</pre>
                                             <div id="participantsBuildSelect" class="filter-check-list" style="max-width:140px;"></div>
                                             <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsBuildSelect')">Clear</button>
                                         </div>
+                                        <div id="participantsValidFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Valid 23andMe</b></label>
+                                            <div id="participantsValidSelect" class="filter-check-list" style="max-width:150px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsValidSelect')">Clear</button>
+                                        </div>
                                         <div id="participantsSizeFilterDiv">
                                             <label class="form-label mb-1 small"><b>Filter by Size (MB)</b></label>
                                             <div class="d-flex align-items-center gap-1">
@@ -506,7 +511,7 @@ user3        1      2      4     -1</pre>
                             <div class="d-flex flex-column" style="max-width:640px;">
                                     <h5 class="card-title">Example Users</h5>
                                     <p class="card-text text-muted small flex-grow-1">Load a set of pre-bundled example participants to quickly explore PRS calculations without uploading any files.</p>
-                                    <button class="btn btn-secondary btn-sm mb-2"
+                                    <button class="btn btn-primary btn-sm mb-2"
                                         onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
                                         Load Example Participants
                                     </button>
@@ -523,7 +528,7 @@ user3        1      2      4     -1</pre>
                                         <label for="loadByUrlIds" class="form-label mb-1 small"><b>User IDs</b> (max 10, comma / space / newline separated)</label>
                                         <textarea id="loadByUrlIds" class="form-control form-control-sm" rows="3" placeholder="e.g. huA08F4D, huC8B936"></textarea>
                                     </div>
-                                    <button id="loadByUrlBtn" class="btn btn-info btn-sm mt-auto" style="width:fit-content;">Load</button>
+                                    <button id="loadByUrlBtn" class="btn btn-primary btn-sm mt-auto" style="width:fit-content;">Load</button>
                                     <div class="small text-muted mt-2">
                                         Example: <code>huA08F4D, huC8B936</code>
                                         <button type="button" id="loadByUrlExampleBtn" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.7rem;vertical-align:baseline;">Copy example</button>
@@ -716,6 +721,28 @@ user3        1      2      4     -1</pre>
                 <script type="module" src="dist/app.mjs"></script>
 
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
+
+                <!-- Show the PGP participants table (with its Download/Select controls) only on the Browse PGP tab -->
+                <script>
+                    (function () {
+                        function syncPgpTableVisibility() {
+                            var browseTab = document.getElementById('tab-browse');
+                            var localUsersDiv = document.getElementById('localUsersDiv');
+                            if (!localUsersDiv) return;
+                            var isBrowse = !!browseTab && browseTab.classList.contains('active');
+                            localUsersDiv.style.display = isBrowse ? '' : 'none';
+                        }
+                        document.querySelectorAll('#genomicLoadTabs [data-bs-toggle="tab"]').forEach(function (btn) {
+                            btn.addEventListener('shown.bs.tab', syncPgpTableVisibility);
+                        });
+                        // Re-assert after the app module renders/refreshes the table.
+                        var observed = document.getElementById('localUsersDiv');
+                        if (observed) {
+                            new MutationObserver(syncPgpTableVisibility).observe(observed, { childList: true });
+                        }
+                        syncPgpTableVisibility();
+                    })();
+                </script>
 
 
 

@@ -1,5 +1,9 @@
-import { load23andMeFile, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -483,7 +487,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -694,25 +698,6 @@ window.populateGenderSelect = populateGenderSelect;
 window.populateRaceSelect = populateRaceSelect;
 window.populateEthnicitySelect = populateEthnicitySelect;
 
-/** Bucket a participant's 23andMe validity into a filter category. */
-function validCategory(p) {
-	return p?.valid23File === true ? 'Valid' : (p?.valid23File === false ? 'Invalid' : 'Unknown');
-}
-
-/** Populate the Valid-23andMe checkbox filter from the current participants list. */
-function populateValidSelect() {
-	const sel = document.getElementById('participantsValidSelect');
-	if (!sel) return;
-	const counts = new Map();
-	participants.forEach((p) => {
-		const key = validCategory(p);
-		counts.set(key, (counts.get(key) || 0) + 1);
-	});
-	const entries = ['Valid', 'Invalid', 'Unknown'].filter(k => counts.has(k)).map(k => [k, counts.get(k)]);
-	renderCheckboxFilter(sel, entries);
-}
-window.populateValidSelect = populateValidSelect;
-
 /**
  * Apply all filters (version, build, size range) to participants and re-render the table.
  * @returns {void}
@@ -723,7 +708,6 @@ function applyParticipantFilters() {
 	const genderSel = document.getElementById('participantsGenderSelect');
 	const raceSel = document.getElementById('participantsRaceSelect');
 	const ethnicitySel = document.getElementById('participantsEthnicitySelect');
-	const validSel = document.getElementById('participantsValidSelect');
 	const sizeMinEl = document.getElementById('participantsSizeMin');
 	const sizeMaxEl = document.getElementById('participantsSizeMax');
 	const versions = getSelectValues(versionSel);
@@ -731,7 +715,6 @@ function applyParticipantFilters() {
 	const genders = getSelectValues(genderSel);
 	const races = getSelectValues(raceSel);
 	const ethnicities = getSelectValues(ethnicitySel);
-	const valids = getSelectValues(validSel);
 	const sizeMinRaw = sizeMinEl?.value ?? '';
 	const sizeMaxRaw = sizeMaxEl?.value ?? '';
 	const sizeMin = sizeMinRaw === '' ? null : Number(sizeMinRaw);
@@ -767,10 +750,6 @@ function applyParticipantFilters() {
 	filterByDemographic(genders, 'gender', false);
 	filterByDemographic(races, 'raceCategories', true);
 	filterByDemographic(ethnicities, 'ethnicityCategories', true);
-	if (valids.length > 0) {
-		const set = new Set(valids);
-		list = list.filter(p => set.has(validCategory(p)));
-	}
 	if (sizeMin != null || sizeMax != null) {
 		list = list.filter(p => {
 			const n = Number(p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB);
@@ -787,14 +766,12 @@ function applyParticipantFilters() {
 	const genderDiv = document.getElementById('participantsGenderFilterDiv');
 	const raceDiv = document.getElementById('participantsRaceFilterDiv');
 	const ethnicityDiv = document.getElementById('participantsEthnicityFilterDiv');
-	const validDiv = document.getElementById('participantsValidFilterDiv');
 	const showJsonOnly = participantLoadMode === 'json';
 	if (buildDiv) buildDiv.style.display = showJsonOnly ? '' : 'none';
 	if (sizeDiv) sizeDiv.style.display = showJsonOnly ? '' : 'none';
 	if (genderDiv) genderDiv.style.display = showJsonOnly ? '' : 'none';
 	if (raceDiv) raceDiv.style.display = showJsonOnly ? '' : 'none';
 	if (ethnicityDiv) ethnicityDiv.style.display = showJsonOnly ? '' : 'none';
-	if (validDiv) validDiv.style.display = showJsonOnly ? '' : 'none';
 
 	const key = sanitizeKey('participants') || 'participants';
 	const summarize = (arr) => arr.length <= 2 ? arr.join('/') : `${arr.length} selected`;
@@ -804,11 +781,10 @@ function applyParticipantFilters() {
 	if (genders.length) labelParts.push(summarize(genders));
 	if (races.length) labelParts.push(summarize(races));
 	if (ethnicities.length) labelParts.push(summarize(ethnicities));
-	if (valids.length) labelParts.push(summarize(valids));
 	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`);
 	const filterLabel = labelParts.length ? labelParts.join(', ') : 'All';
 	// Update the "Filters · N active" badge on the collapse toggle.
-	const activeCount = [versions, builds, genders, races, ethnicities, valids].filter(a => a.length > 0).length
+	const activeCount = [versions, builds, genders, races, ethnicities].filter(a => a.length > 0).length
 		+ ((sizeMin != null || sizeMax != null) ? 1 : 0);
 	const badge = document.getElementById('activeFilterBadge');
 	if (badge) {
@@ -915,7 +891,6 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 	populateGenderSelect();
 	populateRaceSelect();
 	populateEthnicitySelect();
-	populateValidSelect();
 	applyParticipantFilters();
 };
 
@@ -947,7 +922,6 @@ window.refreshAllParticipants = async function refreshAllParticipants() {
 			populateGenderSelect();
 			populateRaceSelect();
 			populateEthnicitySelect();
-			populateValidSelect();
 			applyParticipantFilters();
 		}
 		updateAllParticipantsCacheInfoUI();
@@ -1055,8 +1029,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const sortable = participantLoadMode === 'json';
 		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
 		const sortAttrs = (k) => sortable ? `class="sortable" data-sort="${k}" style="cursor:pointer;user-select:none;"` : '';
-		// Right-aligned variant for numeric sortable columns (Build, Size)
-		const sortAttrsEnd = (k) => sortable ? `class="sortable text-end" data-sort="${k}" style="cursor:pointer;user-select:none;"` : 'class="text-end"';
 
 		const totalPages = Math.max(1, Math.ceil(displayList.length / ROWS_PER_PAGE));
 		currentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -1142,9 +1114,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const raceTitle = p.race ? escapeHtml(String(p.race)) : raceHtml;
 			const ethnicityTitle = p.ethnicity ? escapeHtml(String(p.ethnicity)) : ethnicityHtml;
 			const valid23 = p.valid23File;
-			const valid23Html = valid23 === true
-				? '<span class="badge rounded-pill bg-success">✓ Valid</span>'
-				: (valid23 === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">—</span>');
+			const valid23Html = valid23 === true ? '✓' : (valid23 === false ? '✗' : '-');
 
 			return `
 				<tr>
@@ -1152,14 +1122,14 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
-					<td class="text-end">${ageHtml}</td>
+					<td>${ageHtml}</td>
 					<td>${genderHtml}</td>
 					<td title="${raceTitle}">${raceHtml}</td>
 					<td title="${ethnicityTitle}">${ethnicityHtml}</td>
 					<td class="text-center">${valid23Html}</td>
 					<td>${version}</td>
-					<td class="text-end">${escapeHtml(String(build))}</td>
-					<td class="text-end">${sizeHtml}</td>
+					<td>${escapeHtml(String(build))}</td>
+					<td>${sizeHtml}</td>
 					<td class="text-truncate" style="max-width:180px;" title="${escapeHtml(filename)}">${filenameHtml}</td>
 					<td>${published}</td>
 					<td>${profileHtml}</td>
@@ -1190,14 +1160,14 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
-							<th class="text-end">Age</th>
+							<th>Age</th>
 							<th>Gender</th>
 							<th>Race</th>
 							<th>Ethnicity</th>
 							<th title="File matched the 23andMe header signature">Valid 23andMe</th>
 							<th ${sortAttrs('version')}>Version${sortArrow('version')}</th>
-							<th ${sortAttrsEnd('build')}>Build${sortArrow('build')}</th>
-							<th ${sortAttrsEnd('size')}>Size (MB)${sortArrow('size')}</th>
+							<th ${sortAttrs('build')}>Build${sortArrow('build')}</th>
+							<th ${sortAttrs('size')}>Size (MB)${sortArrow('size')}</th>
 							<th style="max-width:180px;">Filename</th>
 							<th>Published Date</th>
 							<th>Profile</th>
@@ -1350,7 +1320,6 @@ populateBuildSelect();
 populateGenderSelect();
 populateRaceSelect();
 populateEthnicitySelect();
-populateValidSelect();
 
 // --- Upload Your 23andMe File Button Handler ---
 
@@ -1757,3 +1726,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-C8o04kbI.mjs.map

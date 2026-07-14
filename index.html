@@ -148,44 +148,22 @@
                                 <div class="modal-body">
                                     <p>This page defines the <strong>Cluster Analysis for the PRS</strong>. It imports the ClustJS SDK and builds multiple clustering views from <code>window.prsResults</code>.</p>
 
-                                    <h6 class="mt-3">Clustering views</h6>
+                                    <h6 class="mt-3">Clustering view</h6>
                                     <ul>
                                         <li><strong>PRS clustering</strong> — converts flat PRS results into a <em>user × PGS</em> matrix. Rows are users, columns are PGS models, values are PRS scores. Used to cluster users and/or PGS entries.</li>
-                                        <li><strong>Users × one PGS</strong> — builds a <em>user × SNP</em> matrix for one selected PGS model. Values can be allele counts or risk × allele. Supports all variants, overlapping variants, and shared variants. Missing variants can be shown as <code>-1</code> (typically colored black).</li>
-                                        <li><strong>PGS × one user</strong> — builds a <em>PGS × SNP</em> matrix for one selected user. Rows are PGS entries, columns are SNPs, values are allele counts. Useful for comparing how multiple PGS models overlap within one person.</li>
-                                        <li><strong>PGS × PGS effect-weight clustering</strong> — builds a matrix from PGS scoring-file <code>effect_weight</code> values. Rows are PGS models, columns are SNPs, values are effect weights (often z-scored by row). Compares PGS entries by their SNP effect profiles.</li>
-                                        <li><strong>Genotype-level clustering (E)</strong> — builds a <em>users × shared SNPs</em> matrix using only the SNP positions that appear in every loaded user's genome. Values are encoded genotypes. Useful for seeing population-level allele patterns at the positions all users share.</li>
-                                        <li>
-                                            <strong>Genome-wide genotype clustering (F)</strong> — clusters users using their raw 23andMe genotype files directly, rather than restricting to SNPs that appear in a PGS model.
-                                            <ul class="mt-1">
-                                                <li>In PGS-based views the SNP set comes from a selected PGS file (e.g. 77 variants for PGS000001). Section F ignores PGS models entirely and reads across the raw 23andMe files themselves.</li>
-                                                <li>The matrix is <em>users × SNPs</em>. Values are encoded genotypes — <code>encodeGenotype()</code> maps diploid calls such as <code>AA</code>, <code>AG</code>, or <code>TT</code> to integers 0–9. Missing or invalid calls become <code>-1</code> (the sentinel value), typically colored black so absent SNPs are immediately visible.</li>
-                                                <li>Example layout:
-                                                    <pre class="small bg-light p-2 mt-1 mb-0 rounded" style="font-size:0.78rem;">          rs123  rs456  rs789  rs999
-user1        0      2     -1      7
-user2        0     -1      4      7
-user3        1      2      4     -1</pre>
-                                                </li>
-                                                <li>Instead of asking <em>"Are users similar for this one PGS?"</em>, Section F asks <em>"Are users similar across many raw 23andMe SNPs?"</em></li>
-                                                <li>Useful for clustering by general genotype similarity, platform missingness patterns, or broad ancestry-like structure — not restricted to disease-specific PRS variants.</li>
-                                            </ul>
-                                        </li>
                                     </ul>
 
                                     <h6 class="mt-3">Session cache</h6>
                                     <ul>
-                                        <li>Stores pivoted PRS matrices, selected PGS/user IDs, allele matrices, PGS-vs-SNP matrices, effect-weight matrices, SNP lists, and raw genotype matrices so they are not recomputed on every re-render.</li>
+                                        <li>Stores the pivoted PRS matrix so it is not recomputed on every re-render.</li>
                                     </ul>
 
                                     <h6 class="mt-3">Helper functions</h6>
                                     <ul>
                                         <li>Pivot <code>window.prsResults</code> into matrix format.</li>
                                         <li>Extract unique PGS IDs and user IDs.</li>
-                                        <li>Compute allele-sharing distance between genotypes.</li>
-                                        <li>Encode genotypes (e.g. <code>AA</code>, <code>AG</code>, <code>TT</code>) into numeric values.</li>
-                                        <li>Build raw genotype matrices across users.</li>
-                                        <li>Export matrices as CSV.</li>
-                                        <li>Build matrices for heatmaps and dendrograms.</li>
+                                        <li>Export the matrix as CSV or JSON.</li>
+                                        <li>Build the matrix for the heatmap and dendrogram.</li>
                                     </ul>
 
                                     <h6 class="mt-3">UI controls</h6>
@@ -193,12 +171,10 @@ user3        1      2      4     -1</pre>
                                         <li>Row &amp; column clustering toggles.</li>
                                         <li>Linkage methods: <em>complete, single, average, ward</em>.</li>
                                         <li>Distance metrics: <em>Euclidean, Manhattan, cosine</em>.</li>
-                                        <li>Dropdowns for selecting PGS models or users.</li>
-                                        <li>Buttons for switching between sections A–F.</li>
                                         <li>D3 / ClustJS heatmap and dendrogram rendering.</li>
                                     </ul>
 
-                                    <p class="text-muted small mt-3">In short: this page turns PRS and genotype-matching results into matrices, then renders interactive clustering views so you can explore patterns across users, PGS models, SNPs, allele counts, and effect weights.</p>
+                                    <p class="text-muted small mt-3">In short: this page turns PRS results into a matrix, then renders an interactive clustering view so you can explore patterns across users and PGS models.</p>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -211,12 +187,7 @@ user3        1      2      4     -1</pre>
                         variants using interactive clustering.
                     </p>
                     <ul>
-                        <li>A. Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
-                        <li>B. Inspect shared and overlapping SNP patterns across users for a selected PGS. (users × one PGS)</li>
-                        <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
-                        <li>D. Explore similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
-                        <li>E. Genotype-level clustering across all users and shared SNPs. (users × shared SNPs)</li>
-                        <li>F. Genome-wide user × SNP genotype clustering from raw 23andMe files.</li>
+                        <li>Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
                     </ul>
                     <hr class="my-3" />
                     <div id="clusterErrorDiv" class="text-danger small mb-2"></div>

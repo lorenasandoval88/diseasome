@@ -17,6 +17,175 @@ function nameFromFilename(filename) {
 		.trim() || null;
 }
 
+/**
+ * Truncate a URL for compact display: keep scheme + host prefix and the last path
+ * segment, e.g. "https://my.pgp-hms.org/user_file/download/4215" -> "https:// ... /4215".
+ */
+function truncateUrlForDisplay(url) {
+	if (!url) return '';
+	try {
+		const u = new URL(url);
+		const last = u.pathname.split('/').filter(Boolean).pop() || u.hostname;
+		return `${u.protocol}// ... /${last}`;
+	} catch {
+		const s = String(url);
+		const last = s.split('/').filter(Boolean).pop() || s;
+		return `https:// ... /${last}`;
+	}
+}
+
+/**
+ * Extract age, gender, race, and ethnicity from a PGP profile's Google survey results.
+ * `google_survey_results` is an array of surveys; each survey is an array of
+ * [question, answer] pairs. We scan all pairs across all surveys.
+ * Age is taken from "What is your age (in years)?" or computed from "Year of birth".
+ * Race/ethnicity fallbacks use the combined "Race/ethnicity" field only when the
+ * dedicated questions are missing. Grandparent race/ethnicity questions are ignored.
+ */
+function extractDemographics(profile) {
+	const out = { age: null, gender: null, race: null, ethnicity: null };
+	const surveys = profile?.google_survey_results;
+	if (!Array.isArray(surveys)) return out;
+
+	let birthYear = null;
+	let raceEthnicityCombined = null;
+	const currentYear = new Date().getFullYear();
+
+	for (const survey of surveys) {
+		if (!Array.isArray(survey)) continue;
+		for (const pair of survey) {
+			if (!Array.isArray(pair) || pair.length < 2) continue;
+			const q = String(pair[0] ?? '').toLowerCase();
+			const a = pair[1];
+			if (a == null || a === '') continue;
+
+			// Skip grandparent race/ethnicity questions (self only)
+			const isGrandparent = q.includes('grandmother') || q.includes('grandfather');
+
+			if (out.age == null && q.includes('what is your age')) {
+				const n = parseInt(String(a), 10);
+				if (Number.isFinite(n)) out.age = n;
+			} else if (birthYear == null && q.includes('year of birth')) {
+				const n = parseInt(String(a), 10);
+				if (Number.isFinite(n) && n > 1900 && n <= currentYear) birthYear = n;
+			}
+
+			if (out.gender == null) {
+				if (q === 'what is your gender?' || q.includes('sex/gender') || q.includes('anatomical sex at birth')) {
+					if (!isGrandparent) out.gender = String(a).trim();
+				}
+			}
+
+			if (out.race == null && !isGrandparent && q.includes('what is your race')) {
+				out.race = String(a).trim();
+			}
+			if (out.ethnicity == null && !isGrandparent && q === 'what is your ethnicity?') {
+				out.ethnicity = String(a).trim();
+			}
+			if (raceEthnicityCombined == null && !isGrandparent && q === 'race/ethnicity') {
+				raceEthnicityCombined = String(a).trim();
+			}
+		}
+	}
+
+	if (out.age == null && birthYear != null) {
+		out.age = currentYear - birthYear;
+	}
+	// Fall back to the combined field if the dedicated ones were absent
+	if (out.race == null && raceEthnicityCombined) out.race = raceEthnicityCombined;
+	if (out.ethnicity == null && raceEthnicityCombined) out.ethnicity = raceEthnicityCombined;
+	return out;
+}
+
+/**
+ * Map a single raw race token to a clean canonical category.
+ * Returns null for non-informative answers (no response / prefer not to answer).
+ */
+function normalizeRaceToken(token) {
+	const l = String(token ?? '').trim().toLowerCase();
+	if (!l) return null;
+	if (l.includes('american indian') || l.includes('alaska native')) return 'American Indian / Alaska Native';
+	if (l.includes('african american') || l.includes('black')) return 'Black or African American';
+	if (l.includes('native hawaiian') || l.includes('pacific islander')) return 'Native Hawaiian or Other Pacific Islander';
+	if (l.includes('hispanic') || l.includes('latino')) return 'Hispanic or Latino';
+	if (l.includes('caucasian') || l === 'white' || l.startsWith('white')) return 'White';
+	if (l.includes('asian')) return 'Asian';
+	if (l.includes('prefer not') || l === 'no response' || l === 'unknown' || l === 'n/a') return null;
+	return 'Other';
+}
+
+/**
+ * Normalize a raw race answer (often a comma-joined multi-select or free text)
+ * into an array of clean, de-duplicated canonical categories.
+ * @param {string|null} raw
+ * @returns {string[]}
+ */
+function normalizeRaceCategories(raw) {
+	if (raw == null || raw === '') return ['Unknown'];
+	const set = new Set();
+	for (const tok of String(raw).split(/[,;/]|\band\b/i)) {
+		const cat = normalizeRaceToken(tok);
+		if (cat) set.add(cat);
+	}
+	return set.size ? Array.from(set) : ['Unknown'];
+}
+
+/**
+ * Normalize a raw ethnicity answer into a single clean canonical category.
+ * @param {string|null} raw
+ * @returns {string[]}
+ */
+function normalizeEthnicityCategories(raw) {
+	if (raw == null || raw === '') return ['Unknown'];
+	const l = String(raw).toLowerCase();
+	if (l.includes('not hispanic')) return ['Not Hispanic or Latino'];
+	if (l.includes('hispanic') || l.includes('latino') || l.includes('spanish')) return ['Hispanic or Latino'];
+	if (l.includes('prefer not') || l === 'no response' || l === 'unknown' || l === 'n/a') return ['Unknown'];
+	return ['Other'];
+}
+
+/**
+ * Flatten a curated participant record from `pgp_participants_1017_with_profiles.json`
+ * into the shape expected by the rest of this module. The new schema nests file-level
+ * fields under `files[]`; the old code reads them at the top level.
+ * We pick a primary file (prefer the first valid 23andMe file) and copy its fields up.
+ * We also derive `age`, `gender`, and `valid23File` (any file is valid).
+ */
+function flattenCuratedRecord(rec) {
+	if (!rec || typeof rec !== 'object') return rec;
+	const files = Array.isArray(rec.files) ? rec.files : [];
+	const primary = files.find(f => f?.valid23File) ?? files[0] ?? {};
+	const anyValid23 = files.some(f => f?.valid23File === true);
+	const { age, gender, race, ethnicity } = extractDemographics(rec.profile);
+	return {
+		id: rec.id,
+		profileUrl: rec.profileUrl ?? null,
+		number_of_files: rec.number_of_files ?? files.length,
+		files,
+		// Flattened primary-file fields (used by table/CSV/sort code)
+		publishedDate: primary.publishedDate ?? null,
+		dataType: primary.dataType ?? null,
+		name: primary.name ?? null,
+		downloadUrl: primary.downloadUrl ?? null,
+		finalUrl: primary.finalUrl ?? null,
+		filename: primary.filename ?? null,
+		innerFilename: primary.innerFilename ?? null,
+		genomeBuild: primary.genomeBuild ?? null,
+		genomeBuildFiles: primary.genomeBuildFiles ?? [],
+		gcsfilename: primary.genomeBuildFiles?.[0]?.gcsfilename ?? null,
+		// Derived fields
+		valid23File: anyValid23,
+		age,
+		gender,
+		race,
+		ethnicity,
+		raceCategories: normalizeRaceCategories(race),
+		ethnicityCategories: normalizeEthnicityCategories(ethnicity),
+		// Preserve original profile for downstream use if needed
+		profile: rec.profile ?? null,
+	};
+}
+
 // Update loading progress indicator
 const participantsProgressBar = document.getElementById('participantsProgressBar');
 function setParticipantsLoadingProgress(progress) {
@@ -32,9 +201,10 @@ setParticipantsLoadingProgress(50);
 // Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
 let curatedJsonParticipants = null;
 try {
-	const res = await fetch('data/PGP_participants_1017.json');
+	const res = await fetch('data/pgp_participants_1017_with_profiles.json');
 	if (!res.ok) throw new Error(`HTTP ${res.status}`);
-	curatedJsonParticipants = await res.json();
+	const raw = await res.json();
+	curatedJsonParticipants = Array.isArray(raw) ? raw.map(flattenCuratedRecord) : [];
 } catch (err) {
 	console.error('Failed to load curated JSON:', err);
 	curatedJsonParticipants = [];
@@ -85,7 +255,7 @@ updateAllParticipantsCacheInfoUI();
 // Reflect count on the curated JSON button now that it's loaded
 {
 	const jsonBtn = document.getElementById('modeJsonBtn');
-	if (jsonBtn) jsonBtn.textContent = `From Curated JSON with build (${participants.length}) — updated 06-2026`;
+	if (jsonBtn) jsonBtn.textContent = `From Curated List`;
 }
 
 const ROWS_PER_PAGE = 200;
@@ -128,11 +298,44 @@ window.clearUploadedFiles = function () {
 };
 
 
+/**
+ * Disable unchecked participant checkboxes once the selection limit is reached,
+ * so clicks are visibly blocked (with an explanatory tooltip) rather than silently ignored.
+ */
+function updateSelectionAvailability() {
+	const atLimit = selectedUserIds.size >= MAX_SELECTION;
+	document.querySelectorAll('#localUsersDiv .participant-select').forEach((cb) => {
+		if (cb.checked) {
+			cb.disabled = false;
+			cb.title = '';
+		} else {
+			cb.disabled = atLimit;
+			cb.title = atLimit ? `Limit of ${MAX_SELECTION} reached — deselect one to add another.` : '';
+		}
+	});
+}
+
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
-	// Update count on 23andMe Data tab
+	const count = selectedUserIds.size;
+	const atLimit = count >= MAX_SELECTION;
+
+	// Prominent sticky bar: label + filled progress indicator
 	const el = document.getElementById("globalSelectionCount2");
-	if (el) el.textContent = `Selected Data: ${selectedUserIds.size} / ${MAX_SELECTION}`;
+	if (el) el.textContent = `${count} of ${MAX_SELECTION} selected`;
+	const bar = document.getElementById("selectionProgressBar");
+	if (bar) {
+		const pct = Math.min(100, Math.round((count / MAX_SELECTION) * 100));
+		bar.style.width = `${pct}%`;
+		bar.setAttribute('aria-valuenow', String(count));
+		bar.classList.toggle('bg-success', !atLimit);
+		bar.classList.toggle('bg-danger', atLimit);
+	}
+	const limitMsg = document.getElementById("selectionLimitMsg");
+	if (limitMsg) limitMsg.style.display = atLimit ? '' : 'none';
+
+	// Block further selection when the limit is reached
+	updateSelectionAvailability();
 
 	// Update loaded count: uploaded files are already parsed, show them immediately
 	const loadedCount = document.getElementById("loadedFilesCount");
@@ -158,11 +361,8 @@ function updateGlobalSelectionCount() {
 
 	// Show/hide unselect buttons based on what is selected
 	const hasUploaded = Array.from(selectedUsersMap.values()).some(u => u.dataSource === 'file Upload');
-	const hasPGP = Array.from(selectedUsersMap.values()).some(u => u.dataSource !== 'file Upload');
 	const clearUploadedBtn = document.getElementById('clearUploadedBtn');
-	const clearPGPBtn = document.getElementById('clearPGPBtn');
 	if (clearUploadedBtn) clearUploadedBtn.style.display = hasUploaded ? '' : 'none';
-	if (clearPGPBtn) clearPGPBtn.style.display = hasPGP ? '' : 'none';
 
 	// Also update PRS tab user section to reflect selection
 	const prsUsersdiv = document.getElementById("prsUsersdiv");
@@ -312,7 +512,7 @@ function csvEscape(value) {
 /** Convert a participants list to CSV using a curated, human-friendly column set. */
 function participantsToCsv(list) {
 	const cols = [
-		'id', 'name', 'version', 'build', 'sizeMB', 'filename',
+		'id', 'name', 'age', 'gender', 'race', 'ethnicity', 'valid23File', 'version', 'build', 'sizeMB', 'filename',
 		'publishedDate', 'profileUrl', 'downloadUrl', 'finalUrl'
 	];
 	const rows = list.map((p) => {
@@ -324,6 +524,11 @@ function participantsToCsv(list) {
 		return [
 			p.id ?? p.participant_id ?? '',
 			p.name ?? '',
+			p.age ?? '',
+			p.gender ?? '',
+			p.race ?? '',
+			p.ethnicity ?? '',
+			p.valid23File == null ? '' : (p.valid23File ? 'true' : 'false'),
 			version,
 			build,
 			sizeMB,
@@ -374,9 +579,9 @@ function populateVersionSelect() {
 		const numB = parseInt(b.replace('v', ''));
 		return numA - numB;
 	});
-	const opts = [`<option value="">All Versions (${participants.length})</option>`].concat(versions.map(v => `<option value="${v}">${v} (${counts.get(v)})</option>`));
-	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')})</option>`);
-	sel.innerHTML = opts.join('');
+	const entries = versions.map(v => [v, counts.get(v)]);
+	if (counts.has('Unknown')) entries.push(['Unknown', counts.get('Unknown')]);
+	renderCheckboxFilter(sel, entries);
 }
 window.populateVersionSelect = populateVersionSelect;
 
@@ -399,15 +604,95 @@ function populateBuildSelect() {
 			if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
 			return String(a).localeCompare(String(b));
 		});
-	const opts = [`<option value="">All Builds (${participants.length})</option>`]
-		.concat(builds.map(v => `<option value="${v}">${v} (${counts.get(v)})</option>`));
-	if (counts.has('Unknown')) opts.push(`<option value="Unknown">Unknown (${counts.get('Unknown')})</option>`);
-	const prev = sel.value;
-	sel.innerHTML = opts.join('');
-	// Preserve previous selection if still valid
-	if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+	const entries = builds.map(v => [v, counts.get(v)]);
+	if (counts.has('Unknown')) entries.push(['Unknown', counts.get('Unknown')]);
+	renderCheckboxFilter(sel, entries);
 }
 window.populateBuildSelect = populateBuildSelect;
+
+/**
+ * Return an array of selected values from a filter control.
+ * Supports both checkbox-list containers (current UI) and legacy <select multiple>.
+ */
+function getSelectValues(el) {
+	if (!el) return [];
+	if (el.classList?.contains('filter-check-list') || el.querySelector?.('input[type="checkbox"]')) {
+		return Array.from(el.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value).filter(v => v !== '');
+	}
+	return Array.from(el.selectedOptions ?? []).map(o => o.value).filter(v => v !== '');
+}
+
+/**
+ * Render a checkbox-list filter into a container, preserving any prior checked state.
+ * A one-time delegated change listener re-applies participant filters whenever a box toggles.
+ * @param {HTMLElement} container  the `.filter-check-list` element
+ * @param {Array<[string, number]>} entries  ordered [value, count] pairs
+ */
+function renderCheckboxFilter(container, entries) {
+	if (!container) return;
+	const prev = new Set(getSelectValues(container));
+	const name = container.id || 'flt';
+	container.innerHTML = entries.map(([value, count], i) => {
+		const optId = `${name}_opt_${i}`;
+		const checked = prev.has(value) ? 'checked' : '';
+		return `<label class="filter-chip" for="${optId}">`
+			+ `<input type="checkbox" id="${optId}" value="${escapeHtml(value)}" ${checked} />`
+			+ `<span class="filter-chip-label">${escapeHtml(value)}</span>`
+			+ `<span class="filter-chip-count">${count}</span>`
+			+ `</label>`;
+	}).join('');
+	if (!container.dataset.wired) {
+		container.addEventListener('change', () => applyParticipantFilters());
+		container.dataset.wired = '1';
+	}
+}
+
+/** Uncheck every option in a checkbox-list filter and re-apply filters. */
+window.clearCheckboxFilter = function clearCheckboxFilter(containerId) {
+	const c = document.getElementById(containerId);
+	if (!c) return;
+	c.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+	applyParticipantFilters();
+};
+
+/**
+ * Populate a demographic dropdown (gender / race / ethnicity) from the current
+ * participants list. Values with an empty/unknown answer are grouped under "Unknown".
+ * @param {string} elementId  target <select> element id
+ * @param {'gender'|'race'|'ethnicity'} field  participant field to summarize
+ */
+function populateDemographicSelect(elementId, field) {
+	const sel = document.getElementById(elementId);
+	if (!sel) return;
+	const isMulti = field === 'raceCategories' || field === 'ethnicityCategories';
+	const counts = new Map();
+	participants.forEach((p) => {
+		if (isMulti) {
+			const cats = (Array.isArray(p?.[field]) && p[field].length) ? p[field] : ['Unknown'];
+			new Set(cats).forEach(c => counts.set(c, (counts.get(c) || 0) + 1));
+		} else {
+			const raw = p?.[field];
+			const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
+			counts.set(key, (counts.get(key) || 0) + 1);
+		}
+	});
+	// Sort alphabetically but push the catch-all buckets to the bottom.
+	const rank = (k) => (k === 'Other' ? 1 : (k === 'Unknown' ? 2 : 0));
+	const values = Array.from(counts.keys()).sort((a, b) => {
+		const ra = rank(a), rb = rank(b);
+		if (ra !== rb) return ra - rb;
+		return String(a).localeCompare(String(b));
+	});
+	const entries = values.map(v => [v, counts.get(v)]);
+	renderCheckboxFilter(sel, entries);
+}
+
+function populateGenderSelect() { populateDemographicSelect('participantsGenderSelect', 'gender'); }
+function populateRaceSelect() { populateDemographicSelect('participantsRaceSelect', 'raceCategories'); }
+function populateEthnicitySelect() { populateDemographicSelect('participantsEthnicitySelect', 'ethnicityCategories'); }
+window.populateGenderSelect = populateGenderSelect;
+window.populateRaceSelect = populateRaceSelect;
+window.populateEthnicitySelect = populateEthnicitySelect;
 
 /**
  * Apply all filters (version, build, size range) to participants and re-render the table.
@@ -416,10 +701,16 @@ window.populateBuildSelect = populateBuildSelect;
 function applyParticipantFilters() {
 	const versionSel = document.getElementById('participantsVersionSelect');
 	const buildSel = document.getElementById('participantsBuildSelect');
+	const genderSel = document.getElementById('participantsGenderSelect');
+	const raceSel = document.getElementById('participantsRaceSelect');
+	const ethnicitySel = document.getElementById('participantsEthnicitySelect');
 	const sizeMinEl = document.getElementById('participantsSizeMin');
 	const sizeMaxEl = document.getElementById('participantsSizeMax');
-	const version = versionSel?.value ?? '';
-	const build = buildSel?.value ?? '';
+	const versions = getSelectValues(versionSel);
+	const builds = getSelectValues(buildSel);
+	const genders = getSelectValues(genderSel);
+	const races = getSelectValues(raceSel);
+	const ethnicities = getSelectValues(ethnicitySel);
 	const sizeMinRaw = sizeMinEl?.value ?? '';
 	const sizeMaxRaw = sizeMaxEl?.value ?? '';
 	const sizeMin = sizeMinRaw === '' ? null : Number(sizeMinRaw);
@@ -427,16 +718,34 @@ function applyParticipantFilters() {
 
 	let list = participants;
 
-	if (version && version !== '') {
-		list = list.filter(p => (extractVersion(p) ?? 'Unknown') === version);
+	if (versions.length > 0) {
+		const set = new Set(versions);
+		list = list.filter(p => set.has(extractVersion(p) ?? 'Unknown'));
 	}
-	if (build && build !== '') {
+	if (builds.length > 0) {
+		const set = new Set(builds);
 		list = list.filter(p => {
 			const raw = p.genomeBuild ?? p.build;
 			const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
-			return key === build;
+			return set.has(key);
 		});
 	}
+	const filterByDemographic = (arr, field, multi) => {
+		if (arr.length === 0) return;
+		const set = new Set(arr);
+		list = list.filter(p => {
+			if (multi) {
+				const cats = (Array.isArray(p?.[field]) && p[field].length) ? p[field] : ['Unknown'];
+				return cats.some(c => set.has(c));
+			}
+			const raw = p?.[field];
+			const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
+			return set.has(key);
+		});
+	};
+	filterByDemographic(genders, 'gender', false);
+	filterByDemographic(races, 'raceCategories', true);
+	filterByDemographic(ethnicities, 'ethnicityCategories', true);
 	if (sizeMin != null || sizeMax != null) {
 		list = list.filter(p => {
 			const n = Number(p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB);
@@ -447,19 +756,41 @@ function applyParticipantFilters() {
 		});
 	}
 
-	// Hide build/size filter controls when not in JSON mode (fields aren't available)
+	// Hide build/size/demographic filter controls when not in JSON mode (fields aren't available)
 	const buildDiv = document.getElementById('participantsBuildFilterDiv');
 	const sizeDiv = document.getElementById('participantsSizeFilterDiv');
+	const genderDiv = document.getElementById('participantsGenderFilterDiv');
+	const raceDiv = document.getElementById('participantsRaceFilterDiv');
+	const ethnicityDiv = document.getElementById('participantsEthnicityFilterDiv');
 	const showJsonOnly = participantLoadMode === 'json';
 	if (buildDiv) buildDiv.style.display = showJsonOnly ? '' : 'none';
 	if (sizeDiv) sizeDiv.style.display = showJsonOnly ? '' : 'none';
+	if (genderDiv) genderDiv.style.display = showJsonOnly ? '' : 'none';
+	if (raceDiv) raceDiv.style.display = showJsonOnly ? '' : 'none';
+	if (ethnicityDiv) ethnicityDiv.style.display = showJsonOnly ? '' : 'none';
 
 	const key = sanitizeKey('participants') || 'participants';
+	const summarize = (arr) => arr.length <= 2 ? arr.join('/') : `${arr.length} selected`;
 	const labelParts = [];
-	if (version) labelParts.push(version);
-	if (build) labelParts.push(`build ${build}`);
+	if (versions.length) labelParts.push(summarize(versions));
+	if (builds.length) labelParts.push(`build ${summarize(builds)}`);
+	if (genders.length) labelParts.push(summarize(genders));
+	if (races.length) labelParts.push(summarize(races));
+	if (ethnicities.length) labelParts.push(summarize(ethnicities));
 	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`);
 	const filterLabel = labelParts.length ? labelParts.join(', ') : 'All';
+	// Update the "Filters · N active" badge on the collapse toggle.
+	const activeCount = [versions, builds, genders, races, ethnicities].filter(a => a.length > 0).length
+		+ ((sizeMin != null || sizeMax != null) ? 1 : 0);
+	const badge = document.getElementById('activeFilterBadge');
+	if (badge) {
+		if (activeCount > 0) {
+			badge.textContent = `${activeCount} active`;
+			badge.style.display = '';
+		} else {
+			badge.style.display = 'none';
+		}
+	}
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
 }
 window.applyParticipantFilters = applyParticipantFilters;
@@ -469,19 +800,27 @@ window.applyParticipantFilters = applyParticipantFilters;
  * @param {string} selectedVersion
  * @returns {void}
  */
-window.onParticipantsVersionChange = function onParticipantsVersionChange(selectedVersion) {
-	const sel = document.getElementById('participantsVersionSelect');
-	if (sel && selectedVersion !== undefined) sel.value = selectedVersion;
+window.onParticipantsVersionChange = function onParticipantsVersionChange() {
 	applyParticipantFilters();
 };
 
-window.onParticipantsBuildChange = function onParticipantsBuildChange(selectedBuild) {
-	const sel = document.getElementById('participantsBuildSelect');
-	if (sel && selectedBuild !== undefined) sel.value = selectedBuild;
+window.onParticipantsBuildChange = function onParticipantsBuildChange() {
 	applyParticipantFilters();
 };
 
 window.onParticipantsSizeChange = function onParticipantsSizeChange() {
+	applyParticipantFilters();
+};
+
+window.onParticipantsGenderChange = function onParticipantsGenderChange() {
+	applyParticipantFilters();
+};
+
+window.onParticipantsRaceChange = function onParticipantsRaceChange() {
+	applyParticipantFilters();
+};
+
+window.onParticipantsEthnicityChange = function onParticipantsEthnicityChange() {
 	applyParticipantFilters();
 };
 
@@ -497,13 +836,14 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 		if (!curatedJsonParticipants) {
 			showParticipantsLoadingOverlay(true, 20, 'Loading curated JSON list...');
 			try {
-				const res = await fetch('data/PGP_participants_1017.json');
+				const res = await fetch('data/pgp_participants_1017_with_profiles.json');
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
-				curatedJsonParticipants = await res.json();
+				const raw = await res.json();
+				curatedJsonParticipants = Array.isArray(raw) ? raw.map(flattenCuratedRecord) : [];
 			} catch (err) {
 				console.error('Failed to load curated JSON:', err);
 				curatedJsonParticipants = [];
-				alert(`Failed to load data/PGP_participants_1017.json: ${err.message}`);
+				alert(`Failed to load data/pgp_participants_1017_with_profiles.json: ${err.message}`);
 			} finally {
 				showParticipantsLoadingOverlay(false);
 			}
@@ -536,14 +876,17 @@ window.onParticipantsModeChange = async function onParticipantsModeChange(mode) 
 		participants = allParticipantsFast ?? [];
 		if (allBtn) {
 			allBtn.textContent = fromCache
-				? `All Participants from PGP (${participants.length}, cached)`
-				: `Fetch All Participants from PGP (${participants.length})`;
+				? `From PGP (${participants.length}, cached)`
+				: `Fetch from PGP (${participants.length})`;
 		}
 		updateAllParticipantsCacheInfoUI();
 	}
 
 	populateVersionSelect();
 	populateBuildSelect();
+	populateGenderSelect();
+	populateRaceSelect();
+	populateEthnicitySelect();
 	applyParticipantFilters();
 };
 
@@ -569,9 +912,12 @@ window.refreshAllParticipants = async function refreshAllParticipants() {
 		}
 		if (participantLoadMode === 'all') {
 			participants = allParticipantsFast;
-			if (allBtn) allBtn.textContent = `All Participants from PGP (${participants.length}, cached)`;
+			if (allBtn) allBtn.textContent = `From PGP (${participants.length}, cached)`;
 			populateVersionSelect();
 			populateBuildSelect();
+			populateGenderSelect();
+			populateRaceSelect();
+			populateEthnicitySelect();
 			applyParticipantFilters();
 		}
 		updateAllParticipantsCacheInfoUI();
@@ -741,7 +1087,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
 
 			const downloadUrl = getDownloadUrl(p);
-			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">${escapeHtml(downloadUrl)}</a>` : "-";
+			const downloadHtml = downloadUrl
+				? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(downloadUrl)}">${escapeHtml(truncateUrlForDisplay(downloadUrl))}</a>`
+				: "-";
 			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
 			const version = extractVersion(p) ?? '-';
 
@@ -752,12 +1100,29 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? null;
 			const sizeHtml = (sizeMB != null) ? `${Number(sizeMB).toFixed(2)}` : '-';
 
+			// New demographic / validity columns
+			const ageHtml = (p.age != null && p.age !== '') ? escapeHtml(String(p.age)) : '-';
+			const genderHtml = p.gender ? escapeHtml(String(p.gender)) : '-';
+			const raceCats = (Array.isArray(p.raceCategories) && p.raceCategories.length) ? p.raceCategories.join(', ') : (p.race || '');
+			const ethnicityCats = (Array.isArray(p.ethnicityCategories) && p.ethnicityCategories.length) ? p.ethnicityCategories.join(', ') : (p.ethnicity || '');
+			const raceHtml = raceCats ? escapeHtml(String(raceCats)) : '-';
+			const ethnicityHtml = ethnicityCats ? escapeHtml(String(ethnicityCats)) : '-';
+			const raceTitle = p.race ? escapeHtml(String(p.race)) : raceHtml;
+			const ethnicityTitle = p.ethnicity ? escapeHtml(String(p.ethnicity)) : ethnicityHtml;
+			const valid23 = p.valid23File;
+			const valid23Html = valid23 === true ? '✓' : (valid23 === false ? '✗' : '-');
+
 			return `
 				<tr>
 					<td>${startIndex + i + 1}</td>
 					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
 					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
+					<td>${ageHtml}</td>
+					<td>${genderHtml}</td>
+					<td title="${raceTitle}">${raceHtml}</td>
+					<td title="${ethnicityTitle}">${ethnicityHtml}</td>
+					<td class="text-center">${valid23Html}</td>
 					<td>${version}</td>
 					<td>${escapeHtml(String(build))}</td>
 					<td>${sizeHtml}</td>
@@ -791,6 +1156,11 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Select</th>
 							<th>Participant ID</th>
 							<th>Name</th>
+							<th>Age</th>
+							<th>Gender</th>
+							<th>Race</th>
+							<th>Ethnicity</th>
+							<th title="File matched the 23andMe header signature">Valid 23andMe</th>
 							<th ${sortAttrs('version')}>Version${sortArrow('version')}</th>
 							<th ${sortAttrs('build')}>Build${sortArrow('build')}</th>
 							<th ${sortAttrs('size')}>Size (MB)${sortArrow('size')}</th>
@@ -894,7 +1264,13 @@ function renderParticipantsTable(list, targetId, title, key) {
 				if (cb.checked) {
 					if (selectedIds.size >= MAX_SELECTION) {
 						cb.checked = false;
-						alert(`Maximum ${MAX_SELECTION} selections allowed.`);
+						const limitMsg = document.getElementById('selectionLimitMsg');
+						if (limitMsg) {
+							limitMsg.style.display = '';
+							limitMsg.classList.remove('flash-attention');
+							void limitMsg.offsetWidth; // restart animation
+							limitMsg.classList.add('flash-attention');
+						}
 						return;
 					}
 					selectedIds.add(cb.value);
@@ -913,6 +1289,9 @@ function renderParticipantsTable(list, targetId, title, key) {
 
 		if (prevPageBtn) prevPageBtn.addEventListener('click', () => { currentPage -= 1; renderPage(); });
 		if (nextPageBtn) nextPageBtn.addEventListener('click', () => { currentPage += 1; renderPage(); });
+
+		// Re-apply the selection limit (disable unchecked rows) after each (re)render
+		updateSelectionAvailability();
 	};
 
 	renderPage();
@@ -931,9 +1310,12 @@ if (document.getElementById("GenomicData")?.style.display === "block") {
 	window.renderLocalUsers();
 }
 
-// populate version select after definitions
+// populate filter selects after definitions
 populateVersionSelect();
 populateBuildSelect();
+populateGenderSelect();
+populateRaceSelect();
+populateEthnicitySelect();
 
 // --- Upload Your 23andMe File Button Handler ---
 
@@ -1073,12 +1455,16 @@ if (loadByUrlBtn) {
 	loadByUrlBtn.addEventListener("click", async () => {
 		const idsInput = document.getElementById("loadByUrlIds");
 		const statusEl = document.getElementById("loadByUrlStatus");
-		const ids = parseIdList(idsInput?.value);
+		const allIds = parseIdList(idsInput?.value);
 
-		if (ids.length === 0) {
+		if (allIds.length === 0) {
 			if (statusEl) statusEl.textContent = "Enter at least one participant ID.";
 			return;
 		}
+
+		// Cap the list at MAX_SELECTION IDs
+		const ids = allIds.slice(0, MAX_SELECTION);
+		const truncated = allIds.length - ids.length;
 
 		// Build a quick lookup from the curated participants list
 		const byId = new Map();
@@ -1089,6 +1475,9 @@ if (loadByUrlBtn) {
 
 		loadByUrlBtn.disabled = true;
 		const messages = [];
+		if (truncated > 0) {
+			messages.push(`\u26A0 Only the first ${MAX_SELECTION} IDs will be processed (${truncated} ignored).`);
+		}
 
 		try {
 			for (const id of ids) {
@@ -1321,9 +1710,15 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	applyParticipantFilters,
 	populateVersionSelect,
 	populateBuildSelect,
+	populateGenderSelect,
+	populateRaceSelect,
+	populateEthnicitySelect,
 	onParticipantsVersionChange: window.onParticipantsVersionChange,
 	onParticipantsBuildChange: window.onParticipantsBuildChange,
 	onParticipantsSizeChange: window.onParticipantsSizeChange,
+	onParticipantsGenderChange: window.onParticipantsGenderChange,
+	onParticipantsRaceChange: window.onParticipantsRaceChange,
+	onParticipantsEthnicityChange: window.onParticipantsEthnicityChange,
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });

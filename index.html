@@ -385,37 +385,57 @@ user3        1      2      4     -1</pre>
                                 aria-label="About Genomic Data">?</button>
                     </h3>
 
-                    <div class="row g-3 mt-1 mb-4">
+                    <!-- Load options as tabs (progressive disclosure) -->
+                    <ul class="nav nav-tabs mt-2" id="genomicLoadTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-upload" data-bs-toggle="tab" data-bs-target="#pane-upload" type="button" role="tab" aria-controls="pane-upload" aria-selected="false">
+                                <i class="fa fa-upload me-1"></i>Upload
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-browse" data-bs-toggle="tab" data-bs-target="#pane-browse" type="button" role="tab" aria-controls="pane-browse" aria-selected="true">
+                                <i class="fa fa-users me-1"></i>Browse PGP
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-examples" data-bs-toggle="tab" data-bs-target="#pane-examples" type="button" role="tab" aria-controls="pane-examples" aria-selected="false">
+                                <i class="fa fa-flask me-1"></i>Examples
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-byid" data-bs-toggle="tab" data-bs-target="#pane-byid" type="button" role="tab" aria-controls="pane-byid" aria-selected="false">
+                                <i class="fa fa-list-ol me-1"></i>Load by ID
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="genomicLoadTabsContent">
 
-                        <!-- Card A: Upload local files -->
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <div class="card h-100 border-primary">
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Option A — Upload Local Files</h5>
+                        <!-- Tab: Upload local files -->
+                        <div class="tab-pane fade" id="pane-upload" role="tabpanel" aria-labelledby="tab-upload">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Upload Local Files</h5>
                                     <p class="card-text text-muted small flex-grow-1">Upload your own raw 23andMe export file(s) directly from your device. Up to 5 files accepted.</p>
                                     <button id="my23Btn" class="btn btn-primary btn-sm mb-2">Upload Local 23andMe Files</button>
                                     <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
                                     <div id="my23Status" class="small text-muted"></div>
                                     <p class="small text-muted mt-2 mb-2"><i class="fa fa-lock me-1"></i>Files are processed locally in your browser and are never uploaded to a server.</p>
                                     <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>
-                                </div>
                             </div>
                         </div>
 
-                        <!-- Card B: Public PGP participants -->
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <div class="card h-100 border-success">
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Option B — Public PGP Participants</h5>
+                        <!-- Tab: Public PGP participants -->
+                        <div class="tab-pane fade show active" id="pane-browse" role="tabpanel" aria-labelledby="tab-browse">
+                            <div class="d-flex flex-column">
+                                    <h5 class="card-title">Public PGP Participants</h5>
                                     <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available participants from the Personal Genome Project for demo or research workflows.</p>
-                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <div class="mb-2">
                                         <div>
                                             <label class="form-label mb-1 small"><b>Display Mode</b></label>
                                             <div class="btn-group d-block" role="group">
                                                 <button id="modeJsonBtn" class="btn btn-sm btn-success"
-                                                    onclick="onParticipantsModeChange('json'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">From Curated JSON (with build) &mdash; updated 06-2026</button>
+                                                    onclick="onParticipantsModeChange('json'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">Curated (fast, 1017 with detailed info)</button>
                                                 <button id="modeAllBtn" class="btn btn-sm btn-outline-success"
-                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">Fetch All Participants from PGP</button>
+                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">Live from PGP (slower)</button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
                                                     style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.75rem"
                                                     data-bs-toggle="popover"
@@ -423,7 +443,7 @@ user3        1      2      4     -1</pre>
                                                     data-bs-placement="top"
                                                     data-bs-html="true"
                                                     title="Load modes"
-                                                    data-bs-content="<strong>Load All PGP Participants</strong> fetches all participants instantly &mdash; no version or name lookup. Result is cached locally; use <em>Update</em> to re-fetch.<br><br><strong>From Curated JSON</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
+                                                    data-bs-content="<strong>Live from PGP (slower)</strong> fetches all participants instantly &mdash; no version or name lookup. Result is cached locally; use <em>Update</em> to re-fetch.<br><br><strong>Curated (fast, 1017 with detailed info)</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
                                                     aria-label="Load mode info">?</button>
                                             </div>
                                             <div id="allParticipantsCacheInfo" class="small text-muted mt-1" style="display:none;">
@@ -431,19 +451,23 @@ user3        1      2      4     -1</pre>
                                                 <button id="allParticipantsUpdateBtn" type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.75rem;vertical-align:baseline;" onclick="window.refreshAllParticipants && window.refreshAllParticipants()">Update</button>
                                             </div>
                                         </div>
+                                    </div>
+                                    <button id="participantsFiltersToggle" class="btn btn-outline-secondary btn-sm mb-2" type="button"
+                                        style="width:fit-content;" data-bs-toggle="collapse" data-bs-target="#participantsFiltersCollapse"
+                                        aria-expanded="false" aria-controls="participantsFiltersCollapse">
+                                        <i class="fa fa-filter me-1"></i>Filters<span id="activeFilterBadge" class="badge bg-primary ms-2" style="display:none;">0 active</span>
+                                    </button>
+                                    <div class="collapse" id="participantsFiltersCollapse">
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
                                         <div id="participantsVersionFilterDiv">
-                                            <label for="participantsVersionSelect" class="form-label mb-1 small"><b>Filter by Version</b></label>
-                                            <select id="participantsVersionSelect" class="form-select form-select-sm" style="max-width:160px;"
-                                                onchange="onParticipantsVersionChange(this.value)">
-                                                <option value="">All Versions</option>
-                                            </select>
+                                            <label class="form-label mb-1 small"><b>Version</b></label>
+                                            <div id="participantsVersionSelect" class="filter-check-list" style="max-width:160px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsVersionSelect')">Clear</button>
                                         </div>
                                         <div id="participantsBuildFilterDiv">
-                                            <label for="participantsBuildSelect" class="form-label mb-1 small"><b>Filter by Build</b></label>
-                                            <select id="participantsBuildSelect" class="form-select form-select-sm" style="max-width:140px;"
-                                                onchange="onParticipantsBuildChange(this.value)">
-                                                <option value="">All Builds</option>
-                                            </select>
+                                            <label class="form-label mb-1 small"><b>Build</b></label>
+                                            <div id="participantsBuildSelect" class="filter-check-list" style="max-width:140px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsBuildSelect')">Clear</button>
                                         </div>
                                         <div id="participantsSizeFilterDiv">
                                             <label class="form-label mb-1 small"><b>Filter by Size (MB)</b></label>
@@ -457,35 +481,46 @@ user3        1      2      4     -1</pre>
                                                     oninput="onParticipantsSizeChange()" />
                                             </div>
                                         </div>
+                                        <div id="participantsGenderFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Gender</b></label>
+                                            <div id="participantsGenderSelect" class="filter-check-list" style="max-width:160px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsGenderSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsRaceFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Race</b></label>
+                                            <div id="participantsRaceSelect" class="filter-check-list" style="max-width:240px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsRaceSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsEthnicityFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Ethnicity</b></label>
+                                            <div id="participantsEthnicitySelect" class="filter-check-list" style="max-width:240px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsEthnicitySelect')">Clear</button>
+                                        </div>
                                     </div>
-                                    <button id="clearPGPBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearPGPSelections && window.clearPGPSelections()">Unselect PGP Participants</button>
-                                </div>
+                                    </div>
                             </div>
                         </div>
 
-                        <!-- Card C: Fallback / example users -->
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <div class="card h-100 border-secondary">
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Option C — Example Users</h5>
+                        <!-- Tab: Example users -->
+                        <div class="tab-pane fade" id="pane-examples" role="tabpanel" aria-labelledby="tab-examples">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Example Users</h5>
                                     <p class="card-text text-muted small flex-grow-1">Load a set of pre-bundled example participants to quickly explore PRS calculations without uploading any files.</p>
                                     <button class="btn btn-secondary btn-sm mb-2"
                                         onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
                                         Load Example Participants
                                     </button>
                                     <p class="small text-muted mt-2 mb-0">No file upload required — useful for testing and demonstrations.</p>
-                                </div>
                             </div>
                         </div>
 
-                        <!-- Card D: Load by list of IDs (URLs pulled from curated list) -->
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <div class="card h-100 border-info">
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Option D — Load by ID list</h5>
-                                    <p class="card-text text-muted small">Enter one or more PGP participant IDs. Download URLs are looked up from the curated participants list.</p>
+                        <!-- Tab: Load by list of IDs (URLs pulled Curated (fast, 1017 with detailed info)) -->
+                        <div class="tab-pane fade" id="pane-byid" role="tabpanel" aria-labelledby="tab-byid">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Load by ID list</h5>
+                                    <p class="card-text text-muted small">Enter up to 10 PGP participant IDs. Download URLs are looked up from the curated participants list.</p>
                                     <div class="mb-2">
-                                        <label for="loadByUrlIds" class="form-label mb-1 small"><b>User IDs</b> (comma, space, or newline separated)</label>
+                                        <label for="loadByUrlIds" class="form-label mb-1 small"><b>User IDs</b> (max 10, comma / space / newline separated)</label>
                                         <textarea id="loadByUrlIds" class="form-control form-control-sm" rows="3" placeholder="e.g. huA08F4D, huC8B936"></textarea>
                                     </div>
                                     <button id="loadByUrlBtn" class="btn btn-info btn-sm mt-auto" style="width:fit-content;">Load</button>
@@ -494,21 +529,29 @@ user3        1      2      4     -1</pre>
                                         <button type="button" id="loadByUrlExampleBtn" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.7rem;vertical-align:baseline;">Copy example</button>
                                     </div>
                                     <div id="loadByUrlStatus" class="small text-muted mt-2"></div>
-                                </div>
                             </div>
                         </div>
 
                     </div>
 
-                    <!-- Actions below cards -->
-                    <div class="mb-3">
-                        <div id="globalSelectionCount2" class="small text-muted mb-1">Selected Data: 0 / 10</div>
-                        <div class="d-flex align-items-center gap-3">
+                    <!-- Actions below cards: sticky selection status + primary actions -->
+                    <div id="selectionStickyBar" class="sticky-top bg-white border-bottom shadow-sm py-2 mb-3" style="top:0; z-index:1020;">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <div style="min-width:240px; flex:0 0 auto;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span id="globalSelectionCount2" class="fw-semibold small text-dark">0 of 10 selected</span>
+                                    <span id="selectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>
+                                </div>
+                                <div class="progress" style="height:12px;">
+                                    <div id="selectionProgressBar" class="progress-bar bg-success" role="progressbar"
+                                        style="width:0%; transition:width .2s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="10"></div>
+                                </div>
+                            </div>
                             <button id="fetchUsersBtn" class="btn btn-danger btn-sm" style="display:none;"
                                 onclick="this.classList.remove('btn-danger'); this.classList.add('btn-secondary'); document.getElementById('nextToModelsBtn').style.display='';">Load Uploaded & Selected Files</button>
                             <button class="btn btn-outline-primary btn-sm" id="nextToModelsBtn" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Next: Select Disease / Trait Models →</button>
+                            <div id="loadedFilesCount" class="small text-muted" style="display:none;">Loaded Data: 0 / 10</div>
                         </div>
-                        <div id="loadedFilesCount" class="small text-muted mt-1" style="display:none;">Loaded Data: 0 / 10</div>
                     </div>
 
                     <!-- Genome cache management (right-aligned, sits above participants table's Deselect All) -->

@@ -478,23 +478,19 @@ user3        1      2      4     -1</pre>
                             </div>
                         </div>
 
-                        <!-- Card D: Load by ID + Download URL -->
+                        <!-- Card D: Load by list of IDs (URLs pulled from curated list) -->
                         <div class="col-12 col-md-6 col-lg-3">
                             <div class="card h-100 border-info">
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Option D — Load by ID + URL</h5>
-                                    <p class="card-text text-muted small">Fetch a single 23andMe file from a direct download URL and register it under the given ID.</p>
+                                    <h5 class="card-title">Option D — Load by ID list</h5>
+                                    <p class="card-text text-muted small">Enter one or more PGP participant IDs. Download URLs are looked up from the curated participants list.</p>
                                     <div class="mb-2">
-                                        <label for="loadByUrlId" class="form-label mb-1 small"><b>User ID</b></label>
-                                        <input type="text" id="loadByUrlId" class="form-control form-control-sm" placeholder="e.g. hu09B28E" />
-                                    </div>
-                                    <div class="mb-2">
-                                        <label for="loadByUrlDownload" class="form-label mb-1 small"><b>Download URL</b></label>
-                                        <input type="url" id="loadByUrlDownload" class="form-control form-control-sm" placeholder="https://.../genome.txt" />
+                                        <label for="loadByUrlIds" class="form-label mb-1 small"><b>User IDs</b> (comma, space, or newline separated)</label>
+                                        <textarea id="loadByUrlIds" class="form-control form-control-sm" rows="3" placeholder="e.g. huA08F4D, huC8B936"></textarea>
                                     </div>
                                     <button id="loadByUrlBtn" class="btn btn-info btn-sm mt-auto" style="width:fit-content;">Load</button>
                                     <div class="small text-muted mt-2">
-                                        Example: <code>hu4B2FD9</code> · <code>https://my.pgp-hms.org/user_file/download/3864</code>
+                                        Example: <code>huA08F4D, huC8B936</code>
                                         <button type="button" id="loadByUrlExampleBtn" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.7rem;vertical-align:baseline;">Copy example</button>
                                     </div>
                                     <div id="loadByUrlStatus" class="small text-muted mt-2"></div>

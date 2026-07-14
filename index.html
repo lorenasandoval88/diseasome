@@ -44,10 +44,13 @@
                 Code</a>
         </li>
         <li class="nav-item"><a class="nav-link" target="_blank"
-                href="https://observablehq.com/@lorenasandoval88/polygenic_risk_scores2">Notebook</a>
+                href="https://observablehq.com/@lorenasandoval88/polygenic-risk-scores-sdk-examples">Notebook</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" target="_blank" href="https://gitter.im/episphere/PRS">Discussion</a>
+        </li>
+        <li class="nav-item">
+            <a id="aboutNavLink" class="nav-link" href="#" onclick="document.getElementById('aboutButton')?.click(); return false;">About</a>
         </li>
         <li class="nav-item">
             <a class="nav-link" target="_blank" href="">
@@ -68,9 +71,9 @@
                     <br>23andme reports,using the <a class="link-unstyled" href='https://www.pgscatalog.org'
                         target="_blank">PGS Catalog</a>.</p>
                 <button class="glow-on-hover"
-                    onclick="location.href='https://observablehq.com/@lorenasandoval88/polygenic-risk-scores?collection=@lorenasandoval88/pgs'"
+                    onclick="location.href='https://observablehq.com/@lorenasandoval88/polygenic-risk-scores-sdk-examples'"
                     type="button">
-                    Get Started</button>
+                    Try it in a Notebook</button>
             </div>
         </div>
 
@@ -89,15 +92,18 @@
     </script>
 
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">Polygenic Scores</button>
-        <button class="tablinks" onclick="tabFunction(event, 'LocalData')">23andMe Data</button>
-        <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">Calculate PRS</button>
-        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">Plot PRS</button>
-        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">Cluster</button>
+        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">1. Select/Upload 23andMe Users</button>
+        <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">2. Select Risk Models</button>
+        <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">3. Calculate PRS</button>
+        <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">4. Inspect Individual PRS Results</button>
+        <button id="clusterButton" class="tablinks" onclick="tabFunction(event, 'Cluster')">5. Cluster PRS Results / Users / Models</button>
+        <button id="aiInterpretButton" class="tablinks" onclick="tabFunction(event, 'AIInterpret')" title="Sends summarized results to an external AI API using your own key">🔓 AI Interpret</button>
         <button id="transformersjsButton" class="tablinks"
-            onclick="tabFunction(event, 'transformersjs')">Transformers.js</button>
-        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')">WebLLM</button>
-        <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')">About</button>
+            onclick="tabFunction(event, 'transformersjs')"
+            title="Runs locally in your browser — no data leaves your device">🔒 Transformers.js</button>
+        <button id="webLLMButton" class="tablinks" onclick="tabFunction(event, 'WebLLM')"
+            title="Runs locally in your browser via WebGPU — no data leaves your device">🔒 WebLLM</button>
+        <button id="aboutButton" class="tablinks" onclick="tabFunction(event, 'About')" style="display:none">About</button>
     </div>
     <div id="selection"></div>
 
@@ -106,7 +112,7 @@
         <ul class="navbar-nav">
             <li class="nav-item">
                 <div id="PlotPRS" class="tabcontent">
-                    <h3>Plot PRS</h3>
+                    <h3>Inspect Individual PRS Results</h3>
                     <p>Visualize PRS calculation results by matched allele counts.</p>
                     <hr class="my-3" />
                     <div id="errorDiv" class="text-danger small mb-2"></div>
@@ -122,7 +128,84 @@
 
                 <!-- NOTE: Cluster UI is a placeholder; implement handlers in JS when ready -->
                 <div id="Cluster" class="tabcontent">
-                    <h3>Genomic Clustering</h3>
+                    <h3>
+                        Genomic Clustering
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm ms-2 align-middle"
+                                style="font-size:0.75rem;padding:1px 7px;border-radius:50%;"
+                                data-bs-toggle="modal" data-bs-target="#clustInfoModal"
+                                aria-label="About Genomic Clustering">?</button>
+                    </h3>
+
+                    <!-- Genomic Clustering info modal -->
+                    <div class="modal fade" id="clustInfoModal" tabindex="-1" aria-labelledby="clustInfoModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="clustInfoModalLabel">About Genomic Clustering</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>This page defines the <strong>Cluster Analysis for the PRS</strong>. It imports the ClustJS SDK and builds multiple clustering views from <code>window.prsResults</code>.</p>
+
+                                    <h6 class="mt-3">Clustering views</h6>
+                                    <ul>
+                                        <li><strong>PRS clustering</strong> — converts flat PRS results into a <em>user × PGS</em> matrix. Rows are users, columns are PGS models, values are PRS scores. Used to cluster users and/or PGS entries.</li>
+                                        <li><strong>Users × one PGS</strong> — builds a <em>user × SNP</em> matrix for one selected PGS model. Values can be allele counts or risk × allele. Supports all variants, overlapping variants, and shared variants. Missing variants can be shown as <code>-1</code> (typically colored black).</li>
+                                        <li><strong>PGS × one user</strong> — builds a <em>PGS × SNP</em> matrix for one selected user. Rows are PGS entries, columns are SNPs, values are allele counts. Useful for comparing how multiple PGS models overlap within one person.</li>
+                                        <li><strong>PGS × PGS effect-weight clustering</strong> — builds a matrix from PGS scoring-file <code>effect_weight</code> values. Rows are PGS models, columns are SNPs, values are effect weights (often z-scored by row). Compares PGS entries by their SNP effect profiles.</li>
+                                        <li><strong>Genotype-level clustering (E)</strong> — builds a <em>users × shared SNPs</em> matrix using only the SNP positions that appear in every loaded user's genome. Values are encoded genotypes. Useful for seeing population-level allele patterns at the positions all users share.</li>
+                                        <li>
+                                            <strong>Genome-wide genotype clustering (F)</strong> — clusters users using their raw 23andMe genotype files directly, rather than restricting to SNPs that appear in a PGS model.
+                                            <ul class="mt-1">
+                                                <li>In PGS-based views the SNP set comes from a selected PGS file (e.g. 77 variants for PGS000001). Section F ignores PGS models entirely and reads across the raw 23andMe files themselves.</li>
+                                                <li>The matrix is <em>users × SNPs</em>. Values are encoded genotypes — <code>encodeGenotype()</code> maps diploid calls such as <code>AA</code>, <code>AG</code>, or <code>TT</code> to integers 0–9. Missing or invalid calls become <code>-1</code> (the sentinel value), typically colored black so absent SNPs are immediately visible.</li>
+                                                <li>Example layout:
+                                                    <pre class="small bg-light p-2 mt-1 mb-0 rounded" style="font-size:0.78rem;">          rs123  rs456  rs789  rs999
+user1        0      2     -1      7
+user2        0     -1      4      7
+user3        1      2      4     -1</pre>
+                                                </li>
+                                                <li>Instead of asking <em>"Are users similar for this one PGS?"</em>, Section F asks <em>"Are users similar across many raw 23andMe SNPs?"</em></li>
+                                                <li>Useful for clustering by general genotype similarity, platform missingness patterns, or broad ancestry-like structure — not restricted to disease-specific PRS variants.</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+
+                                    <h6 class="mt-3">Session cache</h6>
+                                    <ul>
+                                        <li>Stores pivoted PRS matrices, selected PGS/user IDs, allele matrices, PGS-vs-SNP matrices, effect-weight matrices, SNP lists, and raw genotype matrices so they are not recomputed on every re-render.</li>
+                                    </ul>
+
+                                    <h6 class="mt-3">Helper functions</h6>
+                                    <ul>
+                                        <li>Pivot <code>window.prsResults</code> into matrix format.</li>
+                                        <li>Extract unique PGS IDs and user IDs.</li>
+                                        <li>Compute allele-sharing distance between genotypes.</li>
+                                        <li>Encode genotypes (e.g. <code>AA</code>, <code>AG</code>, <code>TT</code>) into numeric values.</li>
+                                        <li>Build raw genotype matrices across users.</li>
+                                        <li>Export matrices as CSV.</li>
+                                        <li>Build matrices for heatmaps and dendrograms.</li>
+                                    </ul>
+
+                                    <h6 class="mt-3">UI controls</h6>
+                                    <ul>
+                                        <li>Row &amp; column clustering toggles.</li>
+                                        <li>Linkage methods: <em>complete, single, average, ward</em>.</li>
+                                        <li>Distance metrics: <em>Euclidean, Manhattan, cosine</em>.</li>
+                                        <li>Dropdowns for selecting PGS models or users.</li>
+                                        <li>Buttons for switching between sections A–F.</li>
+                                        <li>D3 / ClustJS heatmap and dendrogram rendering.</li>
+                                    </ul>
+
+                                    <p class="text-muted small mt-3">In short: this page turns PRS and genotype-matching results into matrices, then renders interactive clustering views so you can explore patterns across users, PGS models, SNPs, allele counts, and effect weights.</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <p>
                         Compare users and models through PRS and SNP-based clustering. Explore patterns, similarity, and shared
                         variants using interactive clustering.
@@ -130,15 +213,88 @@
                     <ul>
                         <li>A. Cluster users by PRS similarity across selected PGS entries. (users × PGS)</li>
                         <li>B. Inspect shared and overlapping SNP patterns across users for a selected PGS. (users × one PGS)</li>
-                         <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
-                        <li>D. Explore Similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
+                        <li>C. Explore how different PGS models overlap within an individual’s genotype. (PGS × one user)</li>
+                        <li>D. Explore similarity between PGS models based on effect weights, not genotypes. (PGS × PGS)</li>
+                        <li>E. Genotype-level clustering across all users and shared SNPs. (users × shared SNPs)</li>
+                        <li>F. Genome-wide user × SNP genotype clustering from raw 23andMe files.</li>
                     </ul>
                     <hr class="my-3" />
                     <div id="clusterErrorDiv" class="text-danger small mb-2"></div>
                     <div id="clusterDiv"></div>
                 </div>
 
-                <!-- Transformers.js tab -->
+                <!-- AI Interpret tab -->
+                <div id="AIInterpret" class="tabcontent">
+                    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+                        <span style="font-size:1.3em">🔓</span>
+                        <div>
+                            <strong>Not private:</strong> This tab sends a summary of your results to an external AI service (OpenAI or Anthropic) using your own API key.
+                            Raw genotype files are <strong>not</strong> transmitted — only aggregated PRS scores and variant counts.
+                        </div>
+                    </div>
+
+                    <h3>AI Interpretation</h3>
+                    <p class="text-muted">Interpret clustering and PRS results using your own OpenAI or Claude API key. Only summarized results are sent — no raw genotype data.</p>
+
+                    <div class="mb-3" style="max-width:400px">
+                        <label class="form-label fw-semibold">Provider</label>
+                        <select id="aiProvider" class="form-select">
+                            <option value="openai">ChatGPT / OpenAI</option>
+                            <option value="anthropic">Claude / Anthropic</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" style="max-width:600px">
+                        <label class="form-label fw-semibold d-flex align-items-center gap-2">
+                            Model
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    style="line-height:1;border-radius:50%;font-weight:bold"
+                                    data-bs-toggle="popover"
+                                    data-bs-trigger="focus"
+                                    data-bs-placement="right"
+                                    data-bs-html="true"
+                                    title="Model guidance"
+                                    data-bs-content="<ul class='mb-0 ps-3'><li><strong>Cheap default:</strong> <em>gpt-4.1-mini</em> (~0.1–0.5¢ per interpretation) — handles JSON summaries well.</li><li><strong>Deeper reasoning / publication-style:</strong> <em>gpt-4.1</em> or <em>claude-sonnet-4-5</em>.</li><li><strong>Image input</strong> (dendrograms, heatmaps, PCA, UMAP): <em>gpt-4o</em>.</li><li><strong>Quickest / cheapest summaries:</strong> <em>claude-haiku-4-5</em>.</li></ul><div class='mt-1'>Make sure the selected model matches the chosen provider.</div>"
+                                    aria-label="Model guidance">?</button>
+                        </label>
+                        <select id="aiModel" class="form-select">
+                            <optgroup label="OpenAI — best balance: cheap + good interpretation">
+                                <option value="gpt-4.1-mini" selected>gpt-4.1-mini — cheap, fast, strong scientific writing (default)</option>
+                                <option value="gpt-4.1">gpt-4.1 — better reasoning, publication-style summaries (~5–10× cost)</option>
+                                <option value="gpt-4o">gpt-4o — multimodal, can interpret plots/heatmaps/PCA images</option>
+                            </optgroup>
+                            <optgroup label="Anthropic — excellent scientific writing">
+                                <option value="claude-sonnet-4-5">claude-sonnet-4-5 — strongest bioinformatics prose & cautious caveats</option>
+                                <option value="claude-haiku-4-5">claude-haiku-4-5 — cheap & fast, short cluster summaries</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" style="max-width:600px">
+                        <label class="form-label fw-semibold d-flex align-items-center gap-2">
+                            API Key
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    style="line-height:1;border-radius:50%;font-weight:bold"
+                                    data-bs-toggle="popover"
+                                    data-bs-trigger="click"
+                                    data-bs-placement="right"
+                                    data-bs-html="true"
+                                    title="How to get an API key"
+                                    data-bs-content="<ul class='mb-0 ps-3'><li><strong>OpenAI:</strong> go to the developer portal <a href='https://platform.openai.com' target='_blank' rel='noopener'>platform.openai.com</a>, sign in, open the <a href='https://platform.openai.com/api-keys' target='_blank' rel='noopener'>API keys</a> section, and click <em>“+ Create new secret key”</em> to generate one. Copy it immediately — it won’t be shown again.</li><li><strong>Anthropic / Claude:</strong> go to <a href='https://console.anthropic.com' target='_blank' rel='noopener'>console.anthropic.com</a>, sign in, open <a href='https://console.anthropic.com/settings/keys' target='_blank' rel='noopener'>Settings → API Keys</a>, and click <em>“Create Key”</em>.</li></ul><div class='mt-1'>Your key is used only from this browser tab and is not stored on any server.</div>"
+                                    aria-label="How to get an API key">How to get a key?</button>
+                        </label>
+                        <input id="aiApiKey" type="password" class="form-control" placeholder="Paste your API key (stored only in this browser session)">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Question</label>
+                        <textarea id="aiQuestion" class="form-control" rows="3">Interpret these clustering results. What patterns, missingness, and limitations should I report?</textarea>
+                    </div>
+
+                    <button id="runAIInterpretBtn" class="btn btn-warning">Interpret Results</button>
+
+                    <div id="aiInterpretOutput" class="mt-3"></div>
+                </div>
                 <div id="transformersjs" class="tabcontent">
                     <h3>Transformers.js (Flan-T5)</h3>
                     <p>Use Transformers.js with Flan-T5 model running locally to analyze your PRS results.</p>
@@ -156,19 +312,25 @@
                 <!-- PRS ------------------------------------------>
 
                 <div id="PRS" class="tabcontent" style="display: block;">
-                    <h3>PRS</h3>
-                    <p>Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining
-                        the
-                        effects of many genetic variants across the genome. Each variant contributes a small effect, and
-                        these effects are weighted and summed to produce a single score that reflects relative genetic
-                        predisposition. </p>
+                    <h3 class="d-flex align-items-center gap-2">
+                        PRS
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="focus"
+                                data-bs-placement="right"
+                                data-bs-html="true"
+                                title="What is a PRS?"
+                                data-bs-content="Polygenic Risk Scores (PRS) estimate a person’s genetic risk for a trait or disease by combining the effects of many genetic variants across the genome. Each variant contributes a small effect, and these effects are weighted and summed to produce a single score that reflects relative genetic predisposition."
+                                aria-label="What is a PRS?">?</button>
+                    </h3>
                     <hr class="my-3" />
 
-                    <h5 class="prs-step-header d-inline">1.) Select Weight Files</h5>
+                    <h5 class="prs-step-header d-inline">1.) Select Risk Models</h5>
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
-                    <div id=prsScoresDiv>Select at least one scoring file or click below. <a href="#"
+                    <div id=prsScoresDiv>Select at least one risk model or use the option below. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Go
                             to PGS Catalog →</a></div>
                     <button id="loadFallbackScoresBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
@@ -176,12 +338,12 @@
                     <div id="prsScoresAction"></div>
                     <hr class="my-3" />
 
-                    <h5 class="prs-step-header d-inline">2.) Select Genomic Files</h5>
+                    <h5 class="prs-step-header d-inline">2.) Select Genomic Data</h5>
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
                     <div id=prsUsersdiv>Select at least one 23andMe file or click below. <a href="#"
-                            onclick="document.querySelector('.tablinks[onclick*=LocalData]').click(); return false;">Go
+                            onclick="document.querySelector('.tablinks[onclick*=GenomicData]').click(); return false;">Go
                             to 23andMe Data →</a></div>
                     <button id="loadFallbackUsersBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
                         Users</button>
@@ -208,39 +370,206 @@
 
                 <!-- 23 and me ------------------------------------------>
 
-                <div id="LocalData" class="tabcontent">
+                <div id="GenomicData" class="tabcontent">
 
-                    <h3>The Personal Genome Project (PGP)</h3>
-                    <p>The Personal Genome Project (PGP) is an open-access repository of human genomic data contributed
-                        by volunteer
-                        participants. The project provides publicly available genotype and sequencing datasets that can
-                        be used for research, education, and the development of genomic analysis tools.</p>
+                    <h3 class="d-flex align-items-center gap-2">
+                        Select Genomic Data
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="focus"
+                                data-bs-placement="right"
+                                data-bs-html="true"
+                                title="About Genomic Data"
+                                data-bs-content="<p class='mb-2'><strong>Personal Genome Project (PGP)</strong> is an open-access repository of human genomic data contributed by volunteer participants. The project provides publicly available genotype and sequencing datasets for research, education, and the development of genomic analysis tools.</p><p class='mb-0'><strong>Accepted file types:</strong> Raw 23andMe export files (<code>.txt</code> or <code>.csv</code>). These are tab-delimited text files with columns for rsid, chromosome, position, and genotype.</p>"
+                                aria-label="About Genomic Data">?</button>
+                    </h3>
 
-                    <h3>Data Selection</h3>
-                    <hr class="my-3" />
-                    <h5 id="UserTitle" class="mb-2">Load your raw 23andMe file (optional): </h5>
-                    <button id="my23Btn" class="btn btn-primary btn-sm mb-3">Upload Your 23andMe File</button>
-                    <input type="file" id="my23FileInput" accept=".txt,.csv" style="display: none;" />
-                    <div id="my23Status" class="small text-muted mb-2"></div>
-                    <hr class="my-3" />
+                    <!-- Load options as tabs (progressive disclosure) -->
+                    <ul class="nav nav-tabs mt-2" id="genomicLoadTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-upload" data-bs-toggle="tab" data-bs-target="#pane-upload" type="button" role="tab" aria-controls="pane-upload" aria-selected="false">
+                                <i class="fa fa-upload me-1"></i>Upload
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-browse" data-bs-toggle="tab" data-bs-target="#pane-browse" type="button" role="tab" aria-controls="pane-browse" aria-selected="true">
+                                <i class="fa fa-users me-1"></i>Browse PGP
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-examples" data-bs-toggle="tab" data-bs-target="#pane-examples" type="button" role="tab" aria-controls="pane-examples" aria-selected="false">
+                                <i class="fa fa-flask me-1"></i>Examples
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-byid" data-bs-toggle="tab" data-bs-target="#pane-byid" type="button" role="tab" aria-controls="pane-byid" aria-selected="false">
+                                <i class="fa fa-list-ol me-1"></i>Load by ID
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="genomicLoadTabsContent">
 
-                    <h6 style="color: rgb(6, 137, 231);">Choose up to 6 participants below:
-                        <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
-                            Or load fallback users →
-                        </a>
-                    </h6>
-                    <hr class="my-3" />
-                    <h5 id="participantsTitle" class="mb-2">Personal Genome Project Participants</h5>
-                    <div class="my-3">
-                        <label for="participantsVersionSelect" class="form-label"><b>23andMe Version</b></label>
-                        <select id="participantsVersionSelect" class="form-select" style="max-width: 180px;"
-                            onchange="onParticipantsVersionChange(this.value)">
-                            <option value="">All Versions</option>
-                        </select>
+                        <!-- Tab: Upload local files -->
+                        <div class="tab-pane fade" id="pane-upload" role="tabpanel" aria-labelledby="tab-upload">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Upload Local Files</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Upload your own raw 23andMe export file(s) directly from your device. Up to 5 files accepted.</p>
+                                    <button id="my23Btn" class="btn btn-primary btn-sm mb-2">Upload Local 23andMe Files</button>
+                                    <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
+                                    <div id="my23Status" class="small text-muted"></div>
+                                    <p class="small text-muted mt-2 mb-2"><i class="fa fa-lock me-1"></i>Files are processed locally in your browser and are never uploaded to a server.</p>
+                                    <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Public PGP participants -->
+                        <div class="tab-pane fade show active" id="pane-browse" role="tabpanel" aria-labelledby="tab-browse">
+                            <div class="d-flex flex-column">
+                                    <h5 class="card-title">Public PGP Participants</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available participants from the Personal Genome Project for demo or research workflows.</p>
+                                    <div class="mb-2">
+                                        <div>
+                                            <label class="form-label mb-1 small"><b>Display Mode</b></label>
+                                            <div class="btn-group d-block" role="group">
+                                                <button id="modeJsonBtn" class="btn btn-sm btn-success"
+                                                    onclick="onParticipantsModeChange('json'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeAllBtn').classList.replace('btn-success','btn-outline-success');">Curated (fast, 1017 with detailed info)</button>
+                                                <button id="modeAllBtn" class="btn btn-sm btn-outline-success"
+                                                    onclick="onParticipantsModeChange('all'); this.classList.replace('btn-outline-success','btn-success'); document.getElementById('modeJsonBtn').classList.replace('btn-success','btn-outline-success');">Live from PGP (slower)</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                                    style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.75rem"
+                                                    data-bs-toggle="popover"
+                                                    data-bs-trigger="focus"
+                                                    data-bs-placement="top"
+                                                    data-bs-html="true"
+                                                    title="Load modes"
+                                                    data-bs-content="<strong>Live from PGP (slower)</strong> fetches all participants instantly &mdash; no version or name lookup. Result is cached locally; use <em>Update</em> to re-fetch.<br><br><strong>Curated (fast, 1017 with detailed info)</strong> loads a bundled, pre-validated list with filename, genome build, and file-size metadata."
+                                                    aria-label="Load mode info">?</button>
+                                            </div>
+                                            <div id="allParticipantsCacheInfo" class="small text-muted mt-1" style="display:none;">
+                                                <span id="allParticipantsCacheDate"></span>
+                                                <button id="allParticipantsUpdateBtn" type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.75rem;vertical-align:baseline;" onclick="window.refreshAllParticipants && window.refreshAllParticipants()">Update</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button id="participantsFiltersToggle" class="btn btn-outline-secondary btn-sm mb-2" type="button"
+                                        style="width:fit-content;" data-bs-toggle="collapse" data-bs-target="#participantsFiltersCollapse"
+                                        aria-expanded="false" aria-controls="participantsFiltersCollapse">
+                                        <i class="fa fa-filter me-1"></i>Filters<span id="activeFilterBadge" class="badge bg-primary ms-2" style="display:none;">0 active</span>
+                                    </button>
+                                    <div class="collapse" id="participantsFiltersCollapse">
+                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                        <div id="participantsVersionFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Version</b></label>
+                                            <div id="participantsVersionSelect" class="filter-check-list" style="max-width:160px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsVersionSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsBuildFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Build</b></label>
+                                            <div id="participantsBuildSelect" class="filter-check-list" style="max-width:140px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsBuildSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsValidFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Valid 23andMe</b></label>
+                                            <div id="participantsValidSelect" class="filter-check-list" style="max-width:150px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsValidSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsSizeFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Filter by Size (MB)</b></label>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <input id="participantsSizeMin" type="number" min="0" step="0.1" placeholder="min"
+                                                    class="form-control form-control-sm" style="max-width:70px;"
+                                                    oninput="onParticipantsSizeChange()" />
+                                                <span class="small">&ndash;</span>
+                                                <input id="participantsSizeMax" type="number" min="0" step="0.1" placeholder="max"
+                                                    class="form-control form-control-sm" style="max-width:70px;"
+                                                    oninput="onParticipantsSizeChange()" />
+                                            </div>
+                                        </div>
+                                        <div id="participantsGenderFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Gender</b></label>
+                                            <div id="participantsGenderSelect" class="filter-check-list" style="max-width:160px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsGenderSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsRaceFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Race</b></label>
+                                            <div id="participantsRaceSelect" class="filter-check-list" style="max-width:240px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsRaceSelect')">Clear</button>
+                                        </div>
+                                        <div id="participantsEthnicityFilterDiv">
+                                            <label class="form-label mb-1 small"><b>Ethnicity</b></label>
+                                            <div id="participantsEthnicitySelect" class="filter-check-list" style="max-width:240px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsEthnicitySelect')">Clear</button>
+                                        </div>
+                                    </div>
+                                    </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Example users -->
+                        <div class="tab-pane fade" id="pane-examples" role="tabpanel" aria-labelledby="tab-examples">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Example Users</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Load a set of pre-bundled example participants to quickly explore PRS calculations without uploading any files.</p>
+                                    <button class="btn btn-primary btn-sm mb-2"
+                                        onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
+                                        Load Example Participants
+                                    </button>
+                                    <p class="small text-muted mt-2 mb-0">No file upload required — useful for testing and demonstrations.</p>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Load by list of IDs (URLs pulled Curated (fast, 1017 with detailed info)) -->
+                        <div class="tab-pane fade" id="pane-byid" role="tabpanel" aria-labelledby="tab-byid">
+                            <div class="d-flex flex-column" style="max-width:640px;">
+                                    <h5 class="card-title">Load by ID list</h5>
+                                    <p class="card-text text-muted small">Enter up to 10 PGP participant IDs. Download URLs are looked up from the curated participants list.</p>
+                                    <div class="mb-2">
+                                        <label for="loadByUrlIds" class="form-label mb-1 small"><b>User IDs</b> (max 10, comma / space / newline separated)</label>
+                                        <textarea id="loadByUrlIds" class="form-control form-control-sm" rows="3" placeholder="e.g. huA08F4D, huC8B936"></textarea>
+                                    </div>
+                                    <button id="loadByUrlBtn" class="btn btn-primary btn-sm mt-auto" style="width:fit-content;">Load</button>
+                                    <div class="small text-muted mt-2">
+                                        Example: <code>huA08F4D, huC8B936</code>
+                                        <button type="button" id="loadByUrlExampleBtn" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.7rem;vertical-align:baseline;">Copy example</button>
+                                    </div>
+                                    <div id="loadByUrlStatus" class="small text-muted mt-2"></div>
+                            </div>
+                        </div>
+
                     </div>
-                    <button id="fetchUsersBtn" class="btn btn-success btn-sm mb-3">Fetch Users</button>
-                    <div id="globalSelectionCount2" class="small text-muted mt-1">Selected: 0 / 10</div>
 
+                    <!-- Actions below cards: sticky selection status + primary actions -->
+                    <div id="selectionStickyBar" class="sticky-top bg-white border-bottom shadow-sm py-2 mb-3" style="top:0; z-index:1020;">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <div style="min-width:240px; flex:0 0 auto;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span id="globalSelectionCount2" class="fw-semibold small text-dark">0 of 10 selected</span>
+                                    <span id="selectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>
+                                </div>
+                                <div class="progress" style="height:12px;">
+                                    <div id="selectionProgressBar" class="progress-bar bg-success" role="progressbar"
+                                        style="width:0%; transition:width .2s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="10"></div>
+                                </div>
+                            </div>
+                            <button id="fetchUsersBtn" class="btn btn-danger btn-sm" style="display:none;"
+                                onclick="this.classList.remove('btn-danger'); this.classList.add('btn-secondary'); document.getElementById('nextToModelsBtn').style.display='';">Load Uploaded & Selected Files</button>
+                            <button class="btn btn-outline-primary btn-sm" id="nextToModelsBtn" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Next: Select Disease / Trait Models →</button>
+                            <div id="loadedFilesCount" class="small text-muted" style="display:none;">Loaded Data: 0 / 10</div>
+                        </div>
+                    </div>
+
+                    <!-- Genome cache management (right-aligned, sits above participants table's Deselect All) -->
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                            <span class="small text-muted"><b>Genome Cache:</b></span>
+                            <button id="showGenomicCacheBtn" class="btn btn-outline-secondary btn-sm" style="font-size:0.75rem;">Show Genomic Cache</button>
+                            <button id="clearGenomicCacheBtn" class="btn btn-outline-danger btn-sm" style="font-size:0.75rem;">Clear Genomic Cache</button>
+                        </div>
+                        <div id="genomicCacheList" class="mt-2"></div>
+                    </div>
+
+                    <!-- PGP participant list (populated by Option B) -->
                     <div id="localUsersDiv">
                         <div class="d-flex flex-column align-items-center my-4">
                             <div class="spinner-border text-primary my-3" role="status">
@@ -314,11 +643,26 @@
                             </div>
                         </div>
 
+                        <!-- Direct PGS ID entry -->
                         <div class="mb-3">
-                            <label class="form-label"><b>3.) Load PGS scoring files</b></label>
-                            <button id="fetchScoresBtn" class="btn btn-success">Fetch Files</button>
-                            <span id="fetchScoresStatus" class="ms-2 small text-muted"></span>
+                            <label for="directPgsInput" class="form-label"><b>Or enter PGS IDs directly:</b></label>
+                            <div class="d-flex gap-2 align-items-start" style="max-width: 420px;">
+                                <textarea id="directPgsInput" class="form-control form-control-sm"
+                                    rows="2" placeholder="e.g. PGS000001, PGS000004, PGS000055"
+                                    style="font-family: monospace; resize: vertical;"></textarea>
+                                <button id="addPgsByIdBtn" class="btn btn-sm btn-outline-success text-nowrap">Add IDs</button>
+                            </div>
+                            <div id="directPgsStatus" class="small text-muted mt-1"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <span id="fetchScoresStatus" class="small text-muted"></span>
                             <div id="globalSelectionCount" class="small text-muted mt-1">Selected: 0 / 10</div>
+                            <button id="unselectAllModelsBtn" class="btn btn-outline-danger btn-sm mt-1" style="display:none;" onclick="window.clearSelectedScores && window.clearSelectedScores()">Unselect All</button>
+                            <button id="fetchPgsFilesBtn" class="btn btn-success mt-2" style="display:none;">
+                                 Fetch PGS Files
+                            </button>
+                            <button id="nextToPrsBtn" class="btn btn-outline-primary btn-sm mt-2" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Next: Calculate PRS →</button>
                         </div>
                         <div id="scoreTxtsDiv" style="display: none;">
                             <div class="my-3"></div>
@@ -377,6 +721,28 @@
                 <script type="module" src="dist/app.mjs"></script>
 
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/3.3.0/math.min.js"></script>
+
+                <!-- Show the PGP participants table (with its Download/Select controls) only on the Browse PGP tab -->
+                <script>
+                    (function () {
+                        function syncPgpTableVisibility() {
+                            var browseTab = document.getElementById('tab-browse');
+                            var localUsersDiv = document.getElementById('localUsersDiv');
+                            if (!localUsersDiv) return;
+                            var isBrowse = !!browseTab && browseTab.classList.contains('active');
+                            localUsersDiv.style.display = isBrowse ? '' : 'none';
+                        }
+                        document.querySelectorAll('#genomicLoadTabs [data-bs-toggle="tab"]').forEach(function (btn) {
+                            btn.addEventListener('shown.bs.tab', syncPgpTableVisibility);
+                        });
+                        // Re-assert after the app module renders/refreshes the table.
+                        var observed = document.getElementById('localUsersDiv');
+                        if (observed) {
+                            new MutationObserver(syncPgpTableVisibility).observe(observed, { childList: true });
+                        }
+                        syncPgpTableVisibility();
+                    })();
+                </script>
 
 
 

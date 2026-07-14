@@ -1,4 +1,4 @@
-import { fetchAllScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
+import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
 
 /*
  Module: displayScores.js
@@ -90,6 +90,64 @@ window.clearSelectedScores = () => {
 function updateGlobalSelectionCount() {
 	const el = document.getElementById("globalSelectionCount");
 	if (el) el.textContent = `Selected: ${selectedPgsIds.size} / ${MAX_SELECTION}`;
+
+	// Show/hide the contextual "Fetch PGS Files" button
+	const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
+	if (fetchPgsFilesBtn) {
+		fetchPgsFilesBtn.style.display = selectedPgsIds.size > 0 ? "" : "none";
+	}
+
+	// Show/hide the "Unselect All" button
+	const unselectAllModelsBtn = document.getElementById("unselectAllModelsBtn");
+	if (unselectAllModelsBtn) {
+		unselectAllModelsBtn.style.display = selectedPgsIds.size > 0 ? "" : "none";
+	}
+
+	// Also update PRS tab scores section (mirrors displayUsers.js behavior for prsUsersdiv/prsUsersAction)
+	const prsScoresDiv = document.getElementById("prsScoresDiv");
+	if (prsScoresDiv && selectedPgsIds.size > 0) {
+		const scoreList = Array.from(selectedScoresMap.values())
+			.map(s => s.id)
+			.join(", ");
+		prsScoresDiv.textContent = `${selectedPgsIds.size} model(s) selected: ${scoreList}`;
+	}
+
+	const prsScoresAction = document.getElementById("prsScoresAction");
+	if (prsScoresAction && selectedPgsIds.size > 0) {
+		const selectedArr = Array.from(selectedScoresMap.values());
+		const rows = selectedArr.map((score, idx) => {
+			const id = escapeHtml(score?.id ?? "");
+			const name = escapeHtml(score?.name ?? "");
+			const trait = escapeHtml(score?.trait_reported ?? "");
+			const variants = escapeHtml(score?.variants_number ?? "");
+			const date = escapeHtml(score?.date_release ?? "");
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${trait}</td>
+					<td>${variants}</td>
+					<td>${date}</td>
+				</tr>`;
+		}).join("");
+		prsScoresAction.innerHTML = `
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>PGS ID</th>
+						<th>Name</th>
+						<th>Trait</th>
+						<th>Variants #</th>
+						<th>Date</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
 }
 
 /** Check if a score passes the current variant filter. */
@@ -681,6 +739,12 @@ async function fetchScoresTxts() {
 
 
 		if (statusEl) statusEl.textContent = `Loaded ${pgsTxts.length} of ${selectedIds.length} PGS file(s).`;
+
+		const nextToPrsBtn = document.getElementById('nextToPrsBtn');
+		if (nextToPrsBtn) nextToPrsBtn.style.display = '';
+		
+		// Ensure the v4/v5 SNP sets are ready before computing overlap percentages
+		if (window._v4v5OverlapReady) await window._v4v5OverlapReady;
 		
 		// Compare loaded PGS files with 23andMe SNPs (v4, v5, both)
 		const pgsMatchStats = compareSnpOverlap(pgsTxts);
@@ -995,3 +1059,137 @@ const fetchScoresBtn = document.getElementById("fetchScoresBtn");
 if (fetchScoresBtn) {
 	fetchScoresBtn.addEventListener("click", fetchScoresTxts);
 }
+
+const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
+if (fetchPgsFilesBtn) {
+	fetchPgsFilesBtn.addEventListener("click", fetchScoresTxts);
+}
+
+// --- Direct PGS ID entry ---
+
+/**
+ * Parse a free-text string of PGS IDs into a validated array of uppercase IDs.
+ * Accepts comma, space, semicolon, or newline as delimiters.
+ * Returns only strings matching the PGS + digits pattern.
+ */
+function parsePgsIdInput(raw) {
+	return raw
+		.split(/[\s,;]+/)
+		.map(s => s.trim().toUpperCase())
+		.filter(s => /^PGS\d+$/.test(s));
+}
+
+/**
+ * Add PGS IDs typed directly into the text input to the current selection.
+ * Looks up metadata from already-loaded catalog data first; falls back to
+ * fetching from the PGS Catalog REST API for unknown IDs.
+ */
+async function addPgsByDirectInput() {
+	const inputEl = document.getElementById("directPgsInput");
+	const statusEl = document.getElementById("directPgsStatus");
+
+	if (!inputEl) return;
+
+	const ids = parsePgsIdInput(inputEl.value);
+	if (ids.length === 0) {
+		if (statusEl) statusEl.textContent = "No valid PGS IDs found. Use format: PGS000001";
+		return;
+	}
+
+	// Enforce global selection cap
+	const remaining = MAX_SELECTION - selectedPgsIds.size;
+	if (remaining <= 0) {
+		if (statusEl) statusEl.textContent = `Selection is already at the maximum of ${MAX_SELECTION}. Deselect some entries first.`;
+		return;
+	}
+	const idsToAdd = ids.slice(0, remaining);
+	if (ids.length > remaining) {
+		if (statusEl) statusEl.textContent = `Only ${remaining} slot(s) remaining — adding first ${remaining} of ${ids.length} IDs.`;
+	}
+
+	if (statusEl) statusEl.textContent = `Looking up ${idsToAdd.length} ID(s)...`;
+
+	// Build a lookup from already-loaded catalog entries
+	const catalogLookup = new Map(
+		[...allTraitScores, ...allCategoryScores].map(s => [s?.id ?? "", s])
+	);
+
+	const toFetch = [];
+	for (const id of idsToAdd) {
+		if (selectedPgsIds.has(id)) continue; // already selected
+		const known = catalogLookup.get(id);
+		if (known) {
+			selectedPgsIds.add(id);
+			selectedScoresMap.set(id, known);
+		} else {
+			toFetch.push(id);
+		}
+	}
+
+	// Fetch metadata for IDs not in local cache
+	if (toFetch.length > 0) {
+		if (statusEl) statusEl.textContent = `Fetching metadata for ${toFetch.length} unknown ID(s)...`;
+		try {
+			const result = await fetchSomeScores(toFetch);
+			const fetched = result?.scores ?? [];
+			const fetchedMap = new Map(fetched.map(s => [s?.id ?? "", s]));
+			for (const id of toFetch) {
+				const score = fetchedMap.get(id) ?? { id }; // stub if not found
+				selectedPgsIds.add(id);
+				selectedScoresMap.set(id, score);
+			}
+		} catch (err) {
+			console.error("addPgsByDirectInput: fetchSomeScores error", err);
+			// Add stubs so the IDs are still selectable
+			for (const id of toFetch) {
+				selectedPgsIds.add(id);
+				selectedScoresMap.set(id, { id });
+			}
+		}
+	}
+
+	updateGlobalSelectionCount();
+	window.onPgsSelectionChange?.();
+
+	const addedCount = idsToAdd.filter(id => selectedPgsIds.has(id)).length;
+	if (statusEl) {
+		statusEl.textContent = `Added ${addedCount} ID(s). Total selected: ${selectedPgsIds.size} / ${MAX_SELECTION}.`;
+		statusEl.classList.remove("text-danger");
+		statusEl.classList.add("text-success");
+		setTimeout(() => {
+			statusEl.classList.remove("text-success");
+			statusEl.classList.add("text-muted");
+		}, 3000);
+	}
+	inputEl.value = "";
+}
+
+const addPgsByIdBtn = document.getElementById("addPgsByIdBtn");
+if (addPgsByIdBtn) {
+	addPgsByIdBtn.addEventListener("click", addPgsByDirectInput);
+}
+
+// Also allow pressing Enter in the textarea to trigger the add
+const directPgsInput = document.getElementById("directPgsInput");
+if (directPgsInput) {
+	directPgsInput.addEventListener("keydown", (e) => {
+		if (e.key === "Enter" && !e.shiftKey) {
+			e.preventDefault();
+			addPgsByDirectInput();
+		}
+	});
+}
+
+// --- window.sdk namespace (scores/catalog) ---
+window.sdk = Object.assign(window.sdk ?? {}, {
+	// PGS selection
+	getSelectedPgsIds: () => Array.from(selectedPgsIds),
+	getSelectedScores: () => Array.from(selectedScoresMap.values()),
+	clearSelectedScores: window.clearSelectedScores,
+
+	// Catalog UI
+	onPgsTraitChange: window.onPgsTraitChange,
+	compareSnpOverlap,
+	fetchScoresTxts,
+	updatePrsScoresDisplay,
+});

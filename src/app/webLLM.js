@@ -431,7 +431,7 @@ function renderWebLLM() {
                     </div>
                 ` : `
                     <div class="alert alert-warning py-2 small">
-                        <strong>Tip:</strong> Visit the <strong>Plot PRS</strong> tab first to give the AI detailed variant analysis.
+                        <strong>Tip:</strong> Visit the <strong>Inspect Individual PRS Results</strong> tab first to give the AI detailed variant analysis.
                     </div>
                 `}
             </div>

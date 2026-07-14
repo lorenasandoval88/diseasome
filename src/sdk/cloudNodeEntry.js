@@ -1,0 +1,24 @@
+// Node-safe SDK entry for Cloud Run (no browser APIs)
+export {
+  fetchAvailableDataTypes,
+  allUsersMetaDataByType_fast,
+  fetchProfile,
+  load23andMeFile
+} from "./pgp_node.js";
+
+export {
+  fetchAllScores,
+  fetchSomeScores,
+  fetchTraits,
+  getScoresPerCategory,
+  getScoresPerTrait,
+  getTxts
+} from "./pgs_node.js";
+
+export {
+  Match2,
+  Match3
+} from "./prs_node.js";
+
+// No browser-only code, no Plotly, no D3, no localforage, no window/document
+// Imports from npm packages (pgp, pgs) and local files (prs)

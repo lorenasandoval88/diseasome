@@ -17,7 +17,8 @@ async function getCachedGenome(userId) {
 		const cached = await localforage.getItem(key);
 		if (cached) {
 			console.log(`Using cached genome for ${userId}`);
-			return cached;
+			// SDK's cacheAndReturn wraps payload under .data; local caching stores {cols, dt, meta} directly.
+			return cached?.data ?? cached;
 		}
 		return null;
 	} catch (err) {
@@ -192,6 +193,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 		dt: matched,
 		alleles: matchResult.alleles,
 		risk: matched_risk,
+		allele: matchResult.alleles,
+		risk_x_allele: matched_risk.map((r, i) => r * (matchResult.alleles[i] ?? 0)),
 		category: Array(matched.length).fill("matched"),
 		count: matched.length
 	};
@@ -255,6 +258,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: zero_allele_chrpos,
 			dt: zero_allele,
 			risk: zero_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(zero_allele.length).fill(0),
+			risk_x_allele: Array(zero_allele.length).fill(0),
 			riskScores: zero_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(zero_allele.length).fill(`${zero_allele.length} matched, zero alleles`),
 			count: zero_allele.length,
@@ -268,6 +273,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: one_allele_chrpos,
 			dt: one_allele,
 			risk: one_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(one_allele.length).fill(1),
+			risk_x_allele: one_allele_idx.map(i => matched[i][indBeta] * 1),
 			riskScores: one_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(one_allele.length).fill(`${one_allele.length} matched, one allele`),
 			count: one_allele.length,
@@ -281,6 +288,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 			chrPos: two_allele_chrpos,
 			dt: two_allele,
 			risk: two_allele_idx.map(i => matched[i][indBeta]),
+			allele: Array(two_allele.length).fill(2),
+			risk_x_allele: two_allele_idx.map(i => matched[i][indBeta] * 2),
 			riskScores: two_allele_idx.map(i => matchResult.calcRiskScore[i]),
 			category: Array(two_allele.length).fill(`${two_allele.length} matched, two alleles`),
 			count: two_allele.length,
@@ -580,7 +589,7 @@ async function fetchUsers() {
 		// Get selected user IDs and users from the 23andMe Data tab or fallback
 		let selectedIds = window.getSelectedUserIds?.() ?? [];
 		let selectedUsers = window.getSelectedUsers?.() ?? [];
-console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds);
+console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds,selectedUsers);
 // console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
 		const offline = !isOnline();
 		if (offline || selectedIds.length === 0) {
@@ -598,7 +607,6 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
 		}
 
-		console.log(`fetchUsers(): ${selectedIds.length} users selected:`, selectedIds, selectedUsers);
 
 		// Parse genome files for all selected users
 		loadedUsers = [];
@@ -613,7 +621,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			const genos = user?.genotypes ?? [];
 			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id
 				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			console.log("filePath:", user, filePath);
+			//console.log("fetchUsers() filePath:", user, filePath);
 			
 			if (!filePath) {
 				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
@@ -622,15 +630,22 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 			try {
 				const parsed = await load23andMeFile(filePath, user.id);
 				// const parsed = await load23andMeFile(filePath, user.id);
-				console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
+				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
-				console.error(`Failed to load genome for ${user.id}:`, err);
+				//console.error(`Failed to load genome for ${user.id}:`, err);
 				return null;
 			}
 		});
 		const results = await Promise.all(parsePromises);
 		loadedUsers = results.filter(Boolean);
+		window.loadedUsers = loadedUsers; // expose for cluster tab
+
+		const loadedFilesCount = document.getElementById('loadedFilesCount');
+		if (loadedFilesCount) {
+			loadedFilesCount.textContent = `Loaded Data: ${loadedUsers.length} / ${selectedUsers.length}`;
+			loadedFilesCount.style.display = '';
+		}
 
 		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
 
@@ -702,7 +717,7 @@ function loadFallbackScores() {
 	
 	const selectedScores = FALLBACK_SCORES;
 	loadedScores = selectedScores; // Store for calculatePRS
-	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} fallback scoring file(s).`;
+	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} risk model(s).`;
 	if (prsStatus) prsStatus.textContent = ""; // Clear "No scores loaded" message
 	
 	if (resultsDiv) {
@@ -749,58 +764,71 @@ function loadFallbackScores() {
 	}
 }
 
-/** * Load fallback users directly into the users table. */
+/** * Load fallback users directly into the users table.
+ * Appends to any already-loaded users (from the Genomic Data tab selection) instead of replacing them. */
 async function loadFallbackUsers() {
+	console.log("Loading fallback users...");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
-	
-	const selectedUsers = FALLBACK_USERS;
-	loadedUsers = selectedUsers; // Store for calculatePRS
-	loadedUsers = []; // Clear previous parsed data
-	
-	if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)...`;
+
+	// Preserve existing loaded users; only add fallback users not already loaded (by id).
+	const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
+	const existingIds = new Set(existing.map(entry => entry?.user?.id).filter(Boolean));
+	const toLoad = FALLBACK_USERS.filter(u => !existingIds.has(u.id));
+
+	if (toLoad.length === 0) {
+		if (statusEl) statusEl.textContent = `All ${FALLBACK_USERS.length} fallback participant(s) are already loaded.`;
+		return;
+	}
+
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
-	
+
 	// Fetch and parse each user's genome file (with caching)
 	let cachedCount = 0;
-	const parsePromises = selectedUsers.map(async (user, idx) => {
+	const parsePromises = toLoad.map(async (user, idx) => {
 		const genos = user?.genotypes ?? [];
 		const filePath = genos[0]?.download_url ?? genos[0]?.file;
 		if (!filePath) return null;
-		
+
 		try {
 			// Check cache first
 			const cached = await getCachedGenome(user.id);
 			if (cached) {
+				console.log(`Using cached genome for ${user.id}: ${cached?.dt?.length ?? 0} variants`);
 				cachedCount++;
-				if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} fallback participant(s)... (${cachedCount} from cache)`;
+				if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)... (${cachedCount} from cache)`;
 				return { user, parsed: cached };
 			}
-			
+
 			// Not cached - fetch and parse
-			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${selectedUsers.length})`;
+			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${toLoad.length})`;
+			console.log(`Fallback user NOT CACHED, Fetching genome for ${user.id} from filePath:`, filePath);
 			const parsed = await load23andMeFile(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
-			
+
 			// Cache the result
 			await setCachedGenome(user.id, parsed);
-			
+
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
 			return null;
 		}
 	});
-	
+
 	const results = await Promise.all(parsePromises);
-	loadedUsers = results.filter(Boolean);
-	
+	const added = results.filter(Boolean);
+	loadedUsers = existing.concat(added);
+	window.loadedUsers = loadedUsers; // expose for cluster tab
+
 	const cacheMsg = cachedCount > 0 ? ` (${cachedCount} from cache)` : '';
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} fallback participant(s)${cacheMsg}.`;
-	
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} fallback${cacheMsg}.`;
+
 	if (resultsDiv) {
-		const rows = selectedUsers.map((user, idx) => {
+		const displayUsers = loadedUsers.map(entry => entry.user);
+		const rows = displayUsers.map((user, idx) => {
 			const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
 			const name = escapeHtml(user?.name ?? "");
 			const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
@@ -894,6 +922,36 @@ window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
 window.isOnline = isOnline;
 
+/** Return browser storage usage statistics via the Storage Estimation API. */
+async function getBrowserStorageInfo() {
+	const storageEstimate = await navigator.storage.estimate();
+	return {
+		usageGB: (storageEstimate.usage / 1024 ** 3).toFixed(2),
+		quotaGB: (storageEstimate.quota / 1024 ** 3).toFixed(2),
+		percentUsed: ((storageEstimate.usage / storageEstimate.quota) * 100).toFixed(1) + "%"
+	};
+}
+window.getBrowserStorageInfo = getBrowserStorageInfo;
+
+/**
+ * Derive a human-readable name from a 23andMe / PGP genome filename.
+ * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
+ * e.g. "genome_James_Jones_v5_full_20171221.txt" → "James Jones"
+ *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" → "Joshua Yoakem"
+ * Returns null if the pattern is not found.
+ */
+function nameFromFilename(filename) {
+    if (!filename) return null;
+    // Extract just the basename (handles full URLs like finalUrl)
+    const base = String(filename).replace(/.*\//, '');
+    const m = base.match(/(?:^|_)genome_(.+?)_[vV]\d+_/i);
+    if (!m) return null;
+    return m[1]
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .trim() || null;
+}
+
 /*** Helper: Calculate PRS with automatic caching
  * Checks cache first, calculates if not found, then stores result.
  * @param {Object} mypgs - Parsed PGS data
@@ -904,6 +962,16 @@ window.isOnline = isOnline;
  * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
  */
 async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
+	/*** Helper: Calculate PRS with automatic caching
+ * Checks cache first, calculates if not found, then stores result.
+ * @param {Object} mypgs - Parsed PGS data
+ * @param {Object} my23 - Parsed 23andMe genome
+ * @param {string} userId - User ID (for cache key)
+ * @param {string} pgsId - PGS ID (for cache key)
+ * @param {Object} userData - Full user data (for result enrichment)
+ * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
+ */
+
     // Check cache first
     let cached = await getCachedPRS(userId, pgsId);
     if (cached) {
@@ -911,8 +979,18 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
         if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
             organizedData = organizeResultsByAllele(cached, mypgs);
         }
+        const freshName = (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name);
+        console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
         return {
             ...cached,
+            userName: freshName,
             organized: organizedData,
             pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
             fromCache: true
@@ -921,11 +999,21 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
     
     // Calculate if not cached
     const result = Match2(mypgs, my23);
+	// console.log("Match2 mypgs:", mypgs);
+	// console.log("Match2 my23:", my23);
+	console.log("Calculated PRS result:", result);
     const organizedData = organizeResultsByAllele(result, mypgs);
     
     const prsResult = {
         userId,
-        userName: userData.user.name,
+        userName: (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
+            ? userData.user.fileName
+            : (nameFromFilename(
+                userData.user?.fileName ??
+                userData.user?.finalUrl ??
+                userData.user?.downloadUrl ??
+                userData.user?.genotypes?.[0]?.filename
+              ) || userData.user.name),
         userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
         pgsId,
         totalVariants: mypgs.dt.length,
@@ -1018,6 +1106,16 @@ async function calculatePRS() {
         let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
         const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
         console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
+
+        // Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
+        const checkedScoreIds = new Set(
+            Array.from(document.querySelectorAll(".prs-select-cb:checked")).map(cb => cb.value)
+        );
+        if (checkedScoreIds.size > 0 && selectedScoresList.length > 0) {
+            selectedScoresList = selectedScoresList.filter(s => checkedScoreIds.has(s.id));
+            console.log(`Filtered to ${selectedScoresList.length} checked score(s):`, Array.from(checkedScoreIds));
+        }
+
         const selectedIds = selectedScoresList.map(s => s.id);
 
         if (selectedIds.length === 0) {
@@ -1039,6 +1137,7 @@ async function calculatePRS() {
                 return `
                     <tr>
                         <td>${idx + 1}</td>
+                        <td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
                         <td>${id}</td>
                         <td>${name}</td>
                         <td>${trait}</td>
@@ -1051,6 +1150,7 @@ async function calculatePRS() {
                     <thead class="table-dark">
                         <tr>
                             <th>#</th>
+                            <th>Select</th>
                             <th>PGS ID</th>
                             <th>Name</th>
                             <th>Trait</th>
@@ -1132,6 +1232,7 @@ async function calculatePRS() {
         
         console.log("PRS results:", prsResults);
         window.prsResults = prsResults;  // expose for cluster tab
+        if (window.sdk) window.sdk.prsResults = prsResults;  // mirror into namespace
         
         // Invalidate cluster cache when PRS results change
         if (typeof window.invalidateClusterCache === 'function') {
@@ -1206,3 +1307,31 @@ if (calculatePrsBtn) {
 }
 
 // window.calculatePRS = calculatePRS;
+
+// --- window.sdk namespace ---
+// Collect all public functions under window.sdk so they are accessible as
+// window.sdk.getBrowserStorageInfo(), window.sdk.clearPRSCache(), etc.
+// Object.assign merges with any entries already added by other modules.
+window.sdk = Object.assign(window.sdk ?? {}, {
+    // Storage utilities
+    getBrowserStorageInfo,
+    clearPRSCache,
+    clearPGSCache,
+    clearGenomeCache,
+    isOnline,
+
+    // PRS calculation
+    calculatePRS,
+    organizeResultsByAllele,
+
+    // Score / user loading
+    fetchScores,
+    fetchUsers,
+    fetch23andMeFiles,
+    loadFallbackScores,
+    loadFallbackUsers,
+
+    // Fallback data
+    FALLBACK_SCORES,
+    FALLBACK_USERS,
+});

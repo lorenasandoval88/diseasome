@@ -24,8 +24,8 @@ window.clearPGSCache = clearPGSCache;
  */
 async function clearGenomeCache() {
     const keys = await localforage.keys();
-    // Only clear keys like "Genome:id-hu09B28E", not metadata keys
-    const genomeKeys = keys.filter(k => k.startsWith('Genome:id-'));
+    // Clear parsed genome data keys only ("Genome:23andMe-txt-*"), not profile metadata
+    const genomeKeys = keys.filter(k => k.startsWith('Genome:23andMe-txt-'));
     for (const key of genomeKeys) {
         await localforage.removeItem(key);
     }
@@ -58,7 +58,7 @@ function inspectFiles(result) {
     
     // Build PGS Catalog link
     const pgsCatalogUrl = `https://www.pgscatalog.org/score/${pgsId}/`;
-    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/${pgsId}.txt.gz`;
+    const pgsDownloadUrl = `https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/${pgsId}/ScoringFiles/Harmonized/${pgsId}_hmPOS_GRCh37.txt.gz`;
     
     div.style.display = '';
     div.innerHTML = `
@@ -297,7 +297,7 @@ function pieChart(data = PGS23.data) {
         labels: x,
         insidetextorientation: "horizontal",
         textinfo: "percent",
-        textposition: "inside",
+        textposition: "outside",
         type: 'pie',
         marker: {
             colors: ["#2ca02c", "grey"],

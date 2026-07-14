@@ -1,5 +1,5 @@
 import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
-import { fetchProfile, load23andMeFile, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { fetchProfile, load23andMeFile, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { getTextSizeKB, checkStorageKB, estimateLocalForageSizeKB, getTxts, getScoresPerCategory, getScoresPerTrait, fetchTraits, fetchSomeScores, fetchAllScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 function _mergeNamespaces(n, m) {
@@ -41,8 +41,8 @@ var hasRequiredLocalforage;
 function requireLocalforage () {
 	if (hasRequiredLocalforage) return localforage$1.exports;
 	hasRequiredLocalforage = 1;
-	(function (module, exports$1) {
-		(function(f){{module.exports=f();}})(function(){return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof commonjsRequire=="function"&&commonjsRequire;if(!u&&a)return a(o,true);if(i)return i(o,true);var f=new Error("Cannot find module '"+o+"'");throw (f.code="MODULE_NOT_FOUND", f)}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r);}return n[o].exports}var i=typeof commonjsRequire=="function"&&commonjsRequire;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports$1){
+	(function (module, exports) {
+		(function(f){{module.exports=f();}})(function(){return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof commonjsRequire=="function"&&commonjsRequire;if(!u&&a)return a(o,true);if(i)return i(o,true);var f=new Error("Cannot find module '"+o+"'");throw (f.code="MODULE_NOT_FOUND", f)}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r);}return n[o].exports}var i=typeof commonjsRequire=="function"&&commonjsRequire;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 		(function (global){
 		var Mutation = global.MutationObserver || global.WebKitMutationObserver;
 
@@ -114,7 +114,7 @@ function requireLocalforage () {
 		}
 
 		}).call(this,typeof commonjsGlobal !== "undefined" ? commonjsGlobal : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
-		},{}],2:[function(_dereq_,module,exports$1){
+		},{}],2:[function(_dereq_,module,exports){
 		var immediate = _dereq_(1);
 
 		/* istanbul ignore next */
@@ -368,14 +368,14 @@ function requireLocalforage () {
 		  }
 		}
 
-		},{"1":1}],3:[function(_dereq_,module,exports$1){
+		},{"1":1}],3:[function(_dereq_,module,exports){
 		(function (global){
 		if (typeof global.Promise !== 'function') {
 		  global.Promise = _dereq_(2);
 		}
 
 		}).call(this,typeof commonjsGlobal !== "undefined" ? commonjsGlobal : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
-		},{"2":2}],4:[function(_dereq_,module,exports$1){
+		},{"2":2}],4:[function(_dereq_,module,exports){
 
 		var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
@@ -2866,11 +2866,11 @@ function Match2(mypgs, my23){
   // Defensive checks
   if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
     console.error("Match2 error: invalid mypgs structure", mypgs);
-    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
   }
   if (!my23 || !my23.cols || !Array.isArray(my23.cols)) {
     console.error("Match2 error: invalid my23 structure", my23);
-    return { pgs_id: mypgs?.meta?.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
   }
 	
   let data2 = {};
@@ -3051,7 +3051,7 @@ function Match2(mypgs, my23){
     }
   }
 
-  data2.pgs_id = mypgs.meta?.pgs_id;
+  data2.pgs_id = mypgs.meta && mypgs.meta.pgs_id;
   data2.results = allResults;          // all PGS rows, including nomatch
   data2.pgsMatchMy23 = matchedOnly;    // only matched rows
   data2.alleles = alleles;
@@ -3082,6 +3082,8 @@ function Match2(mypgs, my23){
 
 const pgp = {
 	fetch23andMeParticipants,
+	allUsersMetaDataByType_fast,
+	fetchAvailableDataTypes,
 	load23andMeFile,
 	fetchProfile,
 };
@@ -3096,31 +3098,19 @@ const pgs = {
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 
+async function getBrowserStorageInfo() {
+	const storageEstimate = await navigator.storage.estimate();
+	return {
+		usageGB: (storageEstimate.usage / 1024 ** 3).toFixed(2),
+		quotaGB: (storageEstimate.quota / 1024 ** 3).toFixed(2),
+		percentUsed: ((storageEstimate.usage / storageEstimate.quota) * 100).toFixed(1) + "%"
+	};
+}
+
 const prs = {
 	Match2, // pgsTxt, my23Txt
 	Match3,  // pgsTxt, my23Txt
 };
 
-// export {
-// 	get23meUrls,
-// 	parse23,
-// 	get23
-// } from "./src/sdk/get23me.js";
-
-// export {
-// 	searchTraits,
-// 	getPGSTxts,
-// 	getPGSTxts2,
-// 	getPGSTxtsHm,
-// 	parsePGS,
-// 	loadScore,
-// 	loadScore2,
-// 	fetchAll2,
-// 	getAllCategories,
-// 	getPGSidsForOneTraitCategory,
-// 	getPGSidsForOneTraitLabel,
-// 	getPGSIds
-// } from "./src/sdk/getPgs.js";
-
-export { clustSdk as clustjs, localforage, pgp, pgs, prs };
+export { clustSdk as clustjs, getBrowserStorageInfo, localforage, pgp, pgs, prs };
 //# sourceMappingURL=sdk.mjs.map

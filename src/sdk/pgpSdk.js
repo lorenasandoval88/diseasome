@@ -4,7 +4,8 @@ export {
 	cacheAndReturn,
 	parse23Txt,
 	load23andMeFile,
-	fetch23andMeParticipants_fast,
+	allUsersMetaDataByType_fast,
 	fetch23andMeParticipants,
+	fetchAvailableDataTypes,
 	fetchProfile,
 } from "https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs";

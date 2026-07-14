@@ -1,23 +1,34 @@
 
-# polygenic_risk_scores SDK
-live at: https://lorenasandoval88.github.io/diseasome/
+# Diseasome SDK
 
 A browser-native and Node-compatible JavaScript SDK and demo application for calculating polygenic risk scores (PRS) from 23andMe and PGS Catalog data.
 
+live at: https://lorenasandoval88.github.io/diseasome/
 
 
-[<img width="755" height="778" alt="image" src="https://github.com/user-attachments/assets/24506e93-3aef-4e5d-9402-32686acf056d" />](https://lorenasandoval88.github.io/polygenic_risk_scores/)
+
+<img width="416" height="580" alt="image" src="https://github.com/user-attachments/assets/181e43f3-e9f2-4146-acbe-2e8f43def16e" />
+
 
 ---
 
 ## Overview
 
-This toolkit enables:
+This project combines a programmable SDK (toolkit functionalities) with an interactive web app (UI exploration tabs).
+
+Toolkit functionalities
 - Automated retrieval and parsing of 23andMe and PGS Catalog data
 - Calculation of polygenic risk scores (PRS) for local or public genomes
 - Browser-based and Node.js/Cloud Run compatible workflows
 - Simple developer APIs for PRS research and visualization
 
+## UI exploration tabs
+- PGP Tab: Explore public genome profiles and participant metadata, and load available genotype records for analysis.
+- PGS Catalog Tab: Browse polygenic score models by trait/category, inspect model metadata, and select scores to analyze.
+- PRS Tab: Run score matching between genotype inputs and selected PGS models, then review comparative PRS outputs.
+- Cluster Tab: Interactively visualize and group samples/scores to identify similarity patterns and trait-level structure.
+- AI Interpretation – Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
+- AI Interpretation – Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
 ---
 
 ## Quick Start

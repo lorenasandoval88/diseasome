@@ -1,8 +1,7 @@
 
 # Diseasome SDK
 
-A browser-native and Node-compatible JavaScript SDK and demo application for calculating polygenic risk scores (PRS) from 23andMe and PGS Catalog data.
-
+We present the Diseasome SDK, a JavaScript library and web application for computing polygenic risk scores from consumer genotype data (23andMe) and PGS Catalog score models. The SDK operates in both browser and Node.js environments, supporting programmatic use by developers and interactive exploration by end users.
 live at: https://lorenasandoval88.github.io/diseasome/
 
 

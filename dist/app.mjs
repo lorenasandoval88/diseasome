@@ -1,4 +1,4 @@
-import { getTxts, parseScore } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import { load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { hclust_plot } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
@@ -3083,72 +3083,35 @@ var localforage = /*@__PURE__*/getDefaultExportFromCjs(localforageExports);
 
 console.log("calculatePrs.js loaded");
 
-/**
- * Get cached parsed genome data for a user
- * Uses existing "Genome:23andMe-txt-*" pattern so the existing Clear Genome Cache button works
- * @param {string} userId - User ID
- * @returns {Promise<Object|null>} Cached parsed genome or null
- */
-async function getCachedGenome(userId) {
-	try {
-		const key = `Genome:23andMe-txt-${userId}`;
-		const cached = await localforage.getItem(key);
-		if (cached) {
-			console.log(`Using cached genome for ${userId}`);
-			// SDK's cacheAndReturn wraps payload under .data; local caching stores {cols, dt, meta} directly.
-			return cached?.data ?? cached;
-		}
-		return null;
-	} catch (err) {
-		console.warn(`Failed to read genome cache for ${userId}:`, err);
-		return null;
-	}
-}
 
-/**
- * Cache parsed genome data for a user
- * Uses existing "Genome:23andMe-txt-*" pattern so the existing Clear Genome Cache button works
- * @param {string} userId - User ID
- * @param {Object} parsed - Parsed genome data
- */
-async function setCachedGenome(userId, parsed) {
-	try {
-		const key = `Genome:23andMe-txt-${userId}`;
-		await localforage.setItem(key, parsed);
-		console.log(`Cached genome for ${userId} (${parsed?.dt?.length ?? 0} variants)`);
-	} catch (err) {
-		console.warn(`Failed to cache genome for ${userId}:`, err);
-	}
-}
 
 // Calculate PRS for a given PGS and 23andMe genome data.
+//
+// Workflow (driven by buttons in the PRS tab):
+//   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
+//      loadFallbackScores() (selection + FALLBACK_SCORES). Both call
+//      loadScoresFromList(), which batches all PGS ids into one getTxts() call
+//      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
+//   2. LOAD USERS — fetchUsers() (selected in the 23andMe Data tab) or
+//      loadFallbackUsers() (FALLBACK_USERS). Both call loadUsersFromList(), which
+//      loads each genome one file at a time via load23andMeFile() (fetch + parse +
+//      cache). Results populate loadedUsers + window.loadedUsers.
+//   3. CALCULATE — calculatePRS() takes the checked users x checked scores, then for
+//      each pair calls calculateAndCachePRS() → Match2() (the actual PRS math) and
+//      organizeResultsByAllele() (groups matches by 0/1/2 effect alleles for plots).
+//      Results are cached (getCachedPRS/setCachedPRS), exposed on window.prsResults,
+//      and rendered as a table.
+//
+// Helpers:
+//   - Caching: getCachedPRS/setCachedPRS (per user+PGS); clearPRSCache /
+//     clearPGSCache / clearGenomeCache wipe each localforage namespace.
+//   - Rendering: renderScoresTable, renderUsersTable, escapeHtml, getCheckedIds.
+//   - User metadata: resolveUserFilePath, resolveUserName, nameFromFilename.
+//   - Public API mirrored under window.sdk at the bottom of the file.
+//
 // Track what has been loaded
-let loadedScores = []; // parsed PGS scoring files
-let loadedUsers = []; // parsed 23andMe genome data
-
-/*** Fetch and parse multiple 23andMe files from paths/URLs.
- * @param {string[]} paths - Array of file paths or URLs
- * @param {string[]} userIds - Array of user IDs corresponding to each path
- * @returns {Promise<Object[]>} Array of objects with { userId, parsed } data
- */
-async function fetch23andMeFiles(paths, userIds = []) {
-	const results = await Promise.all(
-		paths.map(async (path, idx) => {
-			try {
-				const userId = userIds[idx] ?? null;
-				const parsed = await load23andMeFile(path, userId);
-				console.log(`Loaded 23andMe file: ${path} (userId: ${userId})`);
-				return { userId, parsed };
-			} catch (err) {
-				console.error(`Failed to load 23andMe file ${path}:`, err);
-				return null;
-			}
-		})
-	);
-	return results.filter(Boolean);
-}
-window.fetch23andMeFiles = fetch23andMeFiles;
-
+let loadedScores = []; // parsed PGS scoring files (metadata objects)
+let loadedUsers = []; // parsed 23andMe genome data ({ user, parsed })
 
 /*** Get cached PRS result for a user+PGS combination.
  * @param {string} userId - User ID
@@ -3160,7 +3123,7 @@ async function getCachedPRS(userId, pgsId) {
 		const key = `PRS: ${userId}_${pgsId}`;
 		const cache = await localforage.getItem(key) || {};
 		const result = cache[key] ?? null;
-		
+
 		if (result) {
 			console.log(`Cache hit for ${userId}_${pgsId}`);
 		}
@@ -3178,7 +3141,7 @@ async function getCachedPRS(userId, pgsId) {
  * @param {Object} result - PRS calculation result
  */
 async function setCachedPRS(userId, pgsId, result) {
-    console.log(`Caching PRS result for key ${userId}_${pgsId}`);
+	console.log(`Caching PRS result for key ${userId}_${pgsId}`);
 	try {
 		const key = `PRS: ${userId}_${pgsId}`;
 		const cache = await localforage.getItem(key) || {};
@@ -3204,7 +3167,7 @@ window.clearPRSCache = clearPRSCache;
 
 /*** Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
  */
-async function clearPGSCache$1() {
+async function clearPGSCache() {
 	console.log("Clearing PGS scoring cache...");
 	const keys = await localforage.keys();
 	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
@@ -3215,7 +3178,7 @@ async function clearPGSCache$1() {
 	console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
 	return pgsKeys.length;
 }
-window.clearPGSCache = clearPGSCache$1;
+window.clearPGSCache = clearPGSCache;
 
 /*** Clear genome/23andMe cache (Genome:23andMe-txt-* keys only, not metadata)
  */
@@ -3408,11 +3371,6 @@ function organizeResultsByAllele(matchResult, pgsData) {
 window.organizeResultsByAllele = organizeResultsByAllele;
 
 
-/** Check if online */
-function isOnline() {
-	return navigator.onLine;
-}
-
 /** Fallback local users (all 5 from data folder) */
 const FALLBACK_USERS = [
 	{
@@ -3420,7 +3378,7 @@ const FALLBACK_USERS = [
 		name: "Joshua Yoakem",
 		participant_id: "hu09B28E",
 		publishedDate: "2025-01-27",
-		genotypes: [{ 
+		genotypes: [{
 			filename: "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt",
 			filetype: "23andme",
 			download_url: "data/PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt"
@@ -3473,7 +3431,6 @@ const FALLBACK_USERS = [
 ];
 
 /** Fallback PGS scores (sample entries) */
-// TODO: these are not cached in localforage yet, need to implement that and loading logic in displayScores.js
 const FALLBACK_SCORES = [
 	{
 		id: "PGS000001",
@@ -3518,23 +3475,6 @@ const FALLBACK_SCORES = [
 ];
 
 
-
-/*** Load and parse a local PGS scoring file.
- * @param {string} id - PGS ID
- * @param {string} path - Path to the file
- * @returns {Promise<Object>} Parsed PGS data
- */
-async function loadLocalPGSFile(id, path) {
-	console.log(`489 loadLocalPGSFile`);
-	const response = await fetch(path);
-	if (!response.ok) {
-		throw new Error(`Failed to load ${path}: ${response.status}`);
-	}
-	const txt = await response.text();
-	console.log(`Loaded local PGS file ${id} from ${path}`,txt.slice(0,50));
-	return parseScore(id, txt);
-}
-
 /** Escape HTML special characters */
 function escapeHtml(str) {
 	const div = document.createElement("div");
@@ -3542,77 +3482,209 @@ function escapeHtml(str) {
 	return div.innerHTML;
 }
 
-/*** Calculate PRS using the currently selected PGS IDs.
+/** Collect the values of all checked checkboxes matching a selector into a Set. */
+function getCheckedIds(selector) {
+	return new Set(Array.from(document.querySelectorAll(selector + ":checked")).map(cb => cb.value));
+}
+
+/*** Resolve the genome file path for a user, checking the various shapes a user object can take.
+ * @param {Object} user - User/participant object
+ * @returns {string|null} File path/URL or null if none found
+ */
+function resolveUserFilePath(user) {
+	const genos = user?.genotypes ?? [];
+	return user?.downloadUrl
+		?? user?.download_url
+		?? user?.url
+		?? genos[0]?.download_url
+		?? genos[0]?.file
+		?? null;
+}
+
+/*** Build the inner HTML for the PGS scores table.
+ * @param {Object[]} scores - Score metadata objects
+ * @param {Object[]} [txts=[]] - Parsed PGS txt objects (used for the "Variants Loaded" column)
+ * @returns {string} Table HTML
+ */
+function renderScoresTable(scores, txts = []) {
+	const rows = scores.map((score, idx) => {
+		const id = escapeHtml(score?.id ?? "");
+		const name = escapeHtml(score?.name ?? "");
+		const trait = escapeHtml(score?.trait_reported ?? "");
+		const variants = escapeHtml(score?.variants_number ?? "");
+		const date = escapeHtml(score?.date_release ?? "");
+		const loadedTxt = txts.find(t => (t?.id ?? t?.meta?.pgs_id) === score.id);
+		const variantsLoaded = loadedTxt?.dt?.length ?? 0;
+		return `
+			<tr>
+				<td>${idx + 1}</td>
+				<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+				<td>${id}</td>
+				<td>${name}</td>
+				<td>${trait}</td>
+				<td>${variants}</td>
+				<td>${variantsLoaded.toLocaleString()}</td>
+				<td>${date}</td>
+			</tr>`;
+	}).join("");
+
+	return `
+		<table class="table table-striped table-sm mt-3">
+			<thead class="table-dark">
+				<tr>
+					<th>#</th>
+					<th>Select</th>
+					<th>PGS ID</th>
+					<th>Name</th>
+					<th>Trait</th>
+					<th>Variants #</th>
+					<th>Variants Loaded</th>
+					<th>Date</th>
+				</tr>
+			</thead>
+			<tbody>${rows}</tbody>
+		</table>`;
+}
+
+/*** Build the inner HTML for the users/participants table.
+ * @param {Object[]} users - User/participant objects to display
+ * @param {Object[]} loaded - Loaded { user, parsed } entries (used for "Variants Loaded")
+ * @returns {string} Table HTML
+ */
+function renderUsersTable(users, loaded) {
+	const rows = users.map((user, idx) => {
+		const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
+		const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
+		const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
+			? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
+			: "";
+		const name = escapeHtml(user?.name ?? "");
+		const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
+		const genos = user?.genotypes ?? [];
+		const genoCount = genos.length;
+		const downloadUrl = resolveUserFilePath(user) ?? "";
+		const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
+		const loadedData = loaded.find(d => d.user.id === user.id);
+		const variantCount = loadedData?.parsed?.dt?.length ?? 0;
+		return `
+			<tr>
+				<td>${idx + 1}</td>
+				<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
+				<td>${displayId}${fileTag}</td>
+				<td>${name}</td>
+				<td>${published}</td>
+				<td>${genoCount}</td>
+				<td>${variantCount.toLocaleString()}</td>
+				<td>${downloadHtml}</td>
+			</tr>`;
+	}).join("");
+
+	return `
+		<table class="table table-striped table-sm mt-3">
+			<thead class="table-dark">
+				<tr>
+					<th>#</th>
+					<th>Select</th>
+					<th>Participant ID</th>
+					<th>Name</th>
+					<th>Published Date</th>
+					<th>Genotypes #</th>
+					<th>Variants Loaded</th>
+					<th>Download</th>
+				</tr>
+			</thead>
+			<tbody>${rows}</tbody>
+		</table>`;
+}
+
+/*** Load and parse a list of PGS scoring files.
+ * Reuses each score's pre-parsed data when present; the rest are fetched in a
+ * single getTxts() call so its storage-eviction sees the full requested set.
+ * Returns { score, parsed } entries, skipping any that fail to parse.
+ * @param {Object[]} scores - Score metadata objects (each with an .id)
+ * @returns {Promise<Object[]>} Array of { score, parsed }
+ */
+async function loadScoresFromList(scores) {
+	const results = [];
+	const toFetch = [];
+	for (const score of scores) {
+		// Reuse pre-parsed data if present (e.g., pre-loaded elsewhere)
+		if (score?._parsed && score._parsed.dt && score._parsed.dt.length > 0) {
+			console.log(`Using pre-parsed data for ${score.id}: ${score._parsed.dt.length} variants`);
+			results.push({ score, parsed: score._parsed });
+		} else {
+			toFetch.push(score);
+		}
+	}
+
+	if (toFetch.length > 0) {
+		let txts = [];
+		try {
+			// Batch load: pass ALL ids to getTxts in one call. getTxts fetches/parses
+			// the whole list together and runs its storage-limit (cache eviction) check
+			// once against the full requested set — unlike the genome loader, which
+			// handles one file at a time (see loadUsersFromList).
+			txts = (await getTxts(toFetch.map(s => s.id))) ?? [];
+		} catch (err) {
+			console.error("Failed to load scoring files:", err);
+		}
+		for (const score of toFetch) {
+			const parsed = txts.find(t => (t?.id ?? t?.meta?.pgs_id) === score.id) ?? null;
+			if (!parsed) {
+				console.warn(`No parseable file for score ${score?.id}`);
+				continue;
+			}
+			results.push({ score, parsed });
+		}
+	}
+
+	return results;
+}
+
+/*** Fetch selected PGS scoring files, parse them, and display them in a table.
  * Called when the user clicks the "Fetch Files" button.
- * Uses fallback data when offline. */
+ * Mirrors fetchUsers(): resolves selection (or fallback), parses each file
+ * (with caching + pre-parsed reuse), and populates loadedScores + window.loadedPgsTxts.
+ * Uses fallback data when offline or nothing is selected. */
 async function fetchScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 
-	// Clear previously loaded scores so dynamically selected scores take priority
-	loadedScores = [];
 
 	try {
-		// Get selected PGS IDs and scores from the Polygenic Scores tab (if available) defined in displayScores.js
-		let selectedIds = window.getSelectedPgsIds?.() ?? [];
-		let selectedScores = window.getSelectedScores?.() ?? [];
-		console.log( `${selectedIds.length} fetchScores(): Table** Selected PGSIDs from window.getSelectedScores():`, selectedIds, selectedScores);
+		// Get selected scores from the Polygenic Scores tab (if available), defined in displayScores.js
+		const selectedScores = window.getSelectedScores?.() ?? [];
+		console.log(`fetchScores(): Selected scores from window.getSelectedScores():`, selectedScores);
 
-		// Use fallback if offline or no selection
-		const offline = !isOnline();
-		if (offline || selectedIds.length === 0) {
-			if (offline) {
-				console.log("Offline mode: using fallback scores");
-				selectedScores = FALLBACK_SCORES;
-				selectedIds = FALLBACK_SCORES.map(s => s.id);
-				if (statusEl) statusEl.textContent = "Offline mode: using fallback scores.";
-			} else {
-				if (statusEl) statusEl.textContent = "Please select at least one scoring file.";
-				if (resultsDiv) resultsDiv.innerHTML = "";
-				return;
-			}
-		} else {
-			if (statusEl) statusEl.textContent = `Loaded ${selectedIds.length} scoring file(s).`;
+		if (selectedScores.length === 0) {
+			if (statusEl) statusEl.textContent = "Please select at least one scoring file.";
+			if (resultsDiv) resultsDiv.innerHTML = "";
+			return;
 		}
-		// Render table of selected scores
+		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedScores.length} scoring file(s)...`;
+
+		// Parse scoring files for all selected scores (getTxts handles fetch, parse, and caching)
+		const added = await loadScoresFromList(selectedScores);
+
+		// Populate loadedScores (metadata) so calculatePRS builds selectedIds correctly
+		loadedScores = added.map(a => a.score);
+
+		// Populate window.loadedPgsTxts (parsed) so calculatePRS reuses them without refetching
+		window.loadedPgsTxts = added.map(a => a.parsed);
+
+		if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} of ${selectedScores.length} scoring file(s).`;
+
+		// Render table
 		if (resultsDiv) {
-			const rows = selectedScores.map((score, idx) => {
-				const id = escapeHtml(score?.id ?? "");
-				const name = escapeHtml(score?.name ?? "");
-				const trait = escapeHtml(score?.trait_reported ?? "");
-				const variants = escapeHtml(score?.variants_number ?? "");
-				const date = escapeHtml(score?.date_release ?? "");
-				return `
-					<tr>
-						<td>${idx + 1}</td>
-						<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
-						<td>${id}</td>
-						<td>${name}</td>
-						<td>${trait}</td>
-						<td>${variants}</td>
-						<td>${date}</td>
-					</tr>`;
-			}).join("");
-
-			resultsDiv.innerHTML = `
-				<table class="table table-striped table-sm mt-3">
-					<thead class="table-dark">
-						<tr>
-							<th>#</th>
-							<th>Select</th>
-							<th>PGS ID</th>
-							<th>Name</th>
-							<th>Trait</th>
-							<th>Variants #</th>
-							<th>Date</th>
-						</tr>
-					</thead>
-					<tbody>${rows}</tbody>
-				</table>`;
+			resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
 		}
 
-		// TODO: Add actual PRS calculation logic here
+		console.log("fetchScores() loadedScores:", loadedScores);
 
+		// Update cluster page
+		if (typeof window.renderCluster === "function") {
+			window.renderCluster();
+		}
 	} catch (err) {
 		console.error("fetchScores error:", err);
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
@@ -3620,67 +3692,70 @@ async function fetchScores() {
 }
 window.fetchScores = fetchScores;
 
+
+
+
+
+/*** Load and parse a list of user genome files.
+ * For each user: reuses pre-parsed data if present, otherwise resolves the file
+ * path and loads it via load23andMeFile (which caches internally under
+ * "Genome:23andMe-txt-*"). Returns { user, parsed } entries, skipping failures.
+ *
+ * Note: unlike loadScoresFromList (which batches all PGS ids into a single
+ * getTxts call and checks the cache limit once for the whole set), genomes are
+ * loaded one file at a time — load23andMeFile fetches, parses, and cache-checks
+ * each file individually.
+ * @param {Object[]} users - User/participant objects
+ * @returns {Promise<Object[]>} Array of { user, parsed }
+ */
+async function loadUsersFromList(users) {
+	const parsePromises = users.map(async (user) => {
+		// Check if user already has parsed data (e.g., from uploaded file)
+		if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
+			console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
+			return { user, parsed: user._parsed };
+		}
+
+		const filePath = resolveUserFilePath(user);
+		if (!filePath) {
+			console.warn(`No file path or pre-parsed data for user ${user?.id}`);
+			return null;
+		}
+		try {
+			const parsed = await load23andMeFile(filePath, user.id);
+			return { user, parsed };
+		} catch (err) {
+			console.error(`Failed to load genome for ${user.id}:`, err);
+			return null;
+		}
+	});
+	const results = await Promise.all(parsePromises);
+	return results.filter(Boolean);
+}
+
 /*** Fetch selected users, display them in a table, and parse their genome files.
  * Called when the user clicks the "Fetch Users" button in the PRS tab.
  * Uses fallback data when offline or nothing is selected. */
 async function fetchUsers() {
+    console.log("fetchUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 
-	try {
-		// Get selected user IDs and users from the 23andMe Data tab or fallback
-		let selectedIds = window.getSelectedUserIds?.() ?? [];
-		let selectedUsers = window.getSelectedUsers?.() ?? [];
-console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`, selectedIds,selectedUsers);
-// console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
-		const offline = !isOnline();
-		if (offline || selectedIds.length === 0) {
-			if (offline) {
-				console.log("Offline mode: using fallback users");
-				selectedUsers = FALLBACK_USERS;
-				selectedIds = FALLBACK_USERS.map(u => u.id);
-				if (statusEl) statusEl.textContent = "Offline mode: using fallback users.";
-			} else {
-				if (statusEl) statusEl.textContent = "Please select at least one participant in the 23andMe Data tab.";
-				if (resultsDiv) resultsDiv.innerHTML = "";
-				return;
-			}
-		} else {
-			if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
-		}
 
+	try {
+		// Get selected users from the 23andMe Data tab
+		const selectedUsers = window.getSelectedUsers?.() ?? [];
+		console.log(`fetchUsers(): Selected users from window.getSelectedUsers():`, selectedUsers);
+
+		if (selectedUsers.length === 0) {
+			if (statusEl) statusEl.textContent = "Please select at least one participant in the 23andMe Data tab.";
+			if (resultsDiv) resultsDiv.innerHTML = "";
+			return;
+		}
+		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
 
 		// Parse genome files for all selected users
-		loadedUsers = [];
-		const parsePromises = selectedUsers.map(async (user) => {
-			//console.log(`Processing user ${user.id} for PRS calculation...`);
-			// Check if user already has parsed data (e.g., from uploaded file)
-			if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
-				console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
-				return { user, parsed: user._parsed };
-			}
-
-			const genos = user?.genotypes ?? [];
-			const filePath = user?.downloadUrl ?? user?.download_url ?? user?.id;
-				genos[0]?.download_url ?? genos[0]?.file ?? null;
-			//console.log("fetchUsers() filePath:", user, filePath);
-			
-			if (!filePath) {
-				console.warn(`No file path or pre-parsed data for user ${user?.id}`);
-				return null;
-			}
-			try {
-				const parsed = await load23andMeFile(filePath, user.id);
-				// const parsed = await load23andMeFile(filePath, user.id);
-				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
-				return { user, parsed };
-			} catch (err) {
-				//console.error(`Failed to load genome for ${user.id}:`, err);
-				return null;
-			}
-		});
-		const results = await Promise.all(parsePromises);
-		loadedUsers = results.filter(Boolean);
+		loadedUsers = await loadUsersFromList(selectedUsers);
 		window.loadedUsers = loadedUsers; // expose for cluster tab
 
 		const loadedFilesCount = document.getElementById('loadedFilesCount');
@@ -3693,49 +3768,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 
 		// Render table
 		if (resultsDiv) {
-			const rows = selectedUsers.map((user, idx) => {
-				const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
-				const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
-				const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
-					? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
-					: "";
-				const name = escapeHtml(user?.name ?? "");
-				const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
-				const genos = user?.genotypes ?? [];
-				const genoCount = genos.length;
-				const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
-				const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
-				const loadedData = loadedUsers.find(d => d.user.id === user.id);
-				const variantCount = loadedData?.parsed?.dt?.length ?? 0;
-				return `
-					<tr>
-						<td>${idx + 1}</td>
-						<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
-						<td>${displayId}${fileTag}</td>
-						<td>${name}</td>
-						<td>${published}</td>
-						<td>${genoCount}</td>
-						<td>${variantCount.toLocaleString()}</td>
-						<td>${downloadHtml}</td>
-					</tr>`;
-			}).join("");
-
-			resultsDiv.innerHTML = `
-				<table class="table table-striped table-sm mt-3">
-					<thead class="table-dark">
-						<tr>
-							<th>#</th>
-							<th>Select</th>
-							<th>Participant ID</th>
-							<th>Name</th>
-							<th>Published Date</th>
-							<th>Genotypes #</th>
-							<th>Variants Loaded</th>
-							<th>Download</th>
-						</tr>
-					</thead>
-					<tbody>${rows}</tbody>
-				</table>`;
+			resultsDiv.innerHTML = renderUsersTable(selectedUsers, loadedUsers);
 		}
 
 		console.log("fetchUsers() loadedUsers:", loadedUsers);
@@ -3752,58 +3785,62 @@ if (fetchUsersBtn) {
 	fetchUsersBtn.addEventListener("click", fetchUsers);
 }
 
-/** * Load fallback scores directly into the PRS table. */
-function loadFallbackScores() {
+/** * Load fallback scores directly into the PRS table.
+ * Appends to any already-loaded scores instead of replacing them. */
+async function loadFallbackScores() {
+	console.log("808 loadFallbackScores() called");
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
-	const prsStatus = document.getElementById("prsResultsStatus"); // check if users selected before allowing score load
-	
-	// Clear any dynamically selected scores so fallback takes priority
-	window.clearSelectedScores?.();
-	
-	const selectedScores = FALLBACK_SCORES;
-	loadedScores = selectedScores; // Store for calculatePRS
-	if (statusEl) statusEl.textContent = `Loaded ${selectedScores.length} risk model(s).`;
-	if (prsStatus) prsStatus.textContent = ""; // Clear "No scores loaded" message
-	
-	if (resultsDiv) {
-		const rows = selectedScores.map((score, idx) => {
-			const id = escapeHtml(score?.id ?? "");
-			const name = escapeHtml(score?.name ?? "");
-			const trait = escapeHtml(score?.trait_reported ?? "");
-			const variants = escapeHtml(score?.variants_number ?? "");
-			const date = escapeHtml(score?.date_release ?? "");
-			return `
-				<tr>
-					<td>${idx + 1}</td>
-					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
-					<td>${id}</td>
-					<td>${name}</td>
-					<td>${trait}</td>
-					<td>${variants}</td>
-					<td>${date}</td>
-				</tr>`;
-		}).join("");
+	const prsStatus = document.getElementById("prsResultsStatus");
 
-		resultsDiv.innerHTML = `
-			<table class="table table-striped table-sm mt-3">
-				<thead class="table-dark">
-					<tr>
-						<th>#</th>
-						<th>Select</th>
-						<th>PGS ID</th>
-						<th>Name</th>
-						<th>Trait</th>
-						<th>Variants #</th>
-						<th>Date</th>
-					</tr>
-				</thead>
-				<tbody>${rows}</tbody>
-			</table>`;
+	// Preserve existing loaded scores; only add scores not already loaded (by id).
+	const existing = Array.isArray(loadedScores) ? loadedScores.slice() : [];
+	const existingIds = new Set(existing.map(s => s?.id).filter(Boolean));
+
+	// Include any risk models the user selected in the Polygenic Scores tab (tab 2),
+	// so a pending selection is loaded alongside the fallback set instead of being ignored.
+	const selectedScores = (window.getSelectedScores?.() ?? []).filter(s => s?.id);
+	const selectedIdSet = new Set(selectedScores.map(s => s.id));
+
+	// Candidate list: user-selected scores first, then fallback scores. Dedup by id, skip already loaded.
+	const candidateMap = new Map();
+	for (const s of [...selectedScores, ...FALLBACK_SCORES]) {
+		if (s?.id && !existingIds.has(s.id) && !candidateMap.has(s.id)) {
+			candidateMap.set(s.id, s);
+		}
 	}
-	
-	console.log("Loaded fallback scores:", FALLBACK_SCORES);
-	
+	const toLoad = Array.from(candidateMap.values());
+
+	if (toLoad.length === 0) {
+		if (statusEl) statusEl.textContent = `All ${FALLBACK_SCORES.length} fallback risk model(s) are already loaded.`;
+		return;
+	}
+
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} risk model(s) to ${existing.length} already loaded...`;
+	if (prsStatus) prsStatus.textContent = "";
+
+	// Fetch and parse each score (getTxts handles fetch, parse, and caching)
+	const added = await loadScoresFromList(toLoad);
+
+	// Append metadata to loadedScores (dedup by id) so calculatePRS builds selectedIds correctly
+	loadedScores = existing.concat(added.map(a => a.score));
+
+	// Append parsed txts to window.loadedPgsTxts (dedup by id) so calculatePRS reuses them without refetching
+	const existingTxts = Array.isArray(window.loadedPgsTxts) ? window.loadedPgsTxts.slice() : [];
+	const existingTxtIds = new Set(existingTxts.map(t => t?.id ?? t?.meta?.pgs_id).filter(Boolean));
+	const addedTxts = added.map(a => a.parsed).filter(p => !existingTxtIds.has(p?.id ?? p?.meta?.pgs_id));
+	window.loadedPgsTxts = existingTxts.concat(addedTxts);
+
+	const selectedAdded = added.filter(a => selectedIdSet.has(a.score.id)).length;
+	const fallbackAdded = added.length - selectedAdded;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${selectedAdded} selected + ${fallbackAdded} fallback.`;
+
+	if (resultsDiv) {
+		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
+	}
+
+	console.log("Loaded fallback scores with parsed data:", loadedScores);
+
 	// Update cluster page
 	if (typeof window.renderCluster === "function") {
 		window.renderCluster();
@@ -3813,7 +3850,7 @@ function loadFallbackScores() {
 /** * Load fallback users directly into the users table.
  * Appends to any already-loaded users (from the Genomic Data tab selection) instead of replacing them. */
 async function loadFallbackUsers() {
-	console.log("Loading fallback users...");
+	console.log("775 loadFallbackUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
@@ -3831,97 +3868,27 @@ async function loadFallbackUsers() {
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each user's genome file (with caching)
-	let cachedCount = 0;
-	const parsePromises = toLoad.map(async (user, idx) => {
-		const genos = user?.genotypes ?? [];
-		const filePath = genos[0]?.download_url ?? genos[0]?.file;
-		if (!filePath) return null;
+	// Fetch and parse each user's genome file (load23andMeFile caches internally)
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)...`;
+	const added = await loadUsersFromList(toLoad);
 
-		try {
-			// Check cache first
-			const cached = await getCachedGenome(user.id);
-			if (cached) {
-				console.log(`Using cached genome for ${user.id}: ${cached?.dt?.length ?? 0} variants`);
-				cachedCount++;
-				if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)... (${cachedCount} from cache)`;
-				return { user, parsed: cached };
-			}
-
-			// Not cached - fetch and parse
-			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${toLoad.length})`;
-			console.log(`Fallback user NOT CACHED, Fetching genome for ${user.id} from filePath:`, filePath);
-			const parsed = await load23andMeFile(filePath);
-			console.log(`Parsed genome filePath:`, filePath);
-
-			// Cache the result
-			await setCachedGenome(user.id, parsed);
-
-			return { user, parsed };
-		} catch (err) {
-			console.error(`Failed to load genome for ${user.id}:`, err);
-			return null;
-		}
-	});
-
-	const results = await Promise.all(parsePromises);
-	const added = results.filter(Boolean);
 	loadedUsers = existing.concat(added);
 	window.loadedUsers = loadedUsers; // expose for cluster tab
 
-	const cacheMsg = cachedCount > 0 ? ` (${cachedCount} from cache)` : '';
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} fallback${cacheMsg}.`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} fallback.`;
 
 	if (resultsDiv) {
 		const displayUsers = loadedUsers.map(entry => entry.user);
-		const rows = displayUsers.map((user, idx) => {
-			const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
-			const name = escapeHtml(user?.name ?? "");
-			const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
-			const genos = user?.genotypes ?? [];
-			const genoCount = genos.length;
-			const downloadUrl = user?.downloadUrl ?? user?.download_url ?? (genos[0]?.download_url ?? genos[0]?.file) ?? "";
-			const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
-			const loadedData = loadedUsers.find(d => d.user.id === user.id);
-			const variantCount = loadedData?.parsed?.dt?.length ?? 0;
-			return `
-				<tr>
-					<td>${idx + 1}</td>
-					<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
-					<td>${id}</td>
-					<td>${name}</td>
-					<td>${published}</td>
-					<td>${genoCount}</td>
-					<td>${variantCount.toLocaleString()}</td>
-					<td>${downloadHtml}</td>
-				</tr>`;
-		}).join("");
-
-		resultsDiv.innerHTML = `
-			<table class="table table-striped table-sm mt-3">
-				<thead class="table-dark">
-					<tr>
-						<th>#</th>
-						<th>Select</th>
-						<th>Participant ID</th>
-						<th>Name</th>
-						<th>Published Date</th>
-						<th>Genotypes #</th>
-						<th>Variants Loaded</th>
-						<th>Download</th>
-					</tr>
-				</thead>
-				<tbody>${rows}</tbody>
-			</table>`;
+		resultsDiv.innerHTML = renderUsersTable(displayUsers, loadedUsers);
 	}
-	
+
 	console.log("Loaded fallback users with parsed data:", loadedUsers);
-	
+
 	// Update cluster page with loaded users
 	if (typeof window.renderCluster === "function") {
 		window.renderCluster();
 	}
-	
+
 	// Update the PRS results section to show users are ready
 	const prsResultsDiv = document.getElementById("prsResultsDiv");
 	if (prsResultsDiv && loadedUsers.length > 0) {
@@ -3931,7 +3898,7 @@ async function loadFallbackUsers() {
 			const variants = d.parsed?.dt?.length ?? 0;
 			return `<tr><td>${idx + 1}</td><td>${id}</td><td>${name}</td><td>${variants.toLocaleString()}</td><td><span class="text-muted">Ready</span></td></tr>`;
 		}).join("");
-		
+
 		prsResultsDiv.innerHTML = `
 			<p class="text-muted small">Users loaded and ready for PRS calculation. Click "Calculate PRS" to compute scores.</p>
 			<table class="table table-striped table-sm">
@@ -3960,13 +3927,18 @@ if (loadFallbackUsersBtn) {
 	loadFallbackUsersBtn.addEventListener("click", loadFallbackUsers);
 }
 
+// Wire up the fetch scores button
+const fetchScoresBtn = document.getElementById("fetchScoresBtn");
+if (fetchScoresBtn) {
+	fetchScoresBtn.addEventListener("click", fetchScores);
+}
+
 window.loadFallbackScores = loadFallbackScores;
 window.loadFallbackUsers = loadFallbackUsers;
 
 // Expose fallback data for manual use
 window.FALLBACK_USERS = FALLBACK_USERS;
 window.FALLBACK_SCORES = FALLBACK_SCORES;
-window.isOnline = isOnline;
 
 /** Return browser storage usage statistics via the Storage Estimation API. */
 async function getBrowserStorageInfo() {
@@ -3987,15 +3959,31 @@ window.getBrowserStorageInfo = getBrowserStorageInfo;
  * Returns null if the pattern is not found.
  */
 function nameFromFilename(filename) {
-    if (!filename) return null;
-    // Extract just the basename (handles full URLs like finalUrl)
-    const base = String(filename).replace(/.*\//, '');
-    const m = base.match(/(?:^|_)genome_(.+?)_[vV]\d+_/i);
-    if (!m) return null;
-    return m[1]
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase())
-        .trim() || null;
+	if (!filename) return null;
+	// Extract just the basename (handles full URLs like finalUrl)
+	const base = String(filename).replace(/.*\//, '');
+	const m = base.match(/(?:^|_)genome_(.+?)_[vV]\d+_/i);
+	if (!m) return null;
+	return m[1]
+		.replace(/_/g, ' ')
+		.replace(/\b\w/g, c => c.toUpperCase())
+		.trim() || null;
+}
+
+/*** Resolve the best display name for a user (upload filename, filename-derived, or stored name).
+ * @param {Object} user - User object
+ * @returns {string} Display name
+ */
+function resolveUserName(user) {
+	if (user?.dataSource === 'file Upload' && user?.fileName) {
+		return user.fileName;
+	}
+	return nameFromFilename(
+		user?.fileName ??
+		user?.finalUrl ??
+		user?.downloadUrl ??
+		user?.genotypes?.[0]?.filename
+	) || user?.name;
 }
 
 /*** Helper: Calculate PRS with automatic caching
@@ -4008,349 +3996,249 @@ function nameFromFilename(filename) {
  * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
  */
 async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
-	/*** Helper: Calculate PRS with automatic caching
- * Checks cache first, calculates if not found, then stores result.
- * @param {Object} mypgs - Parsed PGS data
- * @param {Object} my23 - Parsed 23andMe genome
- * @param {string} userId - User ID (for cache key)
- * @param {string} pgsId - PGS ID (for cache key)
- * @param {Object} userData - Full user data (for result enrichment)
- * @returns {Promise<Object>} PRS result with metadata { result, organized, fromCache }
- */
+	const userName = resolveUserName(userData.user);
 
-    // Check cache first
-    let cached = await getCachedPRS(userId, pgsId);
-    if (cached) {
-        let organizedData = cached.organized;
-        if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
-            organizedData = organizeResultsByAllele(cached, mypgs);
-        }
-        const freshName = (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
-            ? userData.user.fileName
-            : (nameFromFilename(
-                userData.user?.fileName ??
-                userData.user?.finalUrl ??
-                userData.user?.downloadUrl ??
-                userData.user?.genotypes?.[0]?.filename
-              ) || userData.user.name);
-        console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
-        return {
-            ...cached,
-            userName: freshName,
-            organized: organizedData,
-            pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
-            fromCache: true
-        };
-    }
-    
-    // Calculate if not cached
-    const result = Match2(mypgs, my23);
-	// console.log("Match2 mypgs:", mypgs);
-	// console.log("Match2 my23:", my23);
+	// Check cache first
+	const cached = await getCachedPRS(userId, pgsId);
+	if (cached) {
+		let organizedData = cached.organized;
+		if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
+			organizedData = organizeResultsByAllele(cached, mypgs);
+		}
+		console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', userName);
+		return {
+			...cached,
+			userName,
+			organized: organizedData,
+			pgs: cached.pgs ?? { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
+			fromCache: true
+		};
+	}
+
+	// Calculate if not cached
+	const result = Match2(mypgs, my23);
 	console.log("Calculated PRS result:", result);
-    const organizedData = organizeResultsByAllele(result, mypgs);
-    
-    const prsResult = {
-        userId,
-        userName: (userData.user?.dataSource === 'file Upload' && userData.user?.fileName)
-            ? userData.user.fileName
-            : (nameFromFilename(
-                userData.user?.fileName ??
-                userData.user?.finalUrl ??
-                userData.user?.downloadUrl ??
-                userData.user?.genotypes?.[0]?.filename
-              ) || userData.user.name),
-        userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
-        pgsId,
-        totalVariants: mypgs.dt.length,
-        ...result,
-        organized: organizedData,
-        pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
-        genome: { cols: my23.cols, variantCount: my23.dt.length },
-        fromCache: false
-    };
-    
-    // Store in cache
-    await setCachedPRS(userId, pgsId, prsResult);
-    return prsResult;
+	const organizedData = organizeResultsByAllele(result, mypgs);
+
+	const prsResult = {
+		userId,
+		userName,
+		userDate: userData.user.publishedDate ?? userData.user.published_date ?? "",
+		pgsId,
+		totalVariants: mypgs.dt.length,
+		...result,
+		organized: organizedData,
+		pgs: { cols: mypgs.cols, dt: mypgs.dt, meta: mypgs.meta },
+		genome: { cols: my23.cols, variantCount: my23.dt.length },
+		fromCache: false
+	};
+
+	// Store in cache
+	await setCachedPRS(userId, pgsId, prsResult);
+	return prsResult;
 }
 
 /*** Calculate PRS using loaded scores and users.
  * Triggered by the "Calculate PRS" button.
  */
 async function calculatePRS() {
-    console.log("calculatePRS()");
-    const statusEl = document.getElementById("prsResultsStatus");
-    const resultsDiv = document.getElementById("prsResultsDiv");
-    if (statusEl) statusEl.textContent = "Calculating PRS...";
-    
-    try {
-        //// GET USERS: use loadedUsers (from fetchUsers / loadFallbackUsers),
-        //  filtered to only those whose checkbox is still checked in the PRS users table.
-        //  If loadedUsers is empty, fall back to window.getSelectedUsers() from the LocalData tab.
-        let userDataForCalc = loadedUsers;
-        console.log("loadedUsers", userDataForCalc);
+	console.log("calculatePRS()");
+	const statusEl = document.getElementById("prsResultsStatus");
+	const resultsDiv = document.getElementById("prsResultsDiv");
+	if (statusEl) statusEl.textContent = "Calculating PRS...";
 
-        // Filter by checkboxes in the PRS users table (if rendered)
-        const checkedUserIds = new Set(
-            Array.from(document.querySelectorAll(".prs-user-select-cb:checked")).map(cb => cb.value)
-        );
-        if (checkedUserIds.size > 0 && userDataForCalc.length > 0) {
-            userDataForCalc = userDataForCalc.filter(d => checkedUserIds.has(d.user.id ?? d.user.participant_id));
-            console.log(`Filtered to ${userDataForCalc.length} checked user(s):`, Array.from(checkedUserIds));
-        }
+	try {
+		//// GET USERS: use loadedUsers (from fetchUsers / loadFallbackUsers),
+		//  filtered to only those whose checkbox is still checked in the PRS users table.
+		//  If loadedUsers is empty, fall back to window.getSelectedUsers() from the LocalData tab.
+		let userDataForCalc = loadedUsers;
+		console.log("loadedUsers", userDataForCalc);
 
-        if (userDataForCalc.length === 0) {
-            // Try to get selected users from the 23andMe Data tab
-            const selectedUsers = window.getSelectedUsers?.() ?? [];
-            console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
-            if (selectedUsers.length === 0) {
-                if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Fallback Users' in the PRS tab, or select users in the 23andMe Data tab.";
-                return;
-            }
+		// Filter by checkboxes in the PRS users table (if rendered)
+		const checkedUserIds = getCheckedIds(".prs-user-select-cb");
+		if (checkedUserIds.size > 0 && userDataForCalc.length > 0) {
+			userDataForCalc = userDataForCalc.filter(d => checkedUserIds.has(d.user.id ?? d.user.participant_id));
+			console.log(`Filtered to ${userDataForCalc.length} checked user(s):`, Array.from(checkedUserIds));
+		}
 
-            if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
+		if (userDataForCalc.length === 0) {
+			// Try to get selected users from the 23andMe Data tab
+			const selectedUsers = window.getSelectedUsers?.() ?? [];
+			console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
+			if (selectedUsers.length === 0) {
+				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Fallback Users' in the PRS tab, or select users in the 23andMe Data tab.";
+				return;
+			}
 
-            // Process each user - use pre-parsed data if available, otherwise fetch from URL
-            const parsePromises = selectedUsers.map(async (user) => {
-                // Check if user already has parsed data (e.g., from uploaded file)
-                if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
-                    console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
-                    return { user, parsed: user._parsed };
-                }
+			if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
 
-                const filePath = user.downloadUrl ?? user.download_url ?? user.url ??
-                    user.genotypes?.[0]?.download_url ?? user.genotypes?.[0]?.file ?? null;
-                
-                if (!filePath) {
-                    console.warn(`No file path or pre-parsed data for user ${user?.id}`);
-                    return null;
-                }
+			// Process each user - use pre-parsed data if available, otherwise fetch from URL
+			userDataForCalc = await loadUsersFromList(selectedUsers);
 
-                try {
-                    const parsed = await load23andMeFile(filePath, user.id);
-                    return { user, parsed };
-                } catch (err) {
-                    console.error(`Failed to load genome for ${user.id}:`, err);
-                    return null;
-                }
-            });
+			console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
 
-            const results = await Promise.all(parsePromises);
-            userDataForCalc = results.filter(Boolean);
+			if (userDataForCalc.length === 0) {
+				if (statusEl) statusEl.textContent = "Failed to load user genome files.";
+				return;
+			}
+		}
 
-            console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
+		//// GET SCORES: prefer dynamically selected scores, fallback to loadedScores
+		const dynamicScores = window.getSelectedScores?.() ?? [];
+		let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
+		const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
+		console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
 
-            if (userDataForCalc.length === 0) {
-                if (statusEl) statusEl.textContent = "Failed to load user genome files.";
-                return;
-            }
-        }
+		// Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
+		const checkedScoreIds = getCheckedIds(".prs-select-cb");
+		if (checkedScoreIds.size > 0 && selectedScoresList.length > 0) {
+			selectedScoresList = selectedScoresList.filter(s => checkedScoreIds.has(s.id));
+			console.log(`Filtered to ${selectedScoresList.length} checked score(s):`, Array.from(checkedScoreIds));
+		}
 
-        //// GET SCORES: prefer dynamically selected scores, fallback to loadedScores
-        const dynamicScores = window.getSelectedScores?.() ?? [];
-        let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
-        const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
-        console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
+		const selectedIds = selectedScoresList.map(s => s.id);
 
-        // Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
-        const checkedScoreIds = new Set(
-            Array.from(document.querySelectorAll(".prs-select-cb:checked")).map(cb => cb.value)
-        );
-        if (checkedScoreIds.size > 0 && selectedScoresList.length > 0) {
-            selectedScoresList = selectedScoresList.filter(s => checkedScoreIds.has(s.id));
-            console.log(`Filtered to ${selectedScoresList.length} checked score(s):`, Array.from(checkedScoreIds));
-        }
+		if (selectedIds.length === 0) {
+			if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Fallback Scores' first.";
+			return;
+		}
 
-        const selectedIds = selectedScoresList.map(s => s.id);
+		// Update scores table display
+		const scoresDiv = document.getElementById("prsScoresDiv");
+		const scoresAction = document.getElementById("prsScoresAction");
+		if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingFallback ? "fallback" : "selected"} scoring file(s).`;
+		if (scoresAction) {
+			scoresAction.innerHTML = renderScoresTable(selectedScoresList, window.loadedPgsTxts ?? []);
+		}
 
-        if (selectedIds.length === 0) {
-            if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Fallback Scores' first.";
-            return;
-        }
-        
-        // Update scores table display
-        const scoresDiv = document.getElementById("prsScoresDiv");
-        const scoresAction = document.getElementById("prsScoresAction");
-        if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingFallback ? "fallback" : "selected"} scoring file(s).`;
-        if (scoresAction) {
-            const rows = selectedScoresList.map((score, idx) => {
-                const id = escapeHtml(score?.id ?? "");
-                const name = escapeHtml(score?.name ?? "");
-                const trait = escapeHtml(score?.trait_reported ?? "");
-                const variants = escapeHtml(score?.variants_number ?? "");
-                const date = escapeHtml(score?.date_release ?? "");
-                return `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
-                        <td>${id}</td>
-                        <td>${name}</td>
-                        <td>${trait}</td>
-                        <td>${variants}</td>
-                        <td>${date}</td>
-                    </tr>`;
-            }).join("");
-            scoresAction.innerHTML = `
-                <table class="table table-striped table-sm mt-3">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>#</th>
-                            <th>Select</th>
-                            <th>PGS ID</th>
-                            <th>Name</th>
-                            <th>Trait</th>
-                            <th>Variants #</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>`;
-        }
+		// Load PGS txt files (use pre-loaded from Polygenic Scores tab, or fetch)
+		if (statusEl) statusEl.textContent = `Calculating PRS....`;
 
-        // Load PGS txt files (use pre-loaded from Polygenic Scores tab, or fetch)
-        if (statusEl) statusEl.textContent = `Calculating PRS....`;
+		let pgsTxts = [];
 
-        let pgsTxts = [];
-        
-        // Check if PGS files were pre-loaded in the Polygenic Scores tab
-        const preloadedTxts = window.loadedPgsTxts ?? [];
-        if (preloadedTxts.length > 0) {
-            // Filter to only selected IDs
-            pgsTxts = preloadedTxts.filter(pgs => {
-                const pgsId = pgs?.id ?? pgs?.meta?.pgs_id;
-                return selectedIds.includes(pgsId);
-            });
-            console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Polygenic Scores tab`);
-        }
-        
-        // If not enough pre-loaded files, fetch missing ones
-        if (pgsTxts.length < selectedIds.length) {
-            const loadedIds = new Set(pgsTxts.map(p => p?.id ?? p?.meta?.pgs_id));
-            const missingScores = selectedScoresList.filter(s => !loadedIds.has(s.id));
-            
-            if (missingScores.length > 0) {
-                console.log(`Fetching ${missingScores.length} missing PGS files...`);
-                if (statusEl) statusEl.textContent = `Fetching ${missingScores.length} missing PGS file(s)...`;
-                
-                for (const score of missingScores) {
-                    try {
-                        if (score.local_file) {
-                            // Load from local file
-							console.log("1197***loadLocalPGSFile");
-                            const parsed = await loadLocalPGSFile(score.id, score.local_file);
-                            pgsTxts.push(parsed);
-                            console.log(`Loaded local PGS file: ${score.local_file}`);
-                        } else {
-                            // Fetch from remote
-                            const remote = await getTxts([score.id]);
-                            pgsTxts.push(...remote);
-                        }
-                    } catch (err) {
-                        console.error(`Failed to load ${score.id}:`, err);
-                    }
-                }
-            }
-        }
-        
-        console.log("PGS txts for calculation:", pgsTxts);
-        
-        // Run PRS calculation for each user x score combination
-        if (statusEl) statusEl.textContent = `Calculating PRS for ${userDataForCalc.length} user(s) x ${pgsTxts.length} model(s)...`;
-        
-        const prsResults = [];
-        let cachedCount = 0;
-        let calculatedCount = 0;
-        
-        for (const userData of userDataForCalc) {
-            const my23 = userData.parsed;
-            const userId = userData.user.id;
-            
-            for (const mypgs of pgsTxts) {
-                const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
-                
-                const prsResult = await calculateAndCachePRS(mypgs, my23, userId, pgsId, userData);
-                prsResults.push(prsResult);
-                
-                if (prsResult.fromCache) cachedCount++;
-                else calculatedCount++;
-            }
-        }
-        
-        console.log("PRS results:", prsResults);
-        window.prsResults = prsResults;  // expose for cluster tab
-        if (window.sdk) window.sdk.prsResults = prsResults;  // mirror into namespace
-        
-        // Invalidate cluster cache when PRS results change
-        if (typeof window.invalidateClusterCache === 'function') {
-            window.invalidateClusterCache();
-        }
-        
-        if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
-        
-        // Display results
-        if (resultsDiv) {
-            if (prsResults.length > 0) {
-                const rows = prsResults.map((r, idx) => {
-                    const org = r.organized?.summary ?? {};
-                    return `
-                    <tr${r.fromCache ? ' class="table-secondary"' : ''}>
-                        <td>${idx + 1}</td>
-                        <td>${escapeHtml(r.userId)}</td>
-                        <td>${escapeHtml(r.userName ?? "")}</td>
-                        <td>${escapeHtml(r.pgsId)}</td>
-                        <td>${typeof r.PRS === 'number' ? r.PRS.toFixed(6) : (r.PRS ?? "-")}</td>
-                        <td>${r.alleles?.length ?? 0}</td>
-                        <td title="Zero alleles">${org.zeroAlleleCount ?? "-"}</td>
-                        <td title="One allele">${org.oneAlleleCount ?? "-"}</td>
-                        <td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
-                        <td>${r.totalVariants ?? "-"}</td>
-                        <td>${org.matchRate ?? "-"}</td>
-                        <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
-                        <td>${r.fromCache ? "📦" : "🔄"}</td>
-                    </tr>
-                `}).join("");
-                
-                resultsDiv.innerHTML = `
-                    <table class="table table-striped table-sm mt-3">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>#</th>
-                                <th>User ID</th>
-                                <th>Name</th>
-                                <th>PGS ID</th>
-                                <th>PRS Score</th>
-                                <th>Matched</th>
-                                <th title="Matched with 0 effect alleles">0</th>
-                                <th title="Matched with 1 effect allele">1</th>
-                                <th title="Matched with 2 effect alleles">2</th>
-                                <th>Total</th>
-                                <th>Match %</th>
-                                <th>QC</th>
-                                <th title="📦 = cached, 🔄 = calculated">Src</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                    <details class="mt-2">
-                        <summary>Raw JSON</summary>
-                        <pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>
-                    </details>`;
-            } else {
-                resultsDiv.innerHTML = `<p class="text-muted">PRS calculation completed. Check console for details.</p>`;
-            }
-        }
-        
-    } catch (err) {
-        console.error("calculatePRS error:", err);
-        if (statusEl) statusEl.textContent = `Error: ${err.message}`;
-    }
+		// Check if PGS files were pre-loaded in the Polygenic Scores tab
+		const preloadedTxts = window.loadedPgsTxts ?? [];
+		if (preloadedTxts.length > 0) {
+			// Filter to only selected IDs
+			pgsTxts = preloadedTxts.filter(pgs => {
+				const pgsId = pgs?.id ?? pgs?.meta?.pgs_id;
+				return selectedIds.includes(pgsId);
+			});
+			console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Polygenic Scores tab`);
+		}
+
+		// If not enough pre-loaded files, fetch missing ones
+		if (pgsTxts.length < selectedIds.length) {
+			const loadedIds = new Set(pgsTxts.map(p => p?.id ?? p?.meta?.pgs_id));
+			const missingScores = selectedScoresList.filter(s => !loadedIds.has(s.id));
+
+			if (missingScores.length > 0) {
+				console.log(`Fetching ${missingScores.length} missing PGS files...`);
+				if (statusEl) statusEl.textContent = `Fetching ${missingScores.length} missing PGS file(s)...`;
+				const added = await loadScoresFromList(missingScores);
+				pgsTxts.push(...added.map(a => a.parsed));
+			}
+		}
+
+		console.log("PGS txts for calculation:", pgsTxts);
+
+		// Run PRS calculation for each user x score combination
+		if (statusEl) statusEl.textContent = `Calculating PRS for ${userDataForCalc.length} user(s) x ${pgsTxts.length} model(s)...`;
+
+		const prsResults = [];
+		let cachedCount = 0;
+		let calculatedCount = 0;
+
+		for (const userData of userDataForCalc) {
+			const my23 = userData.parsed;
+			const userId = userData.user.id;
+
+			for (const mypgs of pgsTxts) {
+				const pgsId = mypgs.id ?? mypgs.meta?.pgs_id ?? mypgs.url;
+
+				const prsResult = await calculateAndCachePRS(mypgs, my23, userId, pgsId, userData);
+				prsResults.push(prsResult);
+
+				if (prsResult.fromCache) cachedCount++;
+				else calculatedCount++;
+			}
+		}
+
+		console.log("PRS results:", prsResults);
+		window.prsResults = prsResults;  // expose for cluster tab
+		if (window.sdk) window.sdk.prsResults = prsResults;  // mirror into namespace
+
+		// Invalidate cluster cache when PRS results change
+		if (typeof window.invalidateClusterCache === 'function') {
+			window.invalidateClusterCache();
+		}
+
+		if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
+
+		// Display results
+		if (resultsDiv) {
+			if (prsResults.length > 0) {
+				const rows = prsResults.map((r, idx) => {
+					const org = r.organized?.summary ?? {};
+					return `
+					<tr${r.fromCache ? ' class="table-secondary"' : ''}>
+						<td>${idx + 1}</td>
+						<td>${escapeHtml(r.userId)}</td>
+						<td>${escapeHtml(r.userName ?? "")}</td>
+						<td>${escapeHtml(r.pgsId)}</td>
+						<td>${typeof r.PRS === 'number' ? r.PRS.toFixed(6) : (r.PRS ?? "-")}</td>
+						<td>${r.alleles?.length ?? 0}</td>
+						<td title="Zero alleles">${org.zeroAlleleCount ?? "-"}</td>
+						<td title="One allele">${org.oneAlleleCount ?? "-"}</td>
+						<td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
+						<td>${r.totalVariants ?? "-"}</td>
+						<td>${org.matchRate ?? "-"}</td>
+						<td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
+						<td>${r.fromCache ? "📦" : "🔄"}</td>
+					</tr>
+				`;
+				}).join("");
+
+				resultsDiv.innerHTML = `
+					<table class="table table-striped table-sm mt-3">
+						<thead class="table-dark">
+							<tr>
+								<th>#</th>
+								<th>User ID</th>
+								<th>Name</th>
+								<th>PGS ID</th>
+								<th>PRS Score</th>
+								<th>Matched</th>
+								<th title="Matched with 0 effect alleles">0</th>
+								<th title="Matched with 1 effect allele">1</th>
+								<th title="Matched with 2 effect alleles">2</th>
+								<th>Total</th>
+								<th>Match %</th>
+								<th>QC</th>
+								<th title="📦 = cached, 🔄 = calculated">Src</th>
+							</tr>
+						</thead>
+						<tbody>${rows}</tbody>
+					</table>
+					<details class="mt-2">
+						<summary>Raw JSON</summary>
+						<pre class="small">${JSON.stringify(prsResults, null, 2)}</pre>
+					</details>`;
+			} else {
+				resultsDiv.innerHTML = `<p class="text-muted">PRS calculation completed. Check console for details.</p>`;
+			}
+		}
+
+	} catch (err) {
+		console.error("calculatePRS error:", err);
+		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+	}
 }
 
 // Wire up Calculate PRS button
 const calculatePrsBtn = document.getElementById("calculatePrsBtn");
 if (calculatePrsBtn) {
-    calculatePrsBtn.addEventListener("click", calculatePRS);
+	calculatePrsBtn.addEventListener("click", calculatePRS);
 }
 
 // window.calculatePRS = calculatePRS;
@@ -4360,48 +4248,31 @@ if (calculatePrsBtn) {
 // window.sdk.getBrowserStorageInfo(), window.sdk.clearPRSCache(), etc.
 // Object.assign merges with any entries already added by other modules.
 window.sdk = Object.assign(window.sdk ?? {}, {
-    // Storage utilities
-    getBrowserStorageInfo,
-    clearPRSCache,
-    clearPGSCache: clearPGSCache$1,
-    clearGenomeCache: clearGenomeCache$1,
-    isOnline,
+	// Storage utilities
+	getBrowserStorageInfo,
+	clearPRSCache,
+	clearPGSCache,
+	clearGenomeCache: clearGenomeCache$1,
 
-    // PRS calculation
-    calculatePRS,
-    organizeResultsByAllele,
+	// PRS calculation
+	calculatePRS,
+	organizeResultsByAllele,
 
-    // Score / user loading
-    fetchScores,
-    fetchUsers,
-    fetch23andMeFiles,
-    loadFallbackScores,
-    loadFallbackUsers,
+	// Score / user loading
+	fetchScores,
+	fetchUsers,
+	loadFallbackScores,
+	loadFallbackUsers,
 
-    // Fallback data
-    FALLBACK_SCORES,
-    FALLBACK_USERS,
+	// Fallback data
+	FALLBACK_SCORES,
+	FALLBACK_USERS,
 });
 
 /**
  * PRS Visualization Functions
  * Plotly-based visualizations for PRS calculation results
  */
-
-/**
- * Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
- */
-async function clearPGSCache() {
-    const keys = await localforage.keys();
-    // Only clear keys like "pgs:id-PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-    const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
-    for (const key of pgsKeys) {
-        await localforage.removeItem(key);
-    }
-    // console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
-    return pgsKeys.length;
-}
-window.clearPGSCache = clearPGSCache;
 
 /**
  * Clear genome/23andMe cache (Genome:id-* keys only, not metadata)

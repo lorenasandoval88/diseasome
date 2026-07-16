@@ -5,21 +5,6 @@
 import localforage from "localforage";
 
 /**
- * Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
- */
-async function clearPGSCache() {
-    const keys = await localforage.keys();
-    // Only clear keys like "pgs:id-PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-    const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
-    for (const key of pgsKeys) {
-        await localforage.removeItem(key);
-    }
-    // console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
-    return pgsKeys.length;
-}
-window.clearPGSCache = clearPGSCache;
-
-/**
  * Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
  */
 async function clearGenomeCache() {

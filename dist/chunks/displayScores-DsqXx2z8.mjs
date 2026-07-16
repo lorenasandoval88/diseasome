@@ -1,5 +1,8 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
-import localforage from "localforage";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
 
 /*
  Module: displayScores.js
@@ -33,11 +36,6 @@ function setPgsLoadingStatus(message, isError = false, progress = 0) {
 
 let data = { scoresPerTrait: {} };
 let data2 = { scoresPerCategory: {} };
-
-// Total distinct scoring files available in the PGS Catalog. Sourced from the
-// cached all-score summary ("PGS_Catalog:all-score-summary") via fetchAllScores();
-// falls back to the trait+category union count below if the summary is unavailable.
-let totalAvailableScores = 0;
 
 
 /**
@@ -77,9 +75,6 @@ try {
 
 	data = scoresPerTrait ?? { scoresPerTrait: {} };
 	data2 = scoresPerCategory ?? { scoresPerCategory: {} };
-
-	// Total scores available comes from the cached all-score summary.
-	totalAvailableScores = allScoresResult?.summary?.totalScores ?? allScoresResult?.scores?.length ?? 0;
 
 	const traitsSrc = describePgsSource(traitsResult?.source);
 	const scoresSrc = describePgsSource(allScoresResult?.source);
@@ -211,22 +206,8 @@ window.clearSelectedScores = () => {
 
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
-	const count = selectedPgsIds.size;
-	const atLimit = count >= MAX_SELECTION;
-
-	// Prominent sticky bar: label + filled progress indicator (mirrors tab 1)
 	const el = document.getElementById("globalSelectionCount");
-	if (el) el.textContent = `${count} of ${MAX_SELECTION} selected`;
-	const bar = document.getElementById("pgsSelectionProgressBar");
-	if (bar) {
-		const pct = Math.min(100, Math.round((count / MAX_SELECTION) * 100));
-		bar.style.width = `${pct}%`;
-		bar.setAttribute("aria-valuenow", String(count));
-		bar.classList.toggle("bg-success", !atLimit);
-		bar.classList.toggle("bg-danger", atLimit);
-	}
-	const limitMsg = document.getElementById("pgsSelectionLimitMsg");
-	if (limitMsg) limitMsg.style.display = atLimit ? "" : "none";
+	if (el) el.textContent = `Selected: ${selectedPgsIds.size} / ${MAX_SELECTION}`;
 
 	// Show/hide the contextual "Fetch PGS Files" button
 	const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
@@ -372,18 +353,6 @@ const allTraitScores = allTraitScoresRaw.filter((score) => {
 // console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`,allTraitScores.slice(0,10));
 // console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
 
-// Fallback: if the cached all-score summary wasn't available, derive the total
-// from the union of trait + category scores (deduplicated by PGS ID).
-if (!totalAvailableScores) {
-	const totalAvailableIds = new Set();
-	[...allTraitScores, ...allCategoryScores].forEach((s) => {
-		const id = s?.id ?? "";
-		if (id) totalAvailableIds.add(id);
-	});
-	totalAvailableScores = totalAvailableIds.size;
-}
-console.log(`displayScores.js: ${totalAvailableScores} total scoring files available`);
-
 /** Get trait scores filtered by current variant range. */
 function getFilteredTraitScores() {
 	return allTraitScores.filter(passesVariantFilter).sort(compareScores);
@@ -448,7 +417,7 @@ function renderPgsFromSelection() {
 		? `${selectedCategories.size} categor${selectedCategories.size === 1 ? "y" : "ies"}`
 		: "All categories";
 	const traitLabel = selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
-	const title = `PGS Catalog Scoring Files - ${scores.length} of ${totalAvailableScores}`;
+	const title = `${catLabel}${traitLabel} (${scores.length} scoring files)`;
 	const key = sanitizeKey(`sel_${Array.from(selectedCategories).join("_")}_${Array.from(selectedTraits).join("_")}`) || "sel";
 	renderPgsTable(scores, "scoresDiv", title, key);
 	renderActiveFilterChips();
@@ -802,7 +771,7 @@ function renderScores(value, type = "Trait") {
 		: `${type}: ${value} (${scores.length} scoring files)`;
 
 	renderPgsTable(scores, "scoresDiv", title, key);
-	renderActiveFilterChips(value, type);
+	renderActiveFilterChips();
 }
 
 /**
@@ -824,17 +793,6 @@ function renderActiveFilterChips() {
 
 	if (variantMin > 1 || variantMax < 1000) {
 		chips.push({ label: `Variants: ${variantMin}–${variantMax}`, clear: "variants" });
-	}
-
-	// Update the "N active" badge on the Filters toggle button.
-	const badge = document.getElementById("pgsActiveFilterBadge");
-	if (badge) {
-		if (chips.length) {
-			badge.textContent = `${chips.length} active`;
-			badge.style.display = "";
-		} else {
-			badge.style.display = "none";
-		}
 	}
 
 	if (!chips.length) {
@@ -911,54 +869,6 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	const title = `${match.id} - ${match.name ?? match.trait_reported ?? "PGS"}`;
 	renderPgsTable([match], "scoresDiv", title, sanitizeKey(pgsId));
 };
-
-
-// --- Helpers for dropdown management ---
-
-/** Default onchange handler for trait selection. */
-function setDefaultTraitOnChange(select) {
-	select.onchange = (e) => {
-		try { window.onPgsTraitChange(e.target.value); } catch (err) { console.error('onPgsTraitChange error', err); }
-	};
-}
-
-/** Build options HTML from a Map of name → scores[]. */
-function buildOptionsHtml(map, keys, allLabel, filteredCount) {
-	const allOption = `<option value="${ALL_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
-	const itemOptions = keys
-		.map((key) => {
-			const filtered = (map.get(key) ?? []).filter(passesVariantFilter);
-			return `<option value="${escapeHtml(key)}">${escapeHtml(key)} (${filtered.length})</option>`;
-		})
-		.join("");
-	return allOption + itemOptions;
-}
-
-/** Populate dropdown with traits and wire default handler. */
-function populateTraitDropdown(select) {
-	select.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Trait");
-	setDefaultTraitOnChange(select);
-}
-
-/** Populate dropdown with categories and wire category handler. */
-function populateCategoryDropdown(select) {
-	select.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Category");
-
-	select.onchange = (e) => {
-		const val = e.target.value;
-		if (!val) return;
-		if (val === ALL_VALUE) {
-			setDefaultTraitOnChange(select);
-			renderScores(ALL_VALUE, "Category");
-			return;
-		}
-		renderScores(val, "Category");
-	};
-}
 
 // --- Initialize category + trait filters ---
 
@@ -1571,3 +1481,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-DsqXx2z8.mjs.map

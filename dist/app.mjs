@@ -1,4 +1,4 @@
-import { getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { getTxts, parseScore } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import { load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { hclust_plot } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
@@ -30,14 +30,14 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-DZjSkUbi.mjs');
+        await import('./chunks/displayScores-DdkVxFhu.mjs');
         pgsModuleLoaded = true;
     }
 }
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-C0suU0Xb.mjs');
+        await import('./chunks/displayUsers-BX3eUI9X.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -3207,7 +3207,7 @@ window.clearPRSCache = clearPRSCache;
 async function clearPGSCache$1() {
 	const keys = await localforage.keys();
 	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-	const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
+	const pgsKeys = keys.filter(k => k.startsWith('PGS_Catalog:id-PGS'));
 	for (const key of pgsKeys) {
 		await localforage.removeItem(key);
 	}
@@ -3516,46 +3516,7 @@ const FALLBACK_SCORES = [
 	}
 ];
 
-/*** Parse a PGS scoring file into structured data.
- * @param {string} id - PGS ID
- * @param {string} txt - Raw text content
- * @returns {Object} Parsed PGS data with cols and dt arrays
- */
-function parsePGS(id, txt) {
-	const obj = { id };
-	obj.txt = txt;
-	const rows = txt.split(/\r\n|\r|\n/g);
-	const metaL = rows.filter(r => r[0] === '#').length;
-	obj.meta = { txt: rows.slice(0, metaL) };
-	
-	// Defensive check: ensure header row exists
-	if (metaL >= rows.length) {
-		console.error(`Invalid PGS file ${id}: no column headers found`);
-		obj.cols = [];
-		obj.dt = [];
-		return obj;
-	}
-	
-	obj.cols = rows[metaL].split(/\t/g);
-	obj.dt = rows.slice(metaL + 1).map(r => r.split(/\t/g)).filter(r => r.length > 1);
-	
-	// Parse numerical types
-	const indInt = [obj.cols.indexOf('chr_position'), obj.cols.indexOf('hm_pos')];
-	const indFloat = [obj.cols.indexOf('effect_weight'), obj.cols.indexOf('allelefrequency_effect')];
-	
-	obj.dt = obj.dt.map(r => {
-		indFloat.forEach(ind => { if (ind >= 0) r[ind] = parseFloat(r[ind]); });
-		indInt.forEach(ind => { if (ind >= 0) r[ind] = parseInt(r[ind]); });
-		return r;
-	});
-	
-	// Parse metadata
-	obj.meta.txt.filter(r => r[1] !== '#').forEach(aa => {
-		aa = aa.slice(1).split('=');
-		obj.meta[aa[0]] = aa[1];
-	});
-	return obj;
-}
+
 
 /*** Load and parse a local PGS scoring file.
  * @param {string} id - PGS ID
@@ -3563,12 +3524,14 @@ function parsePGS(id, txt) {
  * @returns {Promise<Object>} Parsed PGS data
  */
 async function loadLocalPGSFile(id, path) {
+	console.log(`489 loadLocalPGSFile`);
 	const response = await fetch(path);
 	if (!response.ok) {
 		throw new Error(`Failed to load ${path}: ${response.status}`);
 	}
 	const txt = await response.text();
-	return parsePGS(id, txt);
+	console.log(`Loaded local PGS file ${id} from ${path}`,txt.slice(0,50));
+	return parseScore(id, txt);
 }
 
 /** Escape HTML special characters */
@@ -3731,6 +3694,10 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		if (resultsDiv) {
 			const rows = selectedUsers.map((user, idx) => {
 				const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
+				const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
+				const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
+					? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
+					: "";
 				const name = escapeHtml(user?.name ?? "");
 				const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
 				const genos = user?.genotypes ?? [];
@@ -3743,7 +3710,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 					<tr>
 						<td>${idx + 1}</td>
 						<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
-						<td>${id}</td>
+						<td>${displayId}${fileTag}</td>
 						<td>${name}</td>
 						<td>${published}</td>
 						<td>${genoCount}</td>
@@ -4269,13 +4236,13 @@ async function calculatePRS() {
                     try {
                         if (score.local_file) {
                             // Load from local file
+							console.log("1197***loadLocalPGSFile");
                             const parsed = await loadLocalPGSFile(score.id, score.local_file);
                             pgsTxts.push(parsed);
                             console.log(`Loaded local PGS file: ${score.local_file}`);
                         } else {
                             // Fetch from remote
                             const remote = await getTxts([score.id]);
-							console.log("score.id",score.id);
                             pgsTxts.push(...remote);
                         }
                     } catch (err) {
@@ -5435,7 +5402,7 @@ window.renderPlotPRS = renderPlotPRS;
 // buttons for row/column clustering
 // linkage choices: complete, single, average, ward
 // distance choices: euclidean, manhattan, cosine
-// calls to clust.hclust_plot() to render heatmap + dendrogram plots
+// calls to hclust_plot() to render heatmap + dendrogram plots
 
 const clusterContainerId = "clusterDiv";
 
@@ -5626,10 +5593,10 @@ async function renderCluster() {
     </p>
     <div class="mb-3">
       <button id="downloadPrsMatrixBtn" class="btn btn-outline-secondary btn-sm">
-        ⬇ Download PRS Matrix JSON
+        ⬇ Download JSON
       </button>
       <button id="downloadPrsCsvBtn" class="btn btn-outline-secondary btn-sm ms-2">
-        ⬇ Build matrix &amp; download CSV
+        ⬇ Download CSV
       </button>
       <span class="text-muted small ms-2">ClustJS-compatible format: array of row objects with a <code>label</code> field and one field per PGS ID.</span>
     </div>

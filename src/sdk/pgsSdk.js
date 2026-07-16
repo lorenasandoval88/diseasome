@@ -7,5 +7,6 @@ export {
 	getScoresPerTrait,
 	getScoresPerCategory,
 	getTxts,
+	parseScore,
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 } from "https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs";

@@ -1,4 +1,4 @@
-import { getTxts } from "../sdk/pgsSdk.js";
+import { getTxts, parseScore } from "../sdk/pgsSdk.js";
 import {Match2 } from "../sdk/prs.js"
 // import { parsePGP23, load23andMeFile } from "../sdk/get23me.js";
 import { load23andMeFile } from "../sdk/pgpSdk.js";
@@ -129,7 +129,7 @@ window.clearPRSCache = clearPRSCache;
 async function clearPGSCache() {
 	const keys = await localforage.keys();
 	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
-	const pgsKeys = keys.filter(k => k.startsWith('pgs:id-PGS'));
+	const pgsKeys = keys.filter(k => k.startsWith('PGS_Catalog:id-PGS'));
 	for (const key of pgsKeys) {
 		await localforage.removeItem(key);
 	}
@@ -438,47 +438,7 @@ const FALLBACK_SCORES = [
 	}
 ];
 
-/*** Parse a PGS scoring file into structured data.
- * @param {string} id - PGS ID
- * @param {string} txt - Raw text content
- * @returns {Object} Parsed PGS data with cols and dt arrays
- */
-function parsePGS(id, txt) {
-	console.log(`Parsing PGS scoring file ${id} (${txt.length} chars)`);
-	const obj = { id };
-	obj.txt = txt;
-	const rows = txt.split(/\r\n|\r|\n/g);
-	const metaL = rows.filter(r => r[0] === '#').length;
-	obj.meta = { txt: rows.slice(0, metaL) };
-	
-	// Defensive check: ensure header row exists
-	if (metaL >= rows.length) {
-		console.error(`Invalid PGS file ${id}: no column headers found`);
-		obj.cols = [];
-		obj.dt = [];
-		return obj;
-	}
-	
-	obj.cols = rows[metaL].split(/\t/g);
-	obj.dt = rows.slice(metaL + 1).map(r => r.split(/\t/g)).filter(r => r.length > 1);
-	
-	// Parse numerical types
-	const indInt = [obj.cols.indexOf('chr_position'), obj.cols.indexOf('hm_pos')];
-	const indFloat = [obj.cols.indexOf('effect_weight'), obj.cols.indexOf('allelefrequency_effect')];
-	
-	obj.dt = obj.dt.map(r => {
-		indFloat.forEach(ind => { if (ind >= 0) r[ind] = parseFloat(r[ind]); });
-		indInt.forEach(ind => { if (ind >= 0) r[ind] = parseInt(r[ind]); });
-		return r;
-	});
-	
-	// Parse metadata
-	obj.meta.txt.filter(r => r[1] !== '#').forEach(aa => {
-		aa = aa.slice(1).split('=');
-		obj.meta[aa[0]] = aa[1];
-	});
-	return obj;
-}
+
 
 /*** Load and parse a local PGS scoring file.
  * @param {string} id - PGS ID
@@ -493,7 +453,7 @@ async function loadLocalPGSFile(id, path) {
 	}
 	const txt = await response.text();
 	console.log(`Loaded local PGS file ${id} from ${path}`,txt.slice(0,50));
-	return parsePGS(id, txt);
+	return parseScore(id, txt);
 }
 
 /** Escape HTML special characters */
@@ -656,6 +616,10 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 		if (resultsDiv) {
 			const rows = selectedUsers.map((user, idx) => {
 				const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
+				const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
+				const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
+					? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
+					: "";
 				const name = escapeHtml(user?.name ?? "");
 				const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
 				const genos = user?.genotypes ?? [];
@@ -668,7 +632,7 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 					<tr>
 						<td>${idx + 1}</td>
 						<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
-						<td>${id}</td>
+						<td>${displayId}${fileTag}</td>
 						<td>${name}</td>
 						<td>${published}</td>
 						<td>${genoCount}</td>

@@ -1,5 +1,9 @@
-import { load23andMeFile, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -261,10 +265,6 @@ const MAX_SELECTION = 10;
 const selectedUserIds = new Set();
 const selectedUsersMap = new Map(); // Map<id, userObject>
 
-// Active file-level filters (version/build/valid/size). Null when none are active.
-// Used to gray out / disable individual files that don't match on multi-file rows.
-let activeFileFilters = null;
-
 /** Get the currently selected user IDs. */
 window.getSelectedUserIds = () => Array.from(selectedUserIds);
 
@@ -280,7 +280,7 @@ window.clearPGPSelections = function () {
 		}
 	}
 	// Uncheck all PGP checkboxes in the participant table
-	document.querySelectorAll('#localUsersDiv input[type="checkbox"]').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+	document.querySelectorAll('#localUsersDiv input[type="checkbox"]').forEach(cb => cb.checked = false);
 	updateGlobalSelectionCount();
 };
 
@@ -304,9 +304,7 @@ window.clearUploadedFiles = function () {
  */
 function updateSelectionAvailability() {
 	const atLimit = selectedUserIds.size >= MAX_SELECTION;
-	// Parent (tri-state) checkboxes and filter-excluded file checkboxes are skipped —
-	// parents must always allow deselecting, and filtered-out files stay disabled.
-	document.querySelectorAll('#localUsersDiv .participant-select:not(.participant-parent):not(.file-filtered-out)').forEach((cb) => {
+	document.querySelectorAll('#localUsersDiv .participant-select').forEach((cb) => {
 		if (cb.checked) {
 			cb.disabled = false;
 			cb.title = '';
@@ -324,7 +322,7 @@ function updateGlobalSelectionCount() {
 
 	// Prominent sticky bar: label + filled progress indicator
 	const el = document.getElementById("globalSelectionCount2");
-	if (el) el.textContent = `${count} of ${MAX_SELECTION} files selected`;
+	if (el) el.textContent = `${count} of ${MAX_SELECTION} selected`;
 	const bar = document.getElementById("selectionProgressBar");
 	if (bar) {
 		const pct = Math.min(100, Math.round((count / MAX_SELECTION) * 100));
@@ -405,11 +403,6 @@ function renderSelectedUsersTable() {
 	}
 	const rows = selectedUsers.map((user, idx) => {
 		const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
-		const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
-		// Multi-file selections share a participant_id; show which file this row is.
-		const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
-			? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
-			: "";
 		const name = escapeHtml(user?.name ?? "");
 		const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
 		const genos = user?.genotypes ?? [];
@@ -425,7 +418,7 @@ function renderSelectedUsersTable() {
 			<tr>
 				<td>${idx + 1}</td>
 				<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
-				<td>${displayId}${fileTag}</td>
+				<td>${id}</td>
 				<td>${name}</td>
 				<td>${published}</td>
 				<td>${genoCount}</td>
@@ -472,7 +465,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -703,33 +696,6 @@ function validCategory(p) {
 	return p?.valid23File === true ? 'Valid' : (p?.valid23File === false ? 'Invalid' : 'Unknown');
 }
 
-/**
- * Whether a single file (or file-selection object) satisfies the currently active
- * file-level filters (version, build, valid, size). Demographic filters are
- * participant-level and don't distinguish individual files. Returns true when no
- * file-level filters are active.
- * @param {Object} file
- * @returns {boolean}
- */
-function fileMatchesActiveFilters(file) {
-	const f = activeFileFilters;
-	if (!f) return true;
-	if (f.versions && !f.versions.has(extractVersion(file) ?? 'Unknown')) return false;
-	if (f.builds) {
-		const raw = file.genomeBuild ?? file.build;
-		const key = (raw == null || raw === '') ? 'Unknown' : String(raw);
-		if (!f.builds.has(key)) return false;
-	}
-	if (f.valids && !f.valids.has(validCategory(file))) return false;
-	if (f.sizeMin != null || f.sizeMax != null) {
-		const n = Number(file.genomeBuildFiles?.[0]?.sizeMB ?? file.sizeMB);
-		if (!Number.isFinite(n)) return false;
-		if (f.sizeMin != null && n < f.sizeMin) return false;
-		if (f.sizeMax != null && n > f.sizeMax) return false;
-	}
-	return true;
-}
-
 /** Populate the Valid-23andMe checkbox filter from the current participants list. */
 function populateValidSelect() {
 	const sel = document.getElementById('participantsValidSelect');
@@ -822,29 +788,6 @@ function applyParticipantFilters() {
 		});
 	}
 
-	// Record file-level filters so multi-file rows can gray out / disable non-matching files,
-	// then drop any already-selected PGP file that no longer matches those filters.
-	activeFileFilters = (versions.length || builds.length || valids.length || sizeMin != null || sizeMax != null)
-		? {
-			versions: versions.length ? new Set(versions) : null,
-			builds: builds.length ? new Set(builds) : null,
-			valids: valids.length ? new Set(valids) : null,
-			sizeMin,
-			sizeMax,
-		}
-		: null;
-	let prunedSelection = false;
-	if (activeFileFilters) {
-		for (const [id, sel] of selectedUsersMap) {
-			if (sel.dataSource === 'file Upload') continue; // uploads aren't PGP files
-			if (!fileMatchesActiveFilters(sel)) {
-				selectedUsersMap.delete(id);
-				selectedUserIds.delete(id);
-				prunedSelection = true;
-			}
-		}
-	}
-
 	// Hide build/size/demographic filter controls when not in JSON mode (fields aren't available)
 	const buildDiv = document.getElementById('participantsBuildFilterDiv');
 	const sizeDiv = document.getElementById('participantsSizeFilterDiv');
@@ -875,8 +818,6 @@ function applyParticipantFilters() {
 	}
 	renderParticipantActiveFilters({ versions, builds, genders, races, ethnicities, valids, sizeMin, sizeMax });
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants - ${list.length} of ${participants.length}`, key);
-	// If filtering deselected any now-hidden files, refresh the sticky selection counter.
-	if (prunedSelection) updateGlobalSelectionCount();
 }
 window.applyParticipantFilters = applyParticipantFilters;
 
@@ -1127,135 +1068,6 @@ function applyActiveFile(p, idx) {
 }
 
 /**
- * Canonical participant id string.
- * @param {Object} p - Participant object.
- * @returns {string}
- */
-function participantIdOf(p) {
-	return String(p?.id ?? p?.participant_id ?? p?.name ?? '');
-}
-
-/**
- * Unique selection key for a specific file of a participant.
- * Single-file participants use their plain participant id (so behavior and the
- * genome cache key are unchanged); multi-file participants use a composite key.
- * @param {Object} p - Participant object.
- * @param {number} fi - File index.
- * @param {number} filesLen - Number of files for the participant.
- * @returns {string}
- */
-function fileKeyOf(p, fi, filesLen) {
-	const pid = participantIdOf(p);
-	return filesLen > 1 ? `${pid}#${fi}` : pid;
-}
-
-/**
- * Build a per-file selection object stored in selectedUsersMap and fed to the PRS pipeline.
- * @param {Object} p - Participant object.
- * @param {number} fi - File index.
- * @returns {Object}
- */
-function makeFileSelection(p, fi) {
-	const files = Array.isArray(p.files) ? p.files : [];
-	const multi = files.length > 1;
-	const src = files[fi] ?? files[0] ?? p; // fall back to participant when no curated files array
-	const pid = participantIdOf(p);
-	const gcsfilename = src.genomeBuildFiles?.[0]?.gcsfilename ?? src.gcsfilename ?? null;
-	const filename = gcsfilename ?? src.innerFilename ?? src.filename ?? src.fileName ?? src.genotypes?.[0]?.filename ?? '';
-	const rawName = nameFromFilename(src.finalUrl ?? src.downloadUrl ?? filename) || String(p.name ?? pid);
-	return {
-		id: fileKeyOf(p, fi, files.length),
-		participant_id: pid,
-		name: rawName,
-		_fileIndex: multi ? fi : 0,
-		// File-specific fields consumed by the PRS pipeline / tables
-		publishedDate: src.publishedDate ?? src.published_date ?? src.date ?? null,
-		dataType: src.dataType ?? null,
-		downloadUrl: src.downloadUrl ?? src.download_url ?? null,
-		finalUrl: src.finalUrl ?? null,
-		filename: src.filename ?? src.fileName ?? null,
-		innerFilename: src.innerFilename ?? null,
-		genomeBuild: src.genomeBuild ?? src.build ?? null,
-		genomeBuildFiles: src.genomeBuildFiles ?? [],
-		gcsfilename,
-		valid23File: src.valid23File ?? p.valid23File ?? null,
-		genotypes: src.genotypes ?? p.genotypes,
-		// Participant-level demographics (shared across that participant's files)
-		age: p.age ?? null,
-		gender: p.gender ?? null,
-		race: p.race ?? null,
-		ethnicity: p.ethnicity ?? null,
-		raceCategories: p.raceCategories ?? [],
-		ethnicityCategories: p.ethnicityCategories ?? [],
-		profileUrl: p.profileUrl ?? getProfileUrl(p),
-		profile: p.profile ?? null,
-		dataSource: p.dataSource,
-	};
-}
-
-/**
- * Add a single file of a participant to the selection, honoring MAX_SELECTION.
- * @param {Object} p - Participant object.
- * @param {number} fi - File index.
- * @returns {boolean} false if the selection limit blocked the add.
- */
-function addFileSelection(p, fi) {
-	const files = Array.isArray(p.files) ? p.files : [];
-	const key = fileKeyOf(p, fi, files.length);
-	if (selectedUserIds.has(key)) return true;
-	if (selectedUserIds.size >= MAX_SELECTION) return false;
-	selectedUserIds.add(key);
-	selectedUsersMap.set(key, makeFileSelection(p, fi));
-	return true;
-}
-
-/**
- * Remove a single file of a participant from the selection.
- * @param {Object} p - Participant object.
- * @param {number} fi - File index.
- * @returns {void}
- */
-function removeFileSelection(p, fi) {
-	const files = Array.isArray(p.files) ? p.files : [];
-	const key = fileKeyOf(p, fi, files.length);
-	selectedUserIds.delete(key);
-	selectedUsersMap.delete(key);
-}
-
-/**
- * Render the file-specific table cells (Valid, Version, Build, Size, Filename, Published, Download) for a file source.
- * @param {Object} src - A file object (or participant used as a single-file source).
- * @returns {{filename:string, filenameHtml:string, version:string, buildHtml:string, sizeHtml:string, validHtml:string, published:string, downloadHtml:string}}
- */
-function fileCells(src) {
-	const gcsfilename = src.genomeBuildFiles?.[0]?.gcsfilename ?? src.gcsfilename ?? null;
-	const filename = gcsfilename ?? src.innerFilename ?? src.filename ?? src.fileName ?? src.genotypes?.[0]?.filename ?? '';
-	const version = extractVersion(src) ?? '-';
-	const build = src.genomeBuild ?? src.build ?? '-';
-	const sizeMB = src.genomeBuildFiles?.[0]?.sizeMB ?? src.sizeMB ?? null;
-	const sizeHtml = (sizeMB != null) ? `${Number(sizeMB).toFixed(2)}` : '-';
-	const valid = src.valid23File;
-	const validHtml = valid === true
-		? '<span class="badge rounded-pill bg-success">✓ Valid</span>'
-		: (valid === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">—</span>');
-	const published = escapeHtml(String(getPublishedDate(src)));
-	const dl = getDownloadUrl(src);
-	const downloadHtml = dl
-		? `<a href="${escapeHtml(dl)}" target="_blank" rel="noopener" title="${escapeHtml(dl)}">${escapeHtml(truncateUrlForDisplay(dl))}</a>`
-		: '-';
-	return {
-		filename,
-		filenameHtml: filename ? escapeHtml(filename) : '-',
-		version: escapeHtml(String(version)),
-		buildHtml: escapeHtml(String(build)),
-		sizeHtml,
-		validHtml,
-		published,
-		downloadHtml,
-	};
-}
-
-/**
  * Render a paginated participants table with selection and pagination controls.
  * @param {Array<Object>} list - Array of participant objects to display.
  * @param {string} targetId - DOM element ID to render the table into.
@@ -1271,7 +1083,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 	let currentPage = 1;
 	let searchQuery = '';
 	const selectedIds = selectedUserIds; // Use module-level set
-	const expanded = new Set(); // participant ids whose file child-rows are shown
 
 	const renderPage = () => {
 		// Sort a copy of the list based on the current sortState
@@ -1326,29 +1137,48 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const pageItems = displayList.slice(startIndex, startIndex + ROWS_PER_PAGE);
 
 		const rowsHtml = pageItems.map((p, i) => {
-			const rowNum = startIndex + i + 1;
-			const pid = participantIdOf(p);
-			const pidEsc = escapeHtml(pid);
-			const files = Array.isArray(p.files) ? p.files : [];
-			const multiFile = files.length > 1;
-
-			// Participant display name (derived from a representative file or p.name)
+			const rawId = p.id ?? p.participant_id ?? p.name ?? `user_${startIndex + i + 1}`;
+			const pid = escapeHtml(String(rawId));
+			// Multiple files per participant: reflect the active file and allow paging through them.
+			const pFiles = Array.isArray(p.files) ? p.files : [];
+			const multiFile = pFiles.length > 1;
+			if (multiFile) {
+				if (p._activeFileIndex == null) p._activeFileIndex = defaultFileIndex(p);
+				applyActiveFile(p, p._activeFileIndex);
+			}
 			const genoFilename =
 				p.fileName ??
 				p.finalUrl ??
-				files[0]?.finalUrl ??
-				files[0]?.downloadUrl ??
 				p.genotypes?.[0]?.filename ??
 				p.genotypes?.[0]?.download_url ??
 				p.downloadUrl ??
 				p.download_url;
+			//console.log('[displayUsers] participant fields:', p.id, { fileName: p.fileName, finalUrl: p.finalUrl, downloadUrl: p.downloadUrl, geno0: p.genotypes?.[0] });
 			const rawName = nameFromFilename(genoFilename) || String(p.name ?? "");
 			// Enrich the participant object so selectedUsersMap stores the full name
 			p.name = rawName || p.name;
 			const name = escapeHtml(rawName);
 			const displayName = escapeHtml(rawName.length > 14 ? rawName.slice(0, 14) + '...' : rawName);
 
-			// Participant-level demographic cells (shared across a participant's files)
+			const published = escapeHtml(String(getPublishedDate(p)));
+			const profileUrl = getProfileUrl(p);
+			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
+
+			const downloadUrl = getDownloadUrl(p);
+			const downloadHtml = downloadUrl
+				? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener" title="${escapeHtml(downloadUrl)}">${escapeHtml(truncateUrlForDisplay(downloadUrl))}</a>`
+				: "-";
+			const checked = selectedIds.has(String(rawId)) ? 'checked' : '';
+			const version = extractVersion(p) ?? '-';
+
+			// Curated-JSON extras
+			const filename = p.gcsfilename ?? p.innerFilename ?? p.filename ?? p.fileName ?? p.genotypes?.[0]?.filename ?? '';
+			const filenameHtml = filename ? escapeHtml(filename) : '-';
+			const build = p.genomeBuild ?? p.build ?? '-';
+			const sizeMB = p.genomeBuildFiles?.[0]?.sizeMB ?? p.sizeMB ?? null;
+			const sizeHtml = (sizeMB != null) ? `${Number(sizeMB).toFixed(2)}` : '-';
+
+			// New demographic / validity columns
 			const ageHtml = (p.age != null && p.age !== '') ? escapeHtml(String(p.age)) : '-';
 			const genderHtml = p.gender ? escapeHtml(String(p.gender)) : '-';
 			const raceCats = (Array.isArray(p.raceCategories) && p.raceCategories.length) ? p.raceCategories.join(', ') : (p.race || '');
@@ -1357,143 +1187,39 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const ethnicityHtml = ethnicityCats ? escapeHtml(String(ethnicityCats)) : '-';
 			const raceTitle = p.race ? escapeHtml(String(p.race)) : raceHtml;
 			const ethnicityTitle = p.ethnicity ? escapeHtml(String(p.ethnicity)) : ethnicityHtml;
-			const profileUrl = getProfileUrl(p);
-			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
+			const valid23 = p.valid23File;
+			const valid23Html = valid23 === true
+				? '<span class="badge rounded-pill bg-success">✓ Valid</span>'
+				: (valid23 === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">—</span>');
 
-			// Selection state for this participant's file(s)
-			let selCount = 0;
-			if (multiFile) {
-				for (let fi = 0; fi < files.length; fi++) if (selectedIds.has(fileKeyOf(p, fi, files.length))) selCount++;
-			} else if (selectedIds.has(pid)) {
-				selCount = 1;
-			}
-
-			// Single-file participant: one flat row, its checkbox selects that file. No expander.
-			if (!multiFile) {
-				const c = fileCells(files[0] ?? p);
-				return `
-					<tr>
-						<td></td>
-						<td>${rowNum}</td>
-						<td><input class="participant-select" type="checkbox" data-id="${pidEsc}" data-fi="0" value="${pidEsc}" ${selCount === 1 ? 'checked' : ''} /></td>
-						<td>${pidEsc}</td>
-						<td title="${name}">${displayName}</td>
-						<td class="text-end">${ageHtml}</td>
-						<td>${genderHtml}</td>
-						<td title="${raceTitle}">${raceHtml}</td>
-						<td title="${ethnicityTitle}">${ethnicityHtml}</td>
-						<td class="text-center">${c.validHtml}</td>
-						<td>${c.version}</td>
-						<td class="text-end">${c.buildHtml}</td>
-						<td class="text-end">${c.sizeHtml}</td>
-						<td style="max-width:200px;"><div class="text-truncate" style="max-width:190px;" title="${escapeHtml(c.filename)}">${c.filenameHtml}</div></td>
-						<td>${c.published}</td>
-						<td>${profileHtml}</td>
-						<td>${c.downloadHtml}</td>
-					</tr>
-				`;
-			}
-
-			// Multi-file participant: a parent identity row (tri-state "select all files"
-			// checkbox + caret + count badge) plus per-file child rows when expanded.
-			const isExp = expanded.has(pid);
-			// Per-file match against the active file-level filters (version/build/valid/size).
-			const fileMatch = files.map(f => fileMatchesActiveFilters(f));
-			const matchCount = fileMatch.reduce((n, ok) => n + (ok ? 1 : 0), 0);
-			const hiddenByFilter = files.length - matchCount;
-			// All selected files are matching ones (non-matching are pruned on filter change).
-			const allSel = matchCount > 0 && selCount === matchCount;
-			const parentDisabled = matchCount === 0;
-			const summaryText = parentDisabled
-				? 'no files match filters'
-				: (selCount
-					? `${selCount} of ${matchCount} selected`
-					: (isExp ? 'select files below' : 'expand to select'))
-					+ (hiddenByFilter ? ` · ${hiddenByFilter} filtered out` : '');
-			const matchBadge = hiddenByFilter
-				? ` <span class="badge bg-warning text-dark rounded-pill ms-1" title="${hiddenByFilter} file(s) don't match the active filters">${matchCount}/${files.length} match</span>`
-				: '';
-			const parentRow = `
-				<tr class="file-parent-row${parentDisabled ? ' file-parent-nomatch' : ''}">
-					<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none file-expander" data-id="${pidEsc}" aria-expanded="${isExp}" title="${isExp ? 'Collapse' : 'Expand'} files">${isExp ? '▾' : '▸'}</button></td>
-					<td>${rowNum}</td>
-					<td><input class="participant-select participant-parent" type="checkbox" data-id="${pidEsc}" ${allSel ? 'checked' : ''} ${parentDisabled ? 'disabled' : ''} title="${parentDisabled ? 'No files match the active filters' : 'Select all matching files for this participant'}" /></td>
-					<td>${pidEsc} <span class="badge bg-secondary rounded-pill ms-1" title="${files.length} files available">${files.length} files</span>${matchBadge}</td>
+			return `
+				<tr>
+					<td>${startIndex + i + 1}</td>
+					<td><input class="participant-select" type="checkbox" value="${escapeHtml(String(rawId))}" ${checked} /></td>
+					<td>${pid}</td>
 					<td title="${name}">${displayName}</td>
 					<td class="text-end">${ageHtml}</td>
 					<td>${genderHtml}</td>
 					<td title="${raceTitle}">${raceHtml}</td>
 					<td title="${ethnicityTitle}">${ethnicityHtml}</td>
-					<td class="text-center text-muted">—</td>
-					<td class="text-muted">—</td>
-					<td class="text-end text-muted">—</td>
-					<td class="text-end text-muted">—</td>
-					<td style="max-width:200px;"><span class="small ${selCount ? 'text-success fw-semibold' : 'text-muted fst-italic'}">${summaryText}</span></td>
-					<td class="text-muted">—</td>
+					<td class="text-center">${valid23Html}</td>
+					<td>${version}</td>
+					<td class="text-end">${escapeHtml(String(build))}</td>
+					<td class="text-end">${sizeHtml}</td>
+					<td style="max-width:200px;">
+						<div class="text-truncate" style="max-width:190px;" title="${escapeHtml(filename)}">${filenameHtml}</div>
+						${multiFile ? `<div class="btn-group btn-group-sm mt-1" role="group" aria-label="Switch file">
+							<button type="button" class="btn btn-outline-secondary py-0 px-1 file-prev" data-id="${pid}" title="Previous file" ${p._activeFileIndex <= 0 ? 'disabled' : ''}>&lsaquo;</button>
+							<span class="btn btn-outline-secondary py-0 px-1 disabled" title="File ${p._activeFileIndex + 1} of ${pFiles.length}">${p._activeFileIndex + 1}/${pFiles.length}</span>
+							<button type="button" class="btn btn-outline-secondary py-0 px-1 file-next" data-id="${pid}" title="Next file" ${p._activeFileIndex >= pFiles.length - 1 ? 'disabled' : ''}>&rsaquo;</button>
+						</div>` : ''}
+					</td>
+					<td>${published}</td>
 					<td>${profileHtml}</td>
-					<td class="text-muted">—</td>
+					<td>${downloadHtml}</td>
 				</tr>
 			`;
-			let childRows = '';
-			if (isExp) {
-				childRows = files.map((f, fi) => {
-					const key = fileKeyOf(p, fi, files.length);
-					const cc = fileCells(f);
-					const cName = escapeHtml(nameFromFilename(f.finalUrl ?? f.downloadUrl ?? cc.filename) || rawName);
-					const matches = fileMatch[fi];
-					const rowCls = matches ? 'file-child-row' : 'file-child-row file-row-filtered';
-					const cbCls = matches ? 'participant-select file-select' : 'participant-select file-select file-filtered-out';
-					const cbAttrs = matches
-						? `${selectedIds.has(key) ? 'checked' : ''}`
-						: `disabled title="This file doesn't match the active filters"`;
-					const fileLabel = matches
-						? `↳ file ${fi + 1}`
-						: `↳ file ${fi + 1} <span class="badge bg-light text-muted border">filtered</span>`;
-					return `
-						<tr class="${rowCls}" data-parent="${pidEsc}">
-							<td></td>
-							<td class="text-end text-muted small">${rowNum}.${fi + 1}</td>
-							<td><input class="${cbCls}" type="checkbox" data-id="${pidEsc}" data-fi="${fi}" value="${escapeHtml(key)}" ${cbAttrs} /></td>
-							<td class="text-muted small">${fileLabel}</td>
-							<td class="text-muted small" title="${cName}">${cName}</td>
-							<td></td>
-							<td></td>
-							<td></td>
-							<td></td>
-							<td class="text-center">${cc.validHtml}</td>
-							<td>${cc.version}</td>
-							<td class="text-end">${cc.buildHtml}</td>
-							<td class="text-end">${cc.sizeHtml}</td>
-							<td style="max-width:200px;"><div class="text-truncate" style="max-width:190px;" title="${escapeHtml(cc.filename)}">${cc.filenameHtml}</div></td>
-							<td>${cc.published}</td>
-							<td></td>
-							<td>${cc.downloadHtml}</td>
-						</tr>
-					`;
-				}).join('');
-			}
-			return parentRow + childRows;
 		}).join('');
-
-		// Total selectable "files" across the full (unpaginated) list, for the header Select-all state.
-		// Only files matching the active file-level filters count as selectable.
-		let totalFilesInList = 0;
-		for (const it of list) {
-			const itFiles = Array.isArray(it.files) ? it.files : [];
-			if (itFiles.length > 1) {
-				for (let fi = 0; fi < itFiles.length; fi++) if (fileMatchesActiveFilters(itFiles[fi])) totalFilesInList++;
-			} else {
-				totalFilesInList += 1;
-			}
-		}
-		const selectAllChecked = selectedIds.size > 0 && selectedIds.size >= Math.min(totalFilesInList, MAX_SELECTION);
-
-		// Multi-file participants (in the current filtered list) drive the expand/collapse-all control.
-		const multiFileIds = displayList
-			.filter(p => (Array.isArray(p.files) ? p.files.length : 0) > 1)
-			.map(p => participantIdOf(p));
-		const hasMultiFile = multiFileIds.length > 0;
-		const allExpanded = hasMultiFile && multiFileIds.every(id => expanded.has(id));
 
 		// (Selection table in the PRS tab is rendered by renderSelectedUsersTable() —
 		//  do NOT clear #prsUsersAction here, or it would wipe on every filter/sort.)
@@ -1505,7 +1231,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<button id="downloadJsonBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as JSON">Download JSON</button>
 					<button id="downloadCsvBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as CSV">Download CSV</button>
 					<label class="form-check-label me-2" for="selectAllParticipants_${key}">Select all</label>
-					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${selectAllChecked ? 'checked' : ''} />
+					<input class="form-check-input" id="selectAllParticipants_${key}" type="checkbox" ${list.length > 0 && selectedIds.size === list.length ? 'checked' : ''} />
 					<button id="deselectAllParticipants_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;">Deselect all</button>
 				</div>
 			</div>
@@ -1517,7 +1243,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 				<table class="table table-sm table-striped table-bordered align-middle">
 					<thead class="table-dark">
 						<tr>
-							<th style="width:32px;" class="text-center p-1">${hasMultiFile ? `<button type="button" id="expandAllFiles_${key}" class="btn btn-sm p-0 file-expander-all" aria-expanded="${allExpanded}" title="${allExpanded ? 'Collapse all files' : 'Expand all files'}" aria-label="${allExpanded ? 'Collapse all files' : 'Expand all files'}">${allExpanded ? '▾' : '▸'}</button>` : ''}</th>
 							<th>#</th>
 							<th>Select</th>
 							<th>Participant ID</th>
@@ -1542,7 +1267,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</table>
 			</div>
 			<div class="d-flex justify-content-between align-items-center mt-2">
-			<div id="selectedParticipantsSummary_${key}" class="small text-muted">${selectedIds.size} of ${MAX_SELECTION} files selected</div>
+			<div id="selectedParticipantsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -1555,6 +1280,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const deselectAllBtn = document.getElementById(`deselectAllParticipants_${key}`);
 		const downloadJsonBtn = document.getElementById(`downloadJsonBtn_${key}`);
 		const downloadCsvBtn = document.getElementById(`downloadCsvBtn_${key}`);
+		const rowCheckboxes = Array.from(container.querySelectorAll('.participant-select'));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
 		const searchInput = document.getElementById(`participantSearch_${key}`);
@@ -1604,139 +1330,81 @@ function renderParticipantsTable(list, targetId, title, key) {
 			});
 		});
 
-		// Flash the shared "selection limit reached" message.
-		const flashLimit = () => {
-			const limitMsg = document.getElementById('selectionLimitMsg');
-			if (!limitMsg) return;
-			limitMsg.style.display = '';
-			limitMsg.classList.remove('flash-attention');
-			void limitMsg.offsetWidth; // restart animation
-			limitMsg.classList.add('flash-attention');
-		};
-		// Re-render the page and refresh the global sticky counter after a selection change.
-		const afterSelectionChange = () => {
-			renderPage();
-			updateGlobalSelectionCount();
-		};
-
-		// Expander caret: toggle a participant's file child-rows.
-		container.querySelectorAll('.file-expander').forEach((btn) => {
+		// Per-row file pager: switch which file (of multiple) is shown for a participant
+		container.querySelectorAll('.file-prev, .file-next').forEach((btn) => {
 			btn.addEventListener('click', () => {
 				const id = btn.dataset.id;
-				if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
+				const p = list.find(it => String(it.id ?? it.participant_id ?? it.name) === id);
+				if (!p) return;
+				const files = Array.isArray(p.files) ? p.files : [];
+				const cur = p._activeFileIndex ?? defaultFileIndex(p);
+				const next = btn.classList.contains('file-next') ? cur + 1 : cur - 1;
+				if (next < 0 || next >= files.length) return;
+				applyActiveFile(p, next);
+				// Keep the selection map in sync (same object reference, but re-set for clarity)
+				if (selectedUsersMap.has(id)) selectedUsersMap.set(id, p);
 				renderPage();
 			});
 		});
-
-		// Header caret: expand or collapse every multi-file participant at once.
-		const expandAllBtn = document.getElementById(`expandAllFiles_${key}`);
-		if (expandAllBtn) {
-			expandAllBtn.addEventListener('click', () => {
-				const ids = displayList
-					.filter(p => (Array.isArray(p.files) ? p.files.length : 0) > 1)
-					.map(p => participantIdOf(p));
-				const everyExpanded = ids.length > 0 && ids.every(id => expanded.has(id));
-				if (everyExpanded) ids.forEach(id => expanded.delete(id));
-				else ids.forEach(id => expanded.add(id));
-				renderPage();
-			});
-		}
 
 		if (deselectAllBtn) {
 			deselectAllBtn.addEventListener('click', () => {
 				selectedIds.clear();
 				selectedUsersMap.clear();
 				if (selectAll) selectAll.checked = false;
-				afterSelectionChange();
+				renderPage();
+				updateGlobalSelectionCount();
 			});
 		}
 
 		if (selectAll) {
 			selectAll.addEventListener('change', () => {
 				if (selectAll.checked) {
-					// Select files across participants, in list order, up to MAX_SELECTION.
-					// Skip files that don't match the active file-level filters.
-					let hitLimit = false;
-					for (const it of list) {
-						const files = Array.isArray(it.files) ? it.files : [];
-						const n = files.length > 1 ? files.length : 1;
-						for (let fi = 0; fi < n; fi++) {
-							if (files.length > 1 && !fileMatchesActiveFilters(files[fi])) continue;
-							if (!addFileSelection(it, fi)) { hitLimit = true; break; }
-						}
-						if (hitLimit) break;
+					// Limit to first MAX_SELECTION items
+					list.slice(0, MAX_SELECTION).forEach((it) => {
+						const id = String(it.id ?? it.participant_id ?? it.name);
+						selectedIds.add(id);
+						selectedUsersMap.set(id, it);
+					});
+					if (list.length > MAX_SELECTION) {
+						alert(`Selection limited to ${MAX_SELECTION} items.`);
 					}
-					if (hitLimit) flashLimit();
 				} else {
 					selectedIds.clear();
 					selectedUsersMap.clear();
 				}
-				afterSelectionChange();
+				renderPage();
+				updateGlobalSelectionCount();
 			});
 		}
 
-		// Single-file participant checkbox: selects/deselects that one file.
-		container.querySelectorAll('.participant-select:not(.participant-parent):not(.file-select)').forEach((cb) => {
+		rowCheckboxes.forEach((cb) => {
+			const user = list.find(it => String(it.id ?? it.participant_id ?? it.name) === cb.value);
 			cb.addEventListener('change', () => {
-				const p = list.find(it => participantIdOf(it) === cb.dataset.id);
-				if (!p) return;
 				if (cb.checked) {
-					if (!addFileSelection(p, 0)) { cb.checked = false; flashLimit(); return; }
-				} else {
-					removeFileSelection(p, 0);
-				}
-				afterSelectionChange();
-			});
-		});
-
-		// Child (per-file) checkbox: selects/deselects a single file of a multi-file participant.
-		container.querySelectorAll('.file-select').forEach((cb) => {
-			cb.addEventListener('change', () => {
-				const p = list.find(it => participantIdOf(it) === cb.dataset.id);
-				if (!p) return;
-				const fi = Number(cb.dataset.fi);
-				if (cb.checked) {
-					if (!addFileSelection(p, fi)) { cb.checked = false; flashLimit(); return; }
-				} else {
-					removeFileSelection(p, fi);
-				}
-				afterSelectionChange();
-			});
-		});
-
-		// Parent tri-state checkbox: selects/deselects all matching files of a participant.
-		container.querySelectorAll('.participant-parent').forEach((cb) => {
-			cb.addEventListener('change', () => {
-				const p = list.find(it => participantIdOf(it) === cb.dataset.id);
-				if (!p) return;
-				const files = Array.isArray(p.files) ? p.files : [];
-				if (cb.checked) {
-					let hitLimit = false;
-					for (let fi = 0; fi < files.length; fi++) {
-						if (!fileMatchesActiveFilters(files[fi])) continue;
-						if (!addFileSelection(p, fi)) { hitLimit = true; break; }
+					if (selectedIds.size >= MAX_SELECTION) {
+						cb.checked = false;
+						const limitMsg = document.getElementById('selectionLimitMsg');
+						if (limitMsg) {
+							limitMsg.style.display = '';
+							limitMsg.classList.remove('flash-attention');
+							void limitMsg.offsetWidth; // restart animation
+							limitMsg.classList.add('flash-attention');
+						}
+						return;
 					}
-					if (hitLimit) flashLimit();
+					selectedIds.add(cb.value);
+					if (user) selectedUsersMap.set(cb.value, user);
 				} else {
-					for (let fi = 0; fi < files.length; fi++) removeFileSelection(p, fi);
+					selectedIds.delete(cb.value);
+					selectedUsersMap.delete(cb.value);
 				}
-				afterSelectionChange();
-			});
-		});
+				if (selectAll) selectAll.checked = list.length > 0 && selectedIds.size === Math.min(list.length, MAX_SELECTION);
+				const summary = document.getElementById(`selectedParticipantsSummary_${key}`);
+				if (summary) summary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
+				updateGlobalSelectionCount();
 
-		// Mark partially-selected parents as indeterminate (must be set via JS after render).
-		// Only matching files count toward the "all selected" state.
-		container.querySelectorAll('.participant-parent').forEach((cb) => {
-			const p = list.find(it => participantIdOf(it) === cb.dataset.id);
-			if (!p) return;
-			const files = Array.isArray(p.files) ? p.files : [];
-			let c = 0, m = 0;
-			for (let fi = 0; fi < files.length; fi++) {
-				if (!fileMatchesActiveFilters(files[fi])) continue;
-				m++;
-				if (selectedIds.has(fileKeyOf(p, fi, files.length))) c++;
-			}
-			cb.indeterminate = c > 0 && c < m;
+			});
 		});
 
 		if (prevPageBtn) prevPageBtn.addEventListener('click', () => { currentPage -= 1; renderPage(); });
@@ -2152,3 +1820,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-Dm0sPvP-.mjs.map

@@ -61,6 +61,100 @@
     font-weight: 400;
 }
 
+/* Sticky table header for long lists: header stays visible while scrolling.
+   Bound the wrapper height so the table body scrolls under a pinned header. */
+.table-responsive.sticky-scroll {
+    max-height: 60vh;
+    overflow: auto;
+}
+.table-responsive.sticky-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+/* Active-filter chips (removable) shown in the filter bar */
+.active-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    background: #e7f1ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 999px;
+    color: #084298;
+}
+.active-filter-chip .chip-remove {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #084298;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0;
+}
+.active-filter-chip .chip-remove:hover {
+    color: #d6336c;
+}
+
+/* Expandable multi-file participant rows */
+.file-expander {
+    color: #495057;
+    font-size: 1.9rem;
+    line-height: 1;
+}
+.file-expander:hover {
+    color: #0d6efd;
+}
+/* Expand/collapse-all caret in the (dark) table header */
+.file-expander-all,
+.table-dark .file-expander-all {
+    color: #fff !important;
+    font-size: 1.25rem;
+    line-height: 1;
+    border: none;
+    background: transparent;
+}
+.file-expander-all:hover,
+.table-dark .file-expander-all:hover {
+    color: #9ec5fe !important;
+}
+/* Multi-file group: parent identity row + its file child-rows share a tinted
+   background and a blue left accent so the group reads as one unit distinct
+   from the striped single-file rows. */
+tr.file-parent-row > td {
+    background-color: #dce9fb;
+    font-weight: 500;
+}
+tr.file-parent-row > td:first-child {
+    border-left: 4px solid #0d6efd;
+}
+tr.file-child-row > td {
+    background-color: #f1f7ff;
+    border-top: 1px dashed #cfe0f5;
+}
+tr.file-child-row > td:first-child {
+    border-left: 4px solid #9ec5fe;
+}
+tr.file-child-row:hover > td {
+    background-color: #e5f0ff;
+}
+/* A file that doesn't match the active filters: grayed out and not selectable. */
+tr.file-row-filtered > td {
+    opacity: 0.5;
+    background-color: #f3f4f6;
+    font-style: italic;
+}
+tr.file-row-filtered input[type="checkbox"] {
+    cursor: not-allowed;
+}
+/* Multi-file parent whose files all fail the active filters. */
+tr.file-parent-nomatch > td {
+    opacity: 0.6;
+}
+
 /* White text for navbar */
 .navbar-dark .nav-link,
 .navbar-dark .navbar-brand {

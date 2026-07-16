@@ -1,5 +1,8 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
-import localforage from "localforage";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getTxts, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
 
 /*
  Module: displayScores.js
@@ -33,11 +36,6 @@ function setPgsLoadingStatus(message, isError = false, progress = 0) {
 
 let data = { scoresPerTrait: {} };
 let data2 = { scoresPerCategory: {} };
-
-// Total distinct scoring files available in the PGS Catalog. Sourced from the
-// cached all-score summary ("PGS_Catalog:all-score-summary") via fetchAllScores();
-// falls back to the trait+category union count below if the summary is unavailable.
-let totalAvailableScores = 0;
 
 
 /**
@@ -77,9 +75,6 @@ try {
 
 	data = scoresPerTrait ?? { scoresPerTrait: {} };
 	data2 = scoresPerCategory ?? { scoresPerCategory: {} };
-
-	// Total scores available comes from the cached all-score summary.
-	totalAvailableScores = allScoresResult?.summary?.totalScores ?? allScoresResult?.scores?.length ?? 0;
 
 	const traitsSrc = describePgsSource(traitsResult?.source);
 	const scoresSrc = describePgsSource(allScoresResult?.source);
@@ -185,7 +180,7 @@ window.clearPgsTxtCache = clearPgsTxtCache;
 // Dynamic variant filter state
 let variantMin = 1;
 let variantMax = 100;
-const ALL_VALUE = "__all_categories__";
+const ALL_VALUE = "__all_traits__";
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10; // Max number of scores that can be selected at once for PRS calculation
 
@@ -211,22 +206,8 @@ window.clearSelectedScores = () => {
 
 /** Update the global selection count display. */
 function updateGlobalSelectionCount() {
-	const count = selectedPgsIds.size;
-	const atLimit = count >= MAX_SELECTION;
-
-	// Prominent sticky bar: label + filled progress indicator (mirrors tab 1)
 	const el = document.getElementById("globalSelectionCount");
-	if (el) el.textContent = `${count} of ${MAX_SELECTION} selected`;
-	const bar = document.getElementById("pgsSelectionProgressBar");
-	if (bar) {
-		const pct = Math.min(100, Math.round((count / MAX_SELECTION) * 100));
-		bar.style.width = `${pct}%`;
-		bar.setAttribute("aria-valuenow", String(count));
-		bar.classList.toggle("bg-success", !atLimit);
-		bar.classList.toggle("bg-danger", atLimit);
-	}
-	const limitMsg = document.getElementById("pgsSelectionLimitMsg");
-	if (limitMsg) limitMsg.style.display = atLimit ? "" : "none";
+	if (el) el.textContent = `Selected: ${selectedPgsIds.size} / ${MAX_SELECTION}`;
 
 	// Show/hide the contextual "Fetch PGS Files" button
 	const fetchPgsFilesBtn = document.getElementById("fetchPgsFilesBtn");
@@ -372,181 +353,9 @@ const allTraitScores = allTraitScoresRaw.filter((score) => {
 // console.log(`displayScores.js: Deduplicated trait scores from ${allTraitScoresRaw.length} to ${allTraitScores.length}`,allTraitScores.slice(0,10));
 // console.log(`displayScores.js: Loaded ${allTraitScores.length} PGS entries across ${traits.length} traits`,allTraitScores);
 
-// Fallback: if the cached all-score summary wasn't available, derive the total
-// from the union of trait + category scores (deduplicated by PGS ID).
-if (!totalAvailableScores) {
-	const totalAvailableIds = new Set();
-	[...allTraitScores, ...allCategoryScores].forEach((s) => {
-		const id = s?.id ?? "";
-		if (id) totalAvailableIds.add(id);
-	});
-	totalAvailableScores = totalAvailableIds.size;
-}
-console.log(`displayScores.js: ${totalAvailableScores} total scoring files available`);
-
 /** Get trait scores filtered by current variant range. */
 function getFilteredTraitScores() {
 	return allTraitScores.filter(passesVariantFilter).sort(compareScores);
-}
-
-// --- Separate Category + Trait filters --------------------------------------
-// Map each category to the sorted list of distinct traits it contains, so the
-// user can pick a category and then narrow to traits within that category.
-const categoryTraitsMap = new Map();
-for (const [cat, scores] of categoryScoresMap) {
-	const set = new Set();
-	(scores ?? []).forEach((s) => {
-		const t = s?.trait_reported;
-		if (t) set.add(String(t));
-	});
-	categoryTraitsMap.set(cat, Array.from(set).sort((a, b) => a.localeCompare(b)));
-}
-
-// Selection state for the category/trait filters.
-const selectedCategories = new Set(); // checked category names (empty = all)
-const selectedTraits = new Set(); // checked trait names within the category
-let traitSearchQuery = ""; // free-text filter for the trait checkbox list
-
-/** Base score list for the current category selection (before trait/variant filtering). */
-function getCategoryBaseScores() {
-	if (!selectedCategories.size) return allTraitScores;
-	const seen = new Set();
-	const out = [];
-	for (const cat of selectedCategories) {
-		for (const s of categoryScoresMap.get(cat) ?? []) {
-			const id = s?.id ?? "";
-			if (seen.has(id)) continue;
-			seen.add(id);
-			out.push(s);
-		}
-	}
-	return out;
-}
-
-/** Compute the scores matching the current category + trait + variant selection. */
-function getSelectionScores() {
-	let scores = getCategoryBaseScores();
-	if (selectedTraits.size) {
-		scores = scores.filter((s) => selectedTraits.has(String(s?.trait_reported ?? "")));
-	}
-	const seen = new Set();
-	return scores
-		.filter(passesVariantFilter)
-		.filter((s) => {
-			const id = s?.id ?? "";
-			if (seen.has(id)) return false;
-			seen.add(id);
-			return true;
-		})
-		.sort(compareScores);
-}
-
-/** Render the score table for the current category/trait/variant selection. */
-function renderPgsFromSelection() {
-	const scores = getSelectionScores();
-	const catLabel = selectedCategories.size
-		? `${selectedCategories.size} categor${selectedCategories.size === 1 ? "y" : "ies"}`
-		: "All categories";
-	const traitLabel = selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
-	const title = `PGS Catalog Scoring Files - ${scores.length} of ${totalAvailableScores}`;
-	const key = sanitizeKey(`sel_${Array.from(selectedCategories).join("_")}_${Array.from(selectedTraits).join("_")}`) || "sel";
-	renderPgsTable(scores, "scoresDiv", title, key);
-	renderActiveFilterChips();
-}
-
-/** Render the category checkboxes with variant-filtered counts. */
-function renderCategoryChecks() {
-	const container = document.getElementById("pgsCategoryChecks");
-	if (!container) return;
-
-	if (!categories.length) {
-		container.innerHTML = `<div class="small text-muted p-1">No categories found.</div>`;
-		return;
-	}
-
-	container.innerHTML = categories
-		.map((cat) => {
-			const count = (categoryScoresMap.get(cat) ?? []).filter(passesVariantFilter).length;
-			const checked = selectedCategories.has(cat) ? "checked" : "";
-			return (
-				`<label class="filter-chip"><input type="checkbox" value="${escapeHtml(cat)}" ${checked}/>` +
-				`<span class="filter-chip-label" title="${escapeHtml(cat)}">${escapeHtml(cat)}</span>` +
-				`<span class="filter-chip-count">${count}</span></label>`
-			);
-		})
-		.join("");
-
-	container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-		cb.addEventListener("change", () => {
-			if (cb.checked) selectedCategories.add(cb.value);
-			else selectedCategories.delete(cb.value);
-			pruneSelectedTraits();
-			renderTraitChecks();
-			renderPgsFromSelection();
-		});
-	});
-}
-
-/** Drop any checked traits that are no longer present in the current category base. */
-function pruneSelectedTraits() {
-	if (!selectedTraits.size) return;
-	const available = new Set(
-		getCategoryBaseScores().map((s) => String(s?.trait_reported ?? "")).filter(Boolean)
-	);
-	for (const t of Array.from(selectedTraits)) {
-		if (!available.has(t)) selectedTraits.delete(t);
-	}
-}
-
-/** Render the trait checkboxes for the current category (or all categories). */
-function renderTraitChecks() {
-	const container = document.getElementById("pgsTraitChecks");
-	if (!container) return;
-
-	// Count scores per trait (by trait_reported) within the current base + variant range.
-	// Base is the whole catalog when no category is selected, else the category's scores.
-	const counts = new Map();
-	getCategoryBaseScores()
-		.filter(passesVariantFilter)
-		.forEach((s) => {
-			const t = String(s?.trait_reported ?? "");
-			if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
-		});
-
-	let universe = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b));
-	const total = universe.length;
-
-	// Optional free-text search to keep the (large) trait list findable.
-	const q = traitSearchQuery.trim().toLowerCase();
-	if (q) universe = universe.filter((t) => t.toLowerCase().includes(q));
-
-	if (!total) {
-		container.innerHTML = `<div class="small text-muted p-1">No traits within the variant range.</div>`;
-		return;
-	}
-	if (!universe.length) {
-		container.innerHTML = `<div class="small text-muted p-1">No traits match “${escapeHtml(traitSearchQuery)}”.</div>`;
-		return;
-	}
-
-	container.innerHTML = universe
-		.map((t) => {
-			const checked = selectedTraits.has(t) ? "checked" : "";
-			return (
-				`<label class="filter-chip"><input type="checkbox" value="${escapeHtml(t)}" ${checked}/>` +
-				`<span class="filter-chip-label" title="${escapeHtml(t)}">${escapeHtml(t)}</span>` +
-				`<span class="filter-chip-count">${counts.get(t) ?? 0}</span></label>`
-			);
-		})
-		.join("");
-
-	container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-		cb.addEventListener("change", () => {
-			if (cb.checked) selectedTraits.add(cb.value);
-			else selectedTraits.delete(cb.value);
-			renderPgsFromSelection();
-		});
-	});
 }
 
 
@@ -645,7 +454,7 @@ function renderPgsTable(scores, targetId, title, key) {
 				<input id="pgsSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by PGS ID, name, or trait…" value="${escapeHtml(searchQuery)}" />
 				<div class="small text-muted mt-1">Showing ${filtered.length} of ${scores.length} scores</div>
 			</div>
-			<div class="table-responsive sticky-scroll">
+			<div class="table-responsive">
 				<table class="table table-sm table-striped table-bordered align-middle">
 					<thead  class="table-dark">
 						<tr>
@@ -802,85 +611,6 @@ function renderScores(value, type = "Trait") {
 		: `${type}: ${value} (${scores.length} scoring files)`;
 
 	renderPgsTable(scores, "scoresDiv", title, key);
-	renderActiveFilterChips(value, type);
-}
-
-/**
- * Render removable chips for the currently active filters (category, traits, and
- * variant-count range). Clicking a chip's ✕ clears that filter.
- */
-function renderActiveFilterChips() {
-	const el = document.getElementById("pgsActiveFilters");
-	if (!el) return;
-
-	const chips = [];
-
-	Array.from(selectedCategories)
-		.sort((a, b) => a.localeCompare(b))
-		.forEach((c) => chips.push({ label: `Category: ${c}`, clear: `category:${c}` }));
-	Array.from(selectedTraits)
-		.sort((a, b) => a.localeCompare(b))
-		.forEach((t) => chips.push({ label: `Trait: ${t}`, clear: `trait:${t}` }));
-
-	if (variantMin > 1 || variantMax < 1000) {
-		chips.push({ label: `Variants: ${variantMin}–${variantMax}`, clear: "variants" });
-	}
-
-	// Update the "N active" badge on the Filters toggle button.
-	const badge = document.getElementById("pgsActiveFilterBadge");
-	if (badge) {
-		if (chips.length) {
-			badge.textContent = `${chips.length} active`;
-			badge.style.display = "";
-		} else {
-			badge.style.display = "none";
-		}
-	}
-
-	if (!chips.length) {
-		el.innerHTML = `<span class="small text-muted">No active filters</span>`;
-		return;
-	}
-
-	el.innerHTML =
-		chips
-			.map(
-				(c) =>
-					`<span class="active-filter-chip">${escapeHtml(c.label)}` +
-					`<button type="button" class="chip-remove" data-clear="${escapeHtml(c.clear)}" aria-label="Remove filter" title="Remove filter">&times;</button></span>`
-			)
-			.join("") +
-		`<button type="button" id="clearAllPgsFilters" class="btn btn-link btn-sm p-0 ms-1" style="font-size:0.78rem;">Clear all</button>`;
-
-	el.querySelectorAll(".chip-remove").forEach((btn) => {
-		btn.addEventListener("click", () => clearPgsFilter(btn.dataset.clear));
-	});
-	const clearAll = el.querySelector("#clearAllPgsFilters");
-	if (clearAll) clearAll.addEventListener("click", () => clearPgsFilter("all"));
-}
-
-/**
- * Clear one active filter (or all) and refresh the view.
- * @param {string} which - "variants", "all", "category:<name>", or "trait:<name>".
- */
-function clearPgsFilter(which) {
-	if (which === "variants" || which === "all") {
-		variantMin = 1;
-		variantMax = 1000;
-		if (typeof updateSliderLabels === "function") updateSliderLabels();
-	}
-	if (which === "all") {
-		selectedCategories.clear();
-		selectedTraits.clear();
-	}
-	if (typeof which === "string" && which.startsWith("category:")) {
-		selectedCategories.delete(which.slice("category:".length));
-		pruneSelectedTraits();
-	}
-	if (typeof which === "string" && which.startsWith("trait:")) {
-		selectedTraits.delete(which.slice("trait:".length));
-	}
-	refreshCurrentView();
 }
 
 
@@ -960,45 +690,53 @@ function populateCategoryDropdown(select) {
 	};
 }
 
-// --- Initialize category + trait filters ---
+// --- Initialize dropdown and wire buttons ---
 
-if (!traits.length && !categories.length) {
-	const catBox = document.getElementById("pgsCategoryChecks");
-	if (catBox) catBox.innerHTML = `<div class="small text-muted p-1">No scores found.</div>`;
-} else {
-	renderCategoryChecks();
-	renderTraitChecks();
-	renderPgsFromSelection();
+const pgsSelect = document.getElementById("pgsDropDown");
+
+if (pgsSelect) {
+	if (!traits.length) {
+		pgsSelect.innerHTML = `<option value="">No traits found (${variantMin}-${variantMax} variants)</option>`;
+	} else {
+		populateTraitDropdown(pgsSelect);
+	}
 }
 
-// "Clear" link resets the category selection.
-const pgsClearCategoriesBtn = document.getElementById("pgsClearCategoriesBtn");
-if (pgsClearCategoriesBtn) {
-	pgsClearCategoriesBtn.addEventListener("click", () => {
-		selectedCategories.clear();
-		pruneSelectedTraits();
-		renderCategoryChecks();
-		renderTraitChecks();
-		renderPgsFromSelection();
+const traitBtn = document.getElementById("traitBtn");
+const categoryBtn = document.getElementById("categoryBtn");
+
+/** Set the active button styling (blue) and reset the other. */
+function setActiveButton(activeBtn) {
+	[traitBtn, categoryBtn].forEach((btn) => {
+		if (!btn) return;
+		if (btn === activeBtn) {
+			btn.classList.remove("btn-outline-primary");
+			btn.classList.add("btn-primary");
+		} else {
+			btn.classList.remove("btn-primary");
+			btn.classList.add("btn-outline-primary");
+		}
 	});
 }
 
-// "Clear" link resets the trait selection within the current category.
-const pgsClearTraitsBtn = document.getElementById("pgsClearTraitsBtn");
-if (pgsClearTraitsBtn) {
-	pgsClearTraitsBtn.addEventListener("click", () => {
-		selectedTraits.clear();
-		renderTraitChecks();
-		renderPgsFromSelection();
+if (traitBtn && pgsSelect) {
+	setActiveButton(traitBtn); // default active on load
+	traitBtn.addEventListener("click", () => {
+		console.log("Load Traits button clicked");
+		try {
+			populateTraitDropdown(pgsSelect);
+			setActiveButton(traitBtn);
+		} catch (err) { console.error('traitBtn click error', err); }
 	});
 }
 
-// Free-text search that filters the trait checkbox list (keeps ~800 traits findable).
-const pgsTraitSearch = document.getElementById("pgsTraitSearch");
-if (pgsTraitSearch) {
-	pgsTraitSearch.addEventListener("input", () => {
-		traitSearchQuery = pgsTraitSearch.value;
-		renderTraitChecks();
+if (categoryBtn && pgsSelect) {
+	categoryBtn.addEventListener("click", () => {
+		console.log("Load Categories button clicked");
+		try {
+			populateCategoryDropdown(pgsSelect);
+			setActiveButton(categoryBtn);
+		} catch (err) { console.error('categoryBtn click error', err); }
 	});
 }
 
@@ -1010,6 +748,9 @@ const variantRangeLabel = document.getElementById("variantRangeLabel");
 const variantMinInput = document.getElementById("variantMinInput");
 const variantMaxInput = document.getElementById("variantMaxInput");
 const variantProgressBar = document.getElementById("variantProgressBar");
+
+/** Track current mode to know which dropdown to refresh on slider change. */
+let currentMode = "Trait";
 
 /** Update the slider UI labels and progress bar. */
 function updateSliderLabels() {
@@ -1027,11 +768,32 @@ function updateSliderLabels() {
 	}
 }
 
-/** Refresh the whole filter UI (category boxes, trait boxes, and table). */
+/** Refresh the current view after slider change. */
 function refreshCurrentView() {
-	renderCategoryChecks();
-	renderTraitChecks();
-	renderPgsFromSelection();
+	if (!pgsSelect) return;
+	const currentValue = pgsSelect.value; // Preserve current selection
+	if (currentMode === "Category") {
+		// Rebuild dropdown but preserve selection
+		pgsSelect.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
+		// Restore selection if it still exists
+		if (currentValue && Array.from(pgsSelect.options).some(opt => opt.value === currentValue)) {
+			pgsSelect.value = currentValue;
+		} else {
+			pgsSelect.value = ALL_VALUE;
+		}
+		renderScores(pgsSelect.value, "Category");
+	} else {
+		// Rebuild dropdown but preserve selection
+		pgsSelect.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
+		// Restore selection if it still exists
+		if (currentValue && Array.from(pgsSelect.options).some(opt => opt.value === currentValue)) {
+			pgsSelect.value = currentValue;
+		} else {
+			pgsSelect.value = ALL_VALUE;
+		}
+		renderScores(pgsSelect.value, "Trait");
+	}
+	setDefaultTraitOnChange(pgsSelect);
 }
 
 /** Debounce timer for slider input. */
@@ -1082,6 +844,14 @@ if (variantMaxInput) {
 
 // Initialize progress bar on load
 updateSliderLabels();
+
+// Update mode tracking when buttons are clicked
+if (traitBtn) {
+	traitBtn.addEventListener("click", () => { currentMode = "Trait"; });
+}
+if (categoryBtn) {
+	categoryBtn.addEventListener("click", () => { currentMode = "Category"; });
+}
 
 // --- Fetch and parse PGS scoring files (text files with variants) ---
 
@@ -1571,3 +1341,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-Dx8Gf4g9.mjs.map

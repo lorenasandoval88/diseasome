@@ -362,19 +362,6 @@
 
                 <div id="GenomicData" class="tabcontent">
 
-                    <h3 class="d-flex align-items-center gap-2">
-                        Select Genomic Data
-                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
-                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
-                                data-bs-toggle="popover"
-                                data-bs-trigger="focus"
-                                data-bs-placement="right"
-                                data-bs-html="true"
-                                title="About Genomic Data"
-                                data-bs-content="<p class='mb-2'><strong>Personal Genome Project (PGP)</strong> is an open-access repository of human genomic data contributed by volunteer participants. The project provides publicly available genotype and sequencing datasets for research, education, and the development of genomic analysis tools.</p><p class='mb-0'><strong>Accepted file types:</strong> Raw 23andMe export files (<code>.txt</code> or <code>.csv</code>). These are tab-delimited text files with columns for rsid, chromosome, position, and genotype.</p>"
-                                aria-label="About Genomic Data">?</button>
-                    </h3>
-
                     <!-- Load options as tabs (progressive disclosure) -->
                     <ul class="nav nav-tabs mt-2" id="genomicLoadTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -416,8 +403,18 @@
                         <!-- Tab: Public PGP participants -->
                         <div class="tab-pane fade show active" id="pane-browse" role="tabpanel" aria-labelledby="tab-browse">
                             <div class="d-flex flex-column">
-                                    <h5 class="card-title">Public PGP Participants</h5>
-                                    <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available participants from the Personal Genome Project for demo or research workflows.</p>
+                                    <h5 class="card-title">Select Public PGP 23andMe Files</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available 23adnMe files from the Personal Genome Project for demo or research workflows.
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                                data-bs-toggle="popover"
+                                                data-bs-trigger="focus"
+                                                data-bs-placement="right"
+                                                data-bs-html="true"
+                                                title="About Genomic Data"
+                                                data-bs-content="<p class='mb-2'><strong>Personal Genome Project (PGP)</strong> is an open-access repository of human genomic data contributed by volunteer participants. The project provides publicly available genotype and sequencing datasets for research, education, and the development of genomic analysis tools.</p><p class='mb-0'><strong>Accepted file types:</strong> Raw 23andMe export files (<code>.txt</code> or <code>.csv</code>). These are tab-delimited text files with columns for rsid, chromosome, position, and genotype.</p>"
+                                                aria-label="About Genomic Data">?</button>
+                                    </p>
                                     <div class="mb-2">
                                         <div>
                                             <label class="form-label mb-1 small"><b>Display Mode</b></label>
@@ -493,6 +490,9 @@
                                         </div>
                                     </div>
                                     </div>
+
+                                    <!-- Active filter selections shown as removable chips (populated by displayUsers.js) -->
+                                    <div id="participantsActiveFilters" class="d-flex flex-wrap align-items-center gap-1 mt-1"></div>
                             </div>
                         </div>
 
@@ -534,7 +534,7 @@
                         <div class="d-flex align-items-center gap-3 flex-wrap">
                             <div style="min-width:200px; flex:0 0 auto;">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span id="globalSelectionCount2" class="fw-semibold small text-dark">0 of 10 selected</span>
+                                    <span id="globalSelectionCount2" class="fw-semibold small text-dark">0 of 10 files selected</span>
                                     <span id="selectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>
                                 </div>
                                 <div class="progress" style="height:12px;">
@@ -584,76 +584,173 @@
                     <hr class="my-3" />
                     <div class="my-3">
                         <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
-                        <label for="pgsDropDown" class="form-label"><b>1.) Select PGS scoring files</b>
-                            <a href="#" class="ms-2 small" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackScoresBtn')?.scrollIntoView({behavior: 'smooth'}); return false;">
-                                Or load fallback scores →
-                            </a>
-                        </label>
-                        <div class="mb-2">
-                            <button id="traitBtn" class="btn btn-sm btn-primary">By Trait</button>
-                            <button id="categoryBtn" class="btn btn-sm btn-outline-primary ms-2">By Category</button>
-                        </div>
 
-                        <select id="pgsDropDown" class="form-select mb-3" style="max-width: 420px;"
-                            onchange="onPgsTraitChange(this.value)">
-                            <option value="">Loading traits...</option>
-                        </select>
-                        <div id="pgsLoadingStatus" class="small text-muted mb-2">Loading PGS scores...</div>
+                        <!-- Selection options as tabs (mirror the PGP users tab) -->
+                        <ul class="nav nav-tabs mt-2" id="pgsSelectTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="tab-pgs-trait" data-bs-toggle="tab" data-bs-target="#pane-pgs-trait" type="button" role="tab" aria-controls="pane-pgs-trait" aria-selected="true">
+                                    <i class="fa fa-tags me-1"></i>Browse
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-pgs-examples" data-bs-toggle="tab" data-bs-target="#pane-pgs-examples" type="button" role="tab" aria-controls="pane-pgs-examples" aria-selected="false">
+                                    <i class="fa fa-flask me-1"></i>Examples
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-pgs-byid" data-bs-toggle="tab" data-bs-target="#pane-pgs-byid" type="button" role="tab" aria-controls="pane-pgs-byid" aria-selected="false">
+                                    <i class="fa fa-list-ol me-1"></i>Load by ID
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content border border-top-0 rounded-bottom p-3 mb-2" id="pgsSelectTabsContent">
 
-                        <!-- Variant range slider -->
-                        <div class="variant-filter mb-3" style="max-width: 420px;">
-                            <label class="form-label"><b>2.) Variant count range:</b>
-                                <span id="variantRangeLabel">1 - 1000</span>
-                            </label>
+                            <!-- Tab: By Trait / Category (with variant count range filter) -->
+                            <div class="tab-pane fade show active" id="pane-pgs-trait" role="tabpanel" aria-labelledby="tab-pgs-trait">
+                                <p class="text-muted small">Browse and select up to 10 publicly available models from PGS Catalog for demo or research workflows.</p>
 
-                            <div class="price-input">
-                                <div class="price-field d-flex gap-2 mb-2">
-                                    <div class="d-flex align-items-center">
-                                        <span>Min</span>
-                                        <input type="number" id="variantMinInput" class="min-input" value="100" min="1"
-                                            max="1000">
+                                <!-- Labeled filter bar: groups the browse mode, selector, and variant filter -->
+                                <div class="border rounded bg-light p-2 mb-2">
+                                    <button id="pgsFiltersToggle" class="btn btn-outline-secondary btn-sm mb-2" type="button"
+                                        style="width:fit-content;" data-bs-toggle="collapse" data-bs-target="#pgsFiltersCollapse"
+                                        aria-expanded="false" aria-controls="pgsFiltersCollapse">
+                                        <i class="fa fa-sliders me-1"></i>Filters<span id="pgsActiveFilterBadge" class="badge bg-primary ms-2" style="display:none;">0 active</span>
+                                    </button>
+                                    <div class="collapse" id="pgsFiltersCollapse">
+                                    <div class="d-flex flex-wrap align-items-start gap-3">
+                                        <!-- Category boxes (multi-select) -->
+                                        <div style="min-width: 240px;">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <label class="form-label small fw-bold mb-0">Categories
+                                                    <span class="text-muted fw-normal">(optional)</span></label>
+                                                <button type="button" id="pgsClearCategoriesBtn" class="btn btn-link btn-sm p-0"
+                                                    style="font-size:0.75rem;">Clear</button>
+                                            </div>
+                                            <div id="pgsCategoryChecks" class="filter-check-list" style="max-width: 320px;">
+                                                <div class="small text-muted p-1">Loading categories…</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Trait boxes (works with or without a category) -->
+                                        <div style="min-width: 240px;">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <label class="form-label small fw-bold mb-0">Traits
+                                                    <span class="text-muted fw-normal">(optional)</span></label>
+                                                <button type="button" id="pgsClearTraitsBtn" class="btn btn-link btn-sm p-0"
+                                                    style="font-size:0.75rem;">Clear</button>
+                                            </div>
+                                            <input id="pgsTraitSearch" type="search" class="form-control form-control-sm mb-1"
+                                                style="max-width: 320px;" placeholder="Search traits…">
+                                            <div id="pgsTraitChecks" class="filter-check-list" style="max-width: 320px;">
+                                                <div class="small text-muted p-1">Loading traits…</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Variant range filter (pops up on click) -->
+                                        <div>
+                                            <label class="form-label small fw-bold mb-1 d-block">Variant count</label>
+                                            <div class="dropdown variant-filter">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                                    <i class="fa fa-filter me-1"></i>Variant count: <span id="variantRangeLabel">1 - 1000</span>
+                                                </button>
+                                                <div class="dropdown-menu p-3" style="min-width: 320px;">
+                                                    <label class="form-label"><b>Filter by variant count</b></label>
+                                                    <div class="small text-muted mb-2">Tip: most analyses use simpler models with &lt;1000 variants.</div>
+
+                                                    <div class="price-input">
+                                                        <div class="price-field d-flex gap-2 mb-2">
+                                                            <div class="d-flex align-items-center">
+                                                                <span>Min</span>
+                                                                <input type="number" id="variantMinInput" class="min-input" value="1" min="1"
+                                                                    max="1000">
+                                                            </div>
+                                                            <div class="d-flex align-items-center">
+                                                                <span>Max</span>
+                                                                <input type="number" id="variantMaxInput" class="max-input" value="100" min="1"
+                                                                    max="1000">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="slider">
+                                                        <div id="variantProgressBar" class="price-slider"></div>
+                                                    </div>
+
+                                                    <div class="range-input">
+                                                        <input type="range" id="variantMinSlider" class="min-range" min="1" max="1000"
+                                                            value="1">
+                                                        <input type="range" id="variantMaxSlider" class="max-range" min="1" max="1000"
+                                                            value="100">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="d-flex align-items-center">
-                                        <span>Max</span>
-                                        <input type="number" id="variantMaxInput" class="max-input" value="400" min="1"
-                                            max="1000">
                                     </div>
+
+                                    <!-- Active filters shown as removable chips (populated by displayScores.js) -->
+                                    <div id="pgsActiveFilters" class="d-flex flex-wrap align-items-center gap-1 mt-2"></div>
                                 </div>
                             </div>
 
-                            <div class="slider">
-                                <div id="variantProgressBar" class="price-slider"></div>
+                            <!-- Tab: Examples (bundled fallback scores) -->
+                            <div class="tab-pane fade" id="pane-pgs-examples" role="tabpanel" aria-labelledby="tab-pgs-examples">
+                                <p class="text-muted small">Load a bundled set of example risk models to try the workflow without browsing the catalog.</p>
+                                <button id="loadExampleScoresBtn" class="btn btn-sm btn-outline-success"
+                                    onclick="window.loadFallbackScores && window.loadFallbackScores(); var s=document.getElementById('exampleScoresStatus'); if(s){s.textContent='Example risk models loaded. Go to Calculate PRS to view them.';}">
+                                    <i class="fa fa-flask me-1"></i>Load Example Scores
+                                </button>
+                                <div id="exampleScoresStatus" class="small text-muted mt-1"></div>
                             </div>
 
-                            <div class="range-input">
-                                <input type="range" id="variantMinSlider" class="min-range" min="1" max="1000"
-                                    value="100">
-                                <input type="range" id="variantMaxSlider" class="max-range" min="1" max="1000"
-                                    value="400">
+                            <!-- Tab: By ID list -->
+                            <div class="tab-pane fade" id="pane-pgs-byid" role="tabpanel" aria-labelledby="tab-pgs-byid">
+                                <p class="text-muted small">Enter specific PGS IDs to add them directly, bypassing the trait/category browser.</p>
+                                <label for="directPgsInput" class="form-label"><b>Enter PGS IDs directly:</b></label>
+                                <div class="d-flex gap-2 align-items-start" style="max-width: 420px;">
+                                    <textarea id="directPgsInput" class="form-control form-control-sm"
+                                        rows="2" placeholder="e.g. PGS000001, PGS000004, PGS000055"
+                                        style="font-family: monospace; resize: vertical;"></textarea>
+                                    <button id="addPgsByIdBtn" class="btn btn-sm btn-outline-success text-nowrap">Add IDs</button>
+                                </div>
+                                <div id="directPgsStatus" class="small text-muted mt-1"></div>
                             </div>
                         </div>
 
-                        <!-- Direct PGS ID entry -->
-                        <div class="mb-3">
-                            <label for="directPgsInput" class="form-label"><b>Or enter PGS IDs directly:</b></label>
-                            <div class="d-flex gap-2 align-items-start" style="max-width: 420px;">
-                                <textarea id="directPgsInput" class="form-control form-control-sm"
-                                    rows="2" placeholder="e.g. PGS000001, PGS000004, PGS000055"
-                                    style="font-family: monospace; resize: vertical;"></textarea>
-                                <button id="addPgsByIdBtn" class="btn btn-sm btn-outline-success text-nowrap">Add IDs</button>
+                        <!-- Actions below tabs: sticky selection status + primary actions (mirrors tab 1) -->
+                        <div id="pgsSelectionStickyBar" class="sticky-top bg-white border-bottom shadow-sm py-2 mb-3" style="top:0; z-index:1020;">
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <div style="min-width:200px; flex:0 0 auto;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span id="globalSelectionCount" class="fw-semibold small text-dark">0 of 10 selected</span>
+                                        <span id="pgsSelectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>
+                                    </div>
+                                    <div class="progress" style="height:12px;">
+                                        <div id="pgsSelectionProgressBar" class="progress-bar bg-success" role="progressbar"
+                                            style="width:0%; transition:width .2s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="10"></div>
+                                    </div>
+                                </div>
+                                <button id="unselectAllModelsBtn" class="btn btn-outline-danger btn-sm" style="display:none;" onclick="window.clearSelectedScores && window.clearSelectedScores()">Unselect All</button>
+                                <button id="fetchPgsFilesBtn" class="btn btn-success btn-sm" style="display:none;">Fetch PGS Files</button>
+                                <button id="nextToPrsBtn" class="btn btn-outline-primary btn-sm" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Continue to Risk Models →</button>
                             </div>
-                            <div id="directPgsStatus" class="small text-muted mt-1"></div>
                         </div>
 
+                        <!-- PGS cache management (right-aligned, matches Genome Cache on tab 1) -->
                         <div class="mb-3">
                             <span id="fetchScoresStatus" class="small text-muted"></span>
-                            <div id="globalSelectionCount" class="small text-muted mt-1">Selected: 0 / 10</div>
-                            <button id="unselectAllModelsBtn" class="btn btn-outline-danger btn-sm mt-1" style="display:none;" onclick="window.clearSelectedScores && window.clearSelectedScores()">Unselect All</button>
-                            <button id="fetchPgsFilesBtn" class="btn btn-success mt-2" style="display:none;">
-                                 Fetch PGS Files
-                            </button>
-                            <button id="nextToPrsBtn" class="btn btn-outline-primary btn-sm mt-2" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Next: Calculate PRS →</button>
+                            <div id="pgsLoadingStatus" class="small text-muted text-end mb-1">Loading PGS scores...</div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                <span class="small text-muted"><b>PGS Cache:</b></span>
+                                <button id="showPgsCacheBtn" class="btn btn-outline-secondary btn-sm" style="font-size:0.75rem;"
+                                    onclick="window.showPgsCacheInfo && window.showPgsCacheInfo()">Show PGS Cache</button>
+                                <button id="clearPgsCacheBtn" class="btn btn-outline-danger btn-sm" style="font-size:0.75rem;"
+                                    onclick="window.clearPgsTxtCache && window.clearPgsTxtCache().catch(e => alert('Error: ' + e.message))">Clear PGS Cache</button>
+                            </div>
+                            <div id="pgsCacheInfo" class="small text-muted mt-1"></div>
                         </div>
+
                         <div id="scoreTxtsDiv" style="display: none;">
                             <div class="my-3"></div>
                         </div>

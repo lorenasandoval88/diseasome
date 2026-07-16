@@ -127,6 +127,7 @@ window.clearPRSCache = clearPRSCache;
 /*** Clear PGS scoring file cache (pgs:PGS* keys only, not trait/category summaries)
  */
 async function clearPGSCache() {
+	console.log("Clearing PGS scoring cache...");
 	const keys = await localforage.keys();
 	// Only clear keys like "pgs:PGS000001", not "pgs:trait-summary" or "pgs:all-score-summary"
 	const pgsKeys = keys.filter(k => k.startsWith('PGS_Catalog:id-PGS'));

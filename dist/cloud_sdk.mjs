@@ -22645,5 +22645,5 @@ function Match2(mypgs, my23){
   return data2;
 }
 
-export { Match2, Match3, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, getScoresPerCategory, getScoresPerTrait, getTxts, load23andMeFile };
+export { Match2, Match3, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, load23andMeFile as get23Txt, getTxts as getPgsTxt, getScoresPerCategory, getScoresPerTrait };
 //# sourceMappingURL=cloud_sdk.mjs.map

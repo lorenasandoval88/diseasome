@@ -323,7 +323,7 @@
                     <div id=prsScoresDiv>Select at least one risk model or use the option below. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Go
                             to PGS Catalog →</a></div>
-                    <button id="loadFallbackScoresBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
+                    <button id="loadExampleScoresBtn" class="btn btn-primary btn-sm mt-2">Load Example
                         Scores</button>
                     <div id="prsScoresAction"></div>
                     <hr class="my-3" />
@@ -335,7 +335,7 @@
                     <div id=prsUsersdiv>Select at least one 23andMe file or click below. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=GenomicData]').click(); return false;">Go
                             to 23andMe Data →</a></div>
-                    <button id="loadFallbackUsersBtn" class="btn btn-primary btn-sm mt-2">Load Fallback
+                    <button id="loadExampleUsersBtn" class="btn btn-primary btn-sm mt-2">Load Example
                         Users</button>
                     <div id="prsUsersAction"></div>
                     <hr class="my-3" />
@@ -502,7 +502,7 @@
                                     <h5 class="card-title">Example Users</h5>
                                     <p class="card-text text-muted small flex-grow-1">Load a set of pre-bundled example participants to quickly explore PRS calculations without uploading any files.</p>
                                     <button class="btn btn-primary btn-sm mb-2"
-                                        onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadFallbackUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
+                                        onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); document.getElementById('loadExampleUsersBtn')?.scrollIntoView({behavior:'smooth'}); return false;">
                                         Load Example Participants
                                     </button>
                                     <p class="small text-muted mt-2 mb-0">No file upload required — useful for testing and demonstrations.</p>
@@ -694,11 +694,11 @@
                                 </div>
                             </div>
 
-                            <!-- Tab: Examples (bundled fallback scores) -->
+                            <!-- Tab: Examples (bundled Example scores) -->
                             <div class="tab-pane fade" id="pane-pgs-examples" role="tabpanel" aria-labelledby="tab-pgs-examples">
                                 <p class="text-muted small">Load a bundled set of example risk models to try the workflow without browsing the catalog.</p>
                                 <button id="loadExampleScoresBtn" class="btn btn-sm btn-outline-success"
-                                    onclick="window.loadFallbackScores && window.loadFallbackScores(); var s=document.getElementById('exampleScoresStatus'); if(s){s.textContent='Example risk models loaded. Go to Calculate PRS to view them.';}">
+                                    onclick="window.loadExampleScores && window.loadExampleScores(); var s=document.getElementById('exampleScoresStatus'); if(s){s.textContent='Example risk models loaded. Go to Calculate PRS to view them.';}">
                                     <i class="fa fa-flask me-1"></i>Load Example Scores
                                 </button>
                                 <div id="exampleScoresStatus" class="small text-muted mt-1"></div>

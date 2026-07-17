@@ -1,5 +1,9 @@
-import { get23Txt, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 /**
@@ -39,7 +43,7 @@ function truncateUrlForDisplay(url) {
  * `google_survey_results` is an array of surveys; each survey is an array of
  * [question, answer] pairs. We scan all pairs across all surveys.
  * Age is taken from "What is your age (in years)?" or computed from "Year of birth".
- * Race/ethnicity Examples use the combined "Race/ethnicity" field only when the
+ * Race/ethnicity fallbacks use the combined "Race/ethnicity" field only when the
  * dedicated questions are missing. Grandparent race/ethnicity questions are ignored.
  */
 function extractDemographics(profile) {
@@ -384,7 +388,7 @@ function updateGlobalSelectionCount() {
 		prsUsersdiv.textContent = `${selectedUserIds.size} user(s) selected: ${userList}`;
 	}
 
-	// Mirror the Example-users table for the current selection in the PRS tab
+	// Mirror the fallback-users table for the current selection in the PRS tab
 	renderSelectedUsersTable();
 
 	// console.log(`Selection updated: ${selectedUserIds.size} user(s)`, Array.from(selectedUserIds));
@@ -392,8 +396,8 @@ function updateGlobalSelectionCount() {
 
 /**
  * Render the current selection into #prsUsersAction using the same columns/style
- * as loadExampleUsers / fetchUsers, so users see a table in the PRS tab immediately
- * after uploading or selecting participants (without having to click Load Example Users).
+ * as loadFallbackUsers / fetchUsers, so users see a table in the PRS tab immediately
+ * after uploading or selecting participants (without having to click Load Fallback Users).
  */
 function renderSelectedUsersTable() {
 	const container = document.getElementById('prsUsersAction');
@@ -472,7 +476,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -2152,3 +2156,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-FXzPiGvl.mjs.map

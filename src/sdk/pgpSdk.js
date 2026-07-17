@@ -1,9 +1,8 @@
 // Single wrapper at pgpSdk.js that re-exports 
 // from the remote SDK URL so all PGP imports are centralized.
 export {
-	cacheAndReturn,
 	parse23Txt,
-	load23andMeFile as get23Txt,
+	get23Txt,
 	allUsersMetaDataByType_fast,
 	fetch23andMeParticipants,
 	fetchAvailableDataTypes,

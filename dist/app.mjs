@@ -1,5 +1,5 @@
 import { getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
-import { load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { hclust_plot } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
 
@@ -30,14 +30,14 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-DdkVxFhu.mjs');
+        await import('./chunks/displayScores-D7vhTgUV.mjs');
         pgsModuleLoaded = true;
     }
 }
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-BX3eUI9X.mjs');
+        await import('./chunks/displayUsers-Dx3-PwWg.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -3089,12 +3089,12 @@ console.log("calculatePrs.js loaded");
 //
 // Workflow (driven by buttons in the PRS tab):
 //   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
-//      loadFallbackScores() (selection + FALLBACK_SCORES). Both call
-//      loadScoresFromList(), which batches all PGS ids into one getTxts() call
+//      loadExampleScores() (selection + EXAMPLE_SCORES). Both call
+//      loadScoresFromList(), which loads each PGS id one at a time via getPgsTxt()
 //      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
 //   2. LOAD USERS — fetchUsers() (selected in the 23andMe Data tab) or
-//      loadFallbackUsers() (FALLBACK_USERS). Both call loadUsersFromList(), which
-//      loads each genome one file at a time via load23andMeFile() (fetch + parse +
+//      loadExampleUsers() (EXAMPLE_USERS). Both call loadUsersFromList(), which
+//      loads each genome one file at a time via get23Txt() (fetch + parse +
 //      cache). Results populate loadedUsers + window.loadedUsers.
 //   3. CALCULATE — calculatePRS() takes the checked users x checked scores, then for
 //      each pair calls calculateAndCachePRS() → Match2() (the actual PRS math) and
@@ -3371,8 +3371,8 @@ function organizeResultsByAllele(matchResult, pgsData) {
 window.organizeResultsByAllele = organizeResultsByAllele;
 
 
-/** Fallback local users (all 5 from data folder) */
-const FALLBACK_USERS = [
+/** Example local users (all 5 from data folder) */
+const EXAMPLE_USERS = [
 	{
 		id: "hu09B28E",
 		name: "Joshua Yoakem",
@@ -3430,8 +3430,8 @@ const FALLBACK_USERS = [
 	}
 ];
 
-/** Fallback PGS scores (sample entries) */
-const FALLBACK_SCORES = [
+/** Example PGS scores (sample entries) */
+const EXAMPLE_SCORES = [
 	{
 		id: "PGS000001",
 		name: "PRS77_BC",
@@ -3598,8 +3598,8 @@ function renderUsersTable(users, loaded) {
 }
 
 /*** Load and parse a list of PGS scoring files.
- * Reuses each score's pre-parsed data when present; the rest are fetched in a
- * single getTxts() call so its storage-eviction sees the full requested set.
+ * Reuses each score's pre-parsed data when present; the rest are fetched one id
+ * at a time via getPgsTxt() (fetch + parse + cache).
  * Returns { score, parsed } entries, skipping any that fail to parse.
  * @param {Object[]} scores - Score metadata objects (each with an .id)
  * @returns {Promise<Object[]>} Array of { score, parsed }
@@ -3618,18 +3618,20 @@ async function loadScoresFromList(scores) {
 	}
 
 	if (toFetch.length > 0) {
-		let txts = [];
-		try {
-			// Batch load: pass ALL ids to getTxts in one call. getTxts fetches/parses
-			// the whole list together and runs its storage-limit (cache eviction) check
-			// once against the full requested set — unlike the genome loader, which
-			// handles one file at a time (see loadUsersFromList).
-			txts = (await getTxts(toFetch.map(s => s.id))) ?? [];
-		} catch (err) {
-			console.error("Failed to load scoring files:", err);
-		}
-		for (const score of toFetch) {
-			const parsed = txts.find(t => (t?.id ?? t?.meta?.pgs_id) === score.id) ?? null;
+		// Load each scoring file one id at a time via getPgsTxt (fetch + parse +
+		// cache), just like the genome loader in loadUsersFromList. getPgsTxt
+		// returns an array, so take the first (only) parsed score.
+		const fetched = await Promise.all(toFetch.map(async (score) => {
+			try {
+				const result = await getTxts(score.id);
+				const parsed = Array.isArray(result) ? result[0] : result;
+				return { score, parsed: parsed ?? null };
+			} catch (err) {
+				console.error(`Failed to load scoring file ${score?.id}:`, err);
+				return { score, parsed: null };
+			}
+		}));
+		for (const { score, parsed } of fetched) {
 			if (!parsed) {
 				console.warn(`No parseable file for score ${score?.id}`);
 				continue;
@@ -3643,9 +3645,9 @@ async function loadScoresFromList(scores) {
 
 /*** Fetch selected PGS scoring files, parse them, and display them in a table.
  * Called when the user clicks the "Fetch Files" button.
- * Mirrors fetchUsers(): resolves selection (or fallback), parses each file
+ * Mirrors fetchUsers(): resolves selection (or example), parses each file
  * (with caching + pre-parsed reuse), and populates loadedScores + window.loadedPgsTxts.
- * Uses fallback data when offline or nothing is selected. */
+ * Uses example data when offline or nothing is selected. */
 async function fetchScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
@@ -3663,7 +3665,7 @@ async function fetchScores() {
 		}
 		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedScores.length} scoring file(s)...`;
 
-		// Parse scoring files for all selected scores (getTxts handles fetch, parse, and caching)
+		// Parse scoring files for all selected scores (getPgsTxt handles fetch, parse, and caching)
 		const added = await loadScoresFromList(selectedScores);
 
 		// Populate loadedScores (metadata) so calculatePRS builds selectedIds correctly
@@ -3698,13 +3700,11 @@ window.fetchScores = fetchScores;
 
 /*** Load and parse a list of user genome files.
  * For each user: reuses pre-parsed data if present, otherwise resolves the file
- * path and loads it via load23andMeFile (which caches internally under
+ * path and loads it via get23Txt (which caches internally under
  * "Genome:23andMe-txt-*"). Returns { user, parsed } entries, skipping failures.
  *
- * Note: unlike loadScoresFromList (which batches all PGS ids into a single
- * getTxts call and checks the cache limit once for the whole set), genomes are
- * loaded one file at a time — load23andMeFile fetches, parses, and cache-checks
- * each file individually.
+ * Like loadScoresFromList, genomes are loaded one file at a time — get23Txt
+ * fetches, parses, and cache-checks each file individually.
  * @param {Object[]} users - User/participant objects
  * @returns {Promise<Object[]>} Array of { user, parsed }
  */
@@ -3722,7 +3722,7 @@ async function loadUsersFromList(users) {
 			return null;
 		}
 		try {
-			const parsed = await load23andMeFile(filePath, user.id);
+			const parsed = await get23Txt(filePath, user.id);
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
@@ -3735,7 +3735,7 @@ async function loadUsersFromList(users) {
 
 /*** Fetch selected users, display them in a table, and parse their genome files.
  * Called when the user clicks the "Fetch Users" button in the PRS tab.
- * Uses fallback data when offline or nothing is selected. */
+ * Uses example data when offline or nothing is selected. */
 async function fetchUsers() {
     console.log("fetchUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
@@ -3785,10 +3785,10 @@ if (fetchUsersBtn) {
 	fetchUsersBtn.addEventListener("click", fetchUsers);
 }
 
-/** * Load fallback scores directly into the PRS table.
+/** * Load example scores directly into the PRS table.
  * Appends to any already-loaded scores instead of replacing them. */
-async function loadFallbackScores() {
-	console.log("loadFallbackScores() called");
+async function loadExampleScores() {
+	console.log("loadExampleScores() called");
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
@@ -3798,13 +3798,13 @@ async function loadFallbackScores() {
 	const existingIds = new Set(existing.map(s => s?.id).filter(Boolean));
 
 	// Include any risk models the user selected in the Polygenic Scores tab (tab 2),
-	// so a pending selection is loaded alongside the fallback set instead of being ignored.
+	// so a pending selection is loaded alongside the example set instead of being ignored.
 	const selectedScores = (window.getSelectedScores?.() ?? []).filter(s => s?.id);
 	const selectedIdSet = new Set(selectedScores.map(s => s.id));
 
-	// Candidate list: user-selected scores first, then fallback scores. Dedup by id, skip already loaded.
+	// Candidate list: user-selected scores first, then example scores. Dedup by id, skip already loaded.
 	const candidateMap = new Map();
-	for (const s of [...selectedScores, ...FALLBACK_SCORES]) {
+	for (const s of [...selectedScores, ...EXAMPLE_SCORES]) {
 		if (s?.id && !existingIds.has(s.id) && !candidateMap.has(s.id)) {
 			candidateMap.set(s.id, s);
 		}
@@ -3812,14 +3812,14 @@ async function loadFallbackScores() {
 	const toLoad = Array.from(candidateMap.values());
 
 	if (toLoad.length === 0) {
-		if (statusEl) statusEl.textContent = `All ${FALLBACK_SCORES.length} fallback risk model(s) are already loaded.`;
+		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded.`;
 		return;
 	}
 
-	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} risk model(s) to ${existing.length} already loaded...`;
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example risk model(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each score (getTxts handles fetch, parse, and caching)
+	// Fetch and parse each score (getPgsTxt handles fetch, parse, and caching)
 	const added = await loadScoresFromList(toLoad);
 
 	// Append metadata to loadedScores (dedup by id) so calculatePRS builds selectedIds correctly
@@ -3832,14 +3832,14 @@ async function loadFallbackScores() {
 	window.loadedPgsTxts = existingTxts.concat(addedTxts);
 
 	const selectedAdded = added.filter(a => selectedIdSet.has(a.score.id)).length;
-	const fallbackAdded = added.length - selectedAdded;
-	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${selectedAdded} selected + ${fallbackAdded} fallback.`;
+	const exampleAdded = added.length - selectedAdded;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${selectedAdded} selected + ${exampleAdded} example.`;
 
 	if (resultsDiv) {
 		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
 	}
 
-	console.log("Loaded fallback scores with parsed data:", loadedScores);
+	console.log("Loaded example scores with parsed data:", loadedScores);
 
 	// Update cluster page
 	if (typeof window.renderCluster === "function") {
@@ -3847,42 +3847,42 @@ async function loadFallbackScores() {
 	}
 }
 
-/** * Load fallback users directly into the users table.
+/** * Load example users directly into the users table.
  * Appends to any already-loaded users (from the Genomic Data tab selection) instead of replacing them. */
-async function loadFallbackUsers() {
-	console.log("775 loadFallbackUsers() called");
+async function loadExampleUsers() {
+	console.log("775 loadExampleUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 
-	// Preserve existing loaded users; only add fallback users not already loaded (by id).
+	// Preserve existing loaded users; only add example users not already loaded (by id).
 	const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
 	const existingIds = new Set(existing.map(entry => entry?.user?.id).filter(Boolean));
-	const toLoad = FALLBACK_USERS.filter(u => !existingIds.has(u.id));
+	const toLoad = EXAMPLE_USERS.filter(u => !existingIds.has(u.id));
 
 	if (toLoad.length === 0) {
-		if (statusEl) statusEl.textContent = `All ${FALLBACK_USERS.length} fallback participant(s) are already loaded.`;
+		if (statusEl) statusEl.textContent = `All ${EXAMPLE_USERS.length} example participant(s) are already loaded.`;
 		return;
 	}
 
-	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s) to ${existing.length} already loaded...`;
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each user's genome file (load23andMeFile caches internally)
-	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)...`;
+	// Fetch and parse each user's genome file (get23Txt caches internally)
+	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example participant(s) to ${existing.length} already loaded...`;
 	const added = await loadUsersFromList(toLoad);
 
 	loadedUsers = existing.concat(added);
 	window.loadedUsers = loadedUsers; // expose for cluster tab
 
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} fallback.`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} example.`;
 
 	if (resultsDiv) {
 		const displayUsers = loadedUsers.map(entry => entry.user);
 		resultsDiv.innerHTML = renderUsersTable(displayUsers, loadedUsers);
 	}
 
-	console.log("Loaded fallback users with parsed data:", loadedUsers);
+	console.log("Loaded example users with parsed data:", loadedUsers);
 
 	// Update cluster page with loaded users
 	if (typeof window.renderCluster === "function") {
@@ -3916,15 +3916,15 @@ async function loadFallbackUsers() {
 	}
 }
 
-// Wire up fallback buttons
-const loadFallbackScoresBtn = document.getElementById("loadFallbackScoresBtn");
-if (loadFallbackScoresBtn) {
-	loadFallbackScoresBtn.addEventListener("click", loadFallbackScores);
+// Wire up example buttons
+const loadExampleScoresBtn = document.getElementById("loadExampleScoresBtn");
+if (loadExampleScoresBtn) {
+	loadExampleScoresBtn.addEventListener("click", loadExampleScores);
 }
 
-const loadFallbackUsersBtn = document.getElementById("loadFallbackUsersBtn");
-if (loadFallbackUsersBtn) {
-	loadFallbackUsersBtn.addEventListener("click", loadFallbackUsers);
+const loadExampleUsersBtn = document.getElementById("loadExampleUsersBtn");
+if (loadExampleUsersBtn) {
+	loadExampleUsersBtn.addEventListener("click", loadExampleUsers);
 }
 
 // Wire up the fetch scores button
@@ -3933,12 +3933,12 @@ if (fetchScoresBtn) {
 	fetchScoresBtn.addEventListener("click", fetchScores);
 }
 
-window.loadFallbackScores = loadFallbackScores;
-window.loadFallbackUsers = loadFallbackUsers;
+window.loadExampleScores = loadExampleScores;
+window.loadExampleUsers = loadExampleUsers;
 
-// Expose fallback data for manual use
-window.FALLBACK_USERS = FALLBACK_USERS;
-window.FALLBACK_SCORES = FALLBACK_SCORES;
+// Expose example data for manual use
+window.EXAMPLE_USERS = EXAMPLE_USERS;
+window.EXAMPLE_SCORES = EXAMPLE_SCORES;
 
 /** Return browser storage usage statistics via the Storage Estimation API. */
 async function getBrowserStorageInfo() {
@@ -4048,7 +4048,7 @@ async function calculatePRS() {
 	if (statusEl) statusEl.textContent = "Calculating PRS...";
 
 	try {
-		//// GET USERS: use loadedUsers (from fetchUsers / loadFallbackUsers),
+		//// GET USERS: use loadedUsers (from fetchUsers / loadExampleUsers),
 		//  filtered to only those whose checkbox is still checked in the PRS users table.
 		//  If loadedUsers is empty, fall back to window.getSelectedUsers() from the LocalData tab.
 		let userDataForCalc = loadedUsers;
@@ -4066,7 +4066,7 @@ async function calculatePRS() {
 			const selectedUsers = window.getSelectedUsers?.() ?? [];
 			console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
 			if (selectedUsers.length === 0) {
-				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Fallback Users' in the PRS tab, or select users in the 23andMe Data tab.";
+				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Example Users' in the PRS tab, or select users in the 23andMe Data tab.";
 				return;
 			}
 
@@ -4083,11 +4083,11 @@ async function calculatePRS() {
 			}
 		}
 
-		//// GET SCORES: prefer dynamically selected scores, fallback to loadedScores
+		//// GET SCORES: prefer dynamically selected scores, else loadedScores
 		const dynamicScores = window.getSelectedScores?.() ?? [];
 		let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
-		const usingFallback = dynamicScores.length === 0 && loadedScores.length > 0;
-		console.log("Selected scores for PRS calculation:", selectedScoresList, usingFallback ? "(fallback)" : "(selected)");
+		const usingExample = dynamicScores.length === 0 && loadedScores.length > 0;
+		console.log("Selected scores for PRS calculation:", selectedScoresList, usingExample ? "(example)" : "(selected)");
 
 		// Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
 		const checkedScoreIds = getCheckedIds(".prs-select-cb");
@@ -4099,14 +4099,14 @@ async function calculatePRS() {
 		const selectedIds = selectedScoresList.map(s => s.id);
 
 		if (selectedIds.length === 0) {
-			if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Fallback Scores' first.";
+			if (statusEl) statusEl.textContent = "No PGS scores loaded. Click 'Load Example Scores' first.";
 			return;
 		}
 
 		// Update scores table display
 		const scoresDiv = document.getElementById("prsScoresDiv");
 		const scoresAction = document.getElementById("prsScoresAction");
-		if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingFallback ? "fallback" : "selected"} scoring file(s).`;
+		if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingExample ? "example" : "selected"} scoring file(s).`;
 		if (scoresAction) {
 			scoresAction.innerHTML = renderScoresTable(selectedScoresList, window.loadedPgsTxts ?? []);
 		}
@@ -4261,12 +4261,12 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	// Score / user loading
 	fetchScores,
 	fetchUsers,
-	loadFallbackScores,
-	loadFallbackUsers,
+	loadExampleScores,
+	loadExampleUsers,
 
-	// Fallback data
-	FALLBACK_SCORES,
-	FALLBACK_USERS,
+	// Example data
+	EXAMPLE_SCORES,
+	EXAMPLE_USERS,
 });
 
 /**

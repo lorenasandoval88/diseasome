@@ -1,5 +1,5 @@
 import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
-import { fetchProfile, load23andMeFile, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { fetchProfile, get23Txt, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { getTextSizeKB, checkStorageKB, estimateLocalForageSizeKB, getTxts, getScoresPerCategory, getScoresPerTrait, fetchTraits, fetchSomeScores, fetchAllScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 function _mergeNamespaces(n, m) {
@@ -3084,7 +3084,7 @@ const pgp = {
 	fetch23andMeParticipants,
 	allUsersMetaDataByType_fast,
 	fetchAvailableDataTypes,
-	load23andMeFile,
+	get23Txt,
 	fetchProfile,
 };
 
@@ -3094,7 +3094,7 @@ const pgs = {
 	fetchTraits,
 	getScoresPerTrait,
 	getScoresPerCategory,
-	getTxts,
+	getPgsTxt: getTxts,
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 

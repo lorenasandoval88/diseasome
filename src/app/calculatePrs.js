@@ -753,9 +753,7 @@ async function loadExampleScores() {
 	const addedTxts = added.map(a => a.parsed).filter(p => !existingTxtIds.has(p?.id ?? p?.meta?.pgs_id));
 	window.loadedPgsTxts = existingTxts.concat(addedTxts);
 
-	const selectedAdded = added.filter(a => selectedIdSet.has(a.score.id)).length;
-	const exampleAdded = added.length - selectedAdded;
-	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${selectedAdded} selected + ${exampleAdded} example.`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} example.`;
 
 	if (resultsDiv) {
 		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);

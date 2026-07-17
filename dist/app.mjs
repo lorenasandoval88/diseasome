@@ -3800,7 +3800,7 @@ async function loadExampleScores() {
 	// Include any risk models the user selected in the Polygenic Scores tab (tab 2),
 	// so a pending selection is loaded alongside the example set instead of being ignored.
 	const selectedScores = (window.getSelectedScores?.() ?? []).filter(s => s?.id);
-	const selectedIdSet = new Set(selectedScores.map(s => s.id));
+	new Set(selectedScores.map(s => s.id));
 
 	// Candidate list: user-selected scores first, then example scores. Dedup by id, skip already loaded.
 	const candidateMap = new Map();
@@ -3831,9 +3831,7 @@ async function loadExampleScores() {
 	const addedTxts = added.map(a => a.parsed).filter(p => !existingTxtIds.has(p?.id ?? p?.meta?.pgs_id));
 	window.loadedPgsTxts = existingTxts.concat(addedTxts);
 
-	const selectedAdded = added.filter(a => selectedIdSet.has(a.score.id)).length;
-	const exampleAdded = added.length - selectedAdded;
-	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${selectedAdded} selected + ${exampleAdded} example.`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} example.`;
 
 	if (resultsDiv) {
 		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);

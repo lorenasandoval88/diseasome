@@ -3788,7 +3788,7 @@ if (fetchUsersBtn) {
 /** * Load fallback scores directly into the PRS table.
  * Appends to any already-loaded scores instead of replacing them. */
 async function loadFallbackScores() {
-	console.log("808 loadFallbackScores() called");
+	console.log("loadFallbackScores() called");
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus");

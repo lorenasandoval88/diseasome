@@ -3,7 +3,7 @@
 export {
 	cacheAndReturn,
 	parse23Txt,
-	load23andMeFile,
+	load23andMeFile as get23Txt,
 	allUsersMetaDataByType_fast,
 	fetch23andMeParticipants,
 	fetchAvailableDataTypes,

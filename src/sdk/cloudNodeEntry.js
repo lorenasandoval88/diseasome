@@ -3,7 +3,7 @@ export {
   fetchAvailableDataTypes,
   allUsersMetaDataByType_fast,
   fetchProfile,
-  load23andMeFile
+  get23Txt
 } from "./pgp_node.js";
 
 export {
@@ -12,7 +12,7 @@ export {
   fetchTraits,
   getScoresPerCategory,
   getScoresPerTrait,
-  getTxts
+  getPgsTxt
 } from "./pgs_node.js";
 
 export {

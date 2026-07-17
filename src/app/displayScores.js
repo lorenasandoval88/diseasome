@@ -1,4 +1,4 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getTxts } from "../sdk/pgsSdk.js";
+import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getPgsTxt } from "../sdk/pgsSdk.js";
 import localforage from "localforage";
 
 /*
@@ -95,7 +95,7 @@ try {
 }
 
 // --- PGS scoring file cache tools -------------------------------------------
-// Scoring .txt files fetched via getTxts() are cached in LocalForage under the
+// Scoring .txt files fetched via getPgsTxt() are cached in LocalForage under the
 // "PGS_Catalog:id-" prefix (older builds used "pgs:id-PGS"). These helpers report
 // how many scoring files are cached and how much space they use, and clear them.
 const PGS_TXT_KEY_PREFIXES = ["PGS_Catalog:id-", "pgs:id-PGS"];
@@ -1108,9 +1108,9 @@ async function fetchScoresTxts() {
 		if (statusEl) statusEl.textContent = `Fetching ${selectedIds.length} PGS file(s)...`;
 		if (txtsDiv) txtsDiv.style.display = "block";
 		
-		// Fetch PGS text files using the SDK
+		// Fetch PGS text files using the SDK (getPgsTxt loads one id at a time)
 		//console.log(`Fetching ${selectedIds.length} PGS files:`, selectedIds);
-		const pgsTxts = await getTxts(selectedIds);
+		const pgsTxts = await Promise.all(selectedIds.map(id => getPgsTxt(id)));
 		
 		window.loadedPgsTxts = pgsTxts;
 		console.log(`\n=== Results saved to window.loadedPgsTxts ===`);

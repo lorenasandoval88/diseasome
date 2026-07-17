@@ -1,7 +1,7 @@
-import { getTxts } from "../sdk/pgsSdk.js";
+import { getPgsTxt } from "../sdk/pgsSdk.js";
 import { Match2 } from "../sdk/prs.js";
 // import { parsePGP23, load23andMeFile } from "../sdk/get23me.js";
-import { load23andMeFile } from "../sdk/pgpSdk.js";
+import { get23Txt } from "../sdk/pgpSdk.js";
 import localforage from "localforage";
 console.log("calculatePrs.js loaded");
 
@@ -12,11 +12,11 @@ console.log("calculatePrs.js loaded");
 // Workflow (driven by buttons in the PRS tab):
 //   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
 //      loadFallbackScores() (selection + FALLBACK_SCORES). Both call
-//      loadScoresFromList(), which batches all PGS ids into one getTxts() call
+//      loadScoresFromList(), which loads each PGS id one at a time via getPgsTxt()
 //      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
 //   2. LOAD USERS — fetchUsers() (selected in the 23andMe Data tab) or
 //      loadFallbackUsers() (FALLBACK_USERS). Both call loadUsersFromList(), which
-//      loads each genome one file at a time via load23andMeFile() (fetch + parse +
+//      loads each genome one file at a time via get23Txt() (fetch + parse +
 //      cache). Results populate loadedUsers + window.loadedUsers.
 //   3. CALCULATE — calculatePRS() takes the checked users x checked scores, then for
 //      each pair calls calculateAndCachePRS() → Match2() (the actual PRS math) and
@@ -520,8 +520,8 @@ function renderUsersTable(users, loaded) {
 }
 
 /*** Load and parse a list of PGS scoring files.
- * Reuses each score's pre-parsed data when present; the rest are fetched in a
- * single getTxts() call so its storage-eviction sees the full requested set.
+ * Reuses each score's pre-parsed data when present; the rest are fetched one id
+ * at a time via getPgsTxt() (fetch + parse + cache).
  * Returns { score, parsed } entries, skipping any that fail to parse.
  * @param {Object[]} scores - Score metadata objects (each with an .id)
  * @returns {Promise<Object[]>} Array of { score, parsed }
@@ -540,18 +540,18 @@ async function loadScoresFromList(scores) {
 	}
 
 	if (toFetch.length > 0) {
-		let txts = [];
-		try {
-			// Batch load: pass ALL ids to getTxts in one call. getTxts fetches/parses
-			// the whole list together and runs its storage-limit (cache eviction) check
-			// once against the full requested set — unlike the genome loader, which
-			// handles one file at a time (see loadUsersFromList).
-			txts = (await getTxts(toFetch.map(s => s.id))) ?? [];
-		} catch (err) {
-			console.error("Failed to load scoring files:", err);
-		}
-		for (const score of toFetch) {
-			const parsed = txts.find(t => (t?.id ?? t?.meta?.pgs_id) === score.id) ?? null;
+		// Load each scoring file one id at a time via getPgsTxt (fetch + parse +
+		// cache), just like the genome loader in loadUsersFromList.
+		const fetched = await Promise.all(toFetch.map(async (score) => {
+			try {
+				const parsed = await getPgsTxt(score.id);
+				return { score, parsed: parsed ?? null };
+			} catch (err) {
+				console.error(`Failed to load scoring file ${score?.id}:`, err);
+				return { score, parsed: null };
+			}
+		}));
+		for (const { score, parsed } of fetched) {
 			if (!parsed) {
 				console.warn(`No parseable file for score ${score?.id}`);
 				continue;
@@ -585,7 +585,7 @@ async function fetchScores() {
 		}
 		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedScores.length} scoring file(s)...`;
 
-		// Parse scoring files for all selected scores (getTxts handles fetch, parse, and caching)
+		// Parse scoring files for all selected scores (getPgsTxt handles fetch, parse, and caching)
 		const added = await loadScoresFromList(selectedScores);
 
 		// Populate loadedScores (metadata) so calculatePRS builds selectedIds correctly
@@ -620,13 +620,11 @@ window.fetchScores = fetchScores;
 
 /*** Load and parse a list of user genome files.
  * For each user: reuses pre-parsed data if present, otherwise resolves the file
- * path and loads it via load23andMeFile (which caches internally under
+ * path and loads it via get23Txt (which caches internally under
  * "Genome:23andMe-txt-*"). Returns { user, parsed } entries, skipping failures.
  *
- * Note: unlike loadScoresFromList (which batches all PGS ids into a single
- * getTxts call and checks the cache limit once for the whole set), genomes are
- * loaded one file at a time — load23andMeFile fetches, parses, and cache-checks
- * each file individually.
+ * Like loadScoresFromList, genomes are loaded one file at a time — get23Txt
+ * fetches, parses, and cache-checks each file individually.
  * @param {Object[]} users - User/participant objects
  * @returns {Promise<Object[]>} Array of { user, parsed }
  */
@@ -644,7 +642,7 @@ async function loadUsersFromList(users) {
 			return null;
 		}
 		try {
-			const parsed = await load23andMeFile(filePath, user.id);
+			const parsed = await get23Txt(filePath, user.id);
 			return { user, parsed };
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
@@ -741,7 +739,7 @@ async function loadFallbackScores() {
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} risk model(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each score (getTxts handles fetch, parse, and caching)
+	// Fetch and parse each score (getPgsTxt handles fetch, parse, and caching)
 	const added = await loadScoresFromList(toLoad);
 
 	// Append metadata to loadedScores (dedup by id) so calculatePRS builds selectedIds correctly
@@ -790,7 +788,7 @@ async function loadFallbackUsers() {
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each user's genome file (load23andMeFile caches internally)
+	// Fetch and parse each user's genome file (get23Txt caches internally)
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} fallback participant(s)...`;
 	const added = await loadUsersFromList(toLoad);
 

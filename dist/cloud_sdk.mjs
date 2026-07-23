@@ -22523,126 +22523,116 @@ function Match2(mypgs, my23){
   
   return data2
   }
+  
+function MatchOptimized(mypgs, my23) {
+  // Defensive checks
+  if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
+    console.error("MatchOptimized error: invalid mypgs structure", mypgs);
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid PGS data structure" };
+  }
+  if (!my23 || !my23.cols || !Array.isArray(my23.cols)) {
+    console.error("MatchOptimized error: invalid my23 structure", my23);
+    return { pgs_id: mypgs && mypgs.meta && mypgs.meta.pgs_id, PRS: "error", QC: false, QCtext: "Invalid genome data structure" };
+  }
 
-  function Match3(mypgs, my23) {
-  let data2 = {};
-
-  // PGS column indexes
   const indChr = mypgs.cols.indexOf('hm_chr');
   const indPos = mypgs.cols.indexOf('hm_pos');
   const indOtherAllele = mypgs.cols.indexOf('other_allele');
   const indEffectAllele = mypgs.cols.indexOf('effect_allele');
   const indEffectWeight = mypgs.cols.indexOf('effect_weight');
 
-  // 23andMe column indexes
   const ind23Chr = my23.cols.indexOf('chromosome') !== -1 ? my23.cols.indexOf('chromosome') : 1;
   const ind23Pos = my23.cols.indexOf('position') !== -1 ? my23.cols.indexOf('position') : 2;
   const ind23Genotype = my23.cols.indexOf('genotype');
 
-  // Store all rows: matched and unmatched
-  let allResults = [];
-  let matchedOnly = [];
+  let data2 = {};
+  let dtMatch = [];
 
-  // Risk arrays
-  let calcRiskScore = [];
-  let alleles = [];
+  // Build a lookup index once: key = "chr:pos" -> all genome rows at that locus.
+  const genomeIndex = new Map();
+  const genomeRowCount = Array.isArray(my23.dt) ? my23.dt.length : 0;
+  for (const row of my23.dt) {
+    const key = `${row[ind23Chr]}:${row[ind23Pos]}`;
+    if (!genomeIndex.has(key)) {
+      genomeIndex.set(key, []);
+    }
+    genomeIndex.get(key).push(row);
+  }
 
-  for (let i = 0; i < mypgs.dt.length; i++) {
-    const pgsRow = mypgs.dt[i];
+  // For each PGS row, do O(1) key lookup and filter only local candidates.
+  const pgsRowCount = Array.isArray(mypgs.dt) ? mypgs.dt.length : 0;
+  for (let i = 0; i < pgsRowCount; i++) {
+    const r = mypgs.dt[i];
+    const key = `${r[indChr]}:${r[indPos]}`;
+    const locusRows = genomeIndex.get(key) || [];
+    if (locusRows.length === 0) continue;
 
-    const chr = pgsRow[indChr];
-    const pos = pgsRow[indPos];
-    const effectAllele = pgsRow[indEffectAllele];
-    const otherAllele = pgsRow[indOtherAllele];
-    const effectWeight = Number(pgsRow[indEffectWeight]);
-
-    // Match only genotypes containing the effect or other allele
-    const regexPattern = new RegExp(`${effectAllele}|${otherAllele}`);
-
-    let dtMatch_i = my23.dt
-      .filter(myr => myr[ind23Pos] == pos)
-      .filter(myr => myr[ind23Chr] == chr)
-      .filter(myr => regexPattern.test(myr[ind23Genotype]));
+    const regexPattern = new RegExp([r[indEffectAllele], r[indOtherAllele]].join('|'));
+    const dtMatch_i = locusRows.filter(myr => regexPattern.test(myr[ind23Genotype]));
 
     if (dtMatch_i.length > 0) {
-      // Use first valid 23andMe match for scoring
-      const my23Row = dtMatch_i[0];
-      let score = 0;
-      let alleleCount = 0;
-
-      const genotype = my23Row[ind23Genotype];
-      const mi = genotype && genotype.match(/^[ACGT]{2}$/);
-
-      if (mi) {
-        const L = mi[0].match(new RegExp(effectAllele, 'g'));
-        if (L) {
-          alleleCount = L.length;
-          score = alleleCount * effectWeight;
-        }
-      }
-
-      calcRiskScore.push(score);
-      alleles.push(alleleCount);
-
-      const matchedRecord = {
-        match: true,
-        status: "match",
-        hm_chr_pos: `${chr}:${pos}`,
-        pgs: pgsRow,
-        my23: dtMatch_i,   // keep all matching 23andMe rows
-        alleleCount,
-        riskScore: score
-      };
-
-      allResults.push(matchedRecord);
-      matchedOnly.push(matchedRecord);
-
-    } else {
-      // No match found
-      allResults.push({
-        match: false,
-        status: "nomatch",
-        hm_chr_pos: `${chr}:${pos}`,
-        pgs: pgsRow,
-        my23: "nomatch",
-        alleleCount: "-",
-        riskScore: 0
-      });
-
-      // optional: keep unmatched rows in score arrays too
-      calcRiskScore.push(0);
-      alleles.push(0);
+      dtMatch.push(dtMatch_i.concat([r]));
     }
   }
 
-  data2.pgs_id = mypgs.meta && mypgs.meta.pgs_id;
-  data2.results = allResults;          // all PGS rows, including nomatch
-  data2.pgsMatchMy23 = matchedOnly;    // only matched rows
+  data2.pgsMatchMy23 = dtMatch;
+
+  let calcRiskScore = [];
+  let alleles = [];
+
+  dtMatch.forEach((m, i) => {
+    calcRiskScore[i] = 0;
+    alleles[i] = 0;
+
+    const genotype = m[0]?.[ind23Genotype];
+    let mi = typeof genotype === 'string' ? genotype.match(/^[ACGT]{2}$/) : null;
+
+    if (mi) {
+      mi = mi[0];
+      const pi = m.at(-1);
+      const allele = pi[indEffectAllele];
+      let L = mi.match(RegExp(allele, 'g'));
+      if (L) {
+        L = L.length;
+        calcRiskScore[i] = L * pi[indEffectWeight];
+        alleles[i] = L;
+      }
+    }
+  });
+
+  data2.pgs_id = mypgs.meta?.pgs_id;
   data2.alleles = alleles;
   data2.calcRiskScore = calcRiskScore;
 
-  const weights = mypgs.dt.map(row => Number(row[indEffectWeight]));
-
-  if (matchedOnly.length === 0) {
+  const weights = mypgs.dt.map(row => row[indEffectWeight]);
+  if (calcRiskScore.length == 0) {
     data2.PRS = "there are no matches :-(";
     data2.QC = false;
     data2.QCtext = 'there are no matches :-(';
-  } else if (calcRiskScore.reduce((a, b) => Math.max(a, b), -Infinity) > 100) {
-    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b, 0));
+  } else if (calcRiskScore.reduce((a, b) => Math.max(a, b)) > 100) {
+    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b));
     data2.QC = false;
     data2.QCtext = 'these are large betas :-(';
-  } else if (weights.reduce((a, b) => Math.min(a, b), Infinity) > -2e-5) {
-    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b, 0));
+  } else if (weights.reduce((a, b) => Math.min(a, b)) > -2e-5) {
+    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b));
     data2.QC = false;
     data2.QCtext = 'these are not betas :-(';
   } else {
-    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b, 0));
+    data2.PRS = Math.exp(calcRiskScore.reduce((a, b) => a + b));
     data2.QC = true;
     data2.QCtext = '';
   }
 
+  data2.complexity = {
+    bigO: 'O(n + m)',
+    hashIndexOps: genomeRowCount + pgsRowCount,
+    nestedScanOps: genomeRowCount * pgsRowCount,
+    genomeRows: genomeRowCount,
+    pgsRows: pgsRowCount
+  };
+
   return data2;
 }
 
-export { Match2, Match3, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, get23Txt, getTxts as getPgsTxt, getScoresPerCategory, getScoresPerTrait };
+export { Match2, MatchOptimized, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, get23Txt, getTxts as getPgsTxt, getScoresPerCategory, getScoresPerTrait };
 //# sourceMappingURL=cloud_sdk.mjs.map

@@ -2,5 +2,5 @@
 // For Node.js/Cloud Run environments
 export {
 	Match2,
-	Match3
+	MatchOptimized
 } from "./prs.js";

@@ -17,7 +17,7 @@ import {
 
 import {
 	Match2,
-	Match3,
+	MatchOptimized,
 } from "./src/sdk/prs.js";
 
 export const pgp = {

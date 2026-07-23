@@ -937,7 +937,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
 
 	// Calculate if not cached
 	const result = Match2(mypgs, my23);
-	console.log("Calculated PRS result:", result);
+	//console.log("Calculated PRS result:", result);
 	const organizedData = organizeResultsByAllele(result, mypgs);
 
 	const prsResult = {

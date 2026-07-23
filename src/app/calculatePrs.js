@@ -118,6 +118,15 @@ async function clearPRSCache() {
 		await localforage.removeItem(key);
 	}
 	console.log(`PRS cache cleared: removed ${prsKeys.length} item(s)`);
+
+	// Reset the Calculate PRS results table and status.
+	window.prsResults = [];
+	if (window.sdk) window.sdk.prsResults = [];
+	if (typeof window.invalidateClusterCache === "function") window.invalidateClusterCache();
+	const resultsDiv = document.getElementById("prsResultsDiv");
+	if (resultsDiv) resultsDiv.innerHTML = "";
+	const statusEl = document.getElementById("prsResultsStatus");
+	if (statusEl) statusEl.textContent = "";
 }
 window.clearPRSCache = clearPRSCache;
 
@@ -132,6 +141,15 @@ async function clearPGSCache() {
 		await localforage.removeItem(key);
 	}
 	console.log(`PGS scoring cache cleared: removed ${pgsKeys.length} item(s)`);
+
+	// Reset the loaded risk models table and status.
+	loadedScores = [];
+	window.loadedPgsTxts = [];
+	const scoresAction = document.getElementById("prsScoresAction");
+	if (scoresAction) scoresAction.innerHTML = "";
+	const scoresStatus = document.getElementById("prsScoresDiv");
+	if (scoresStatus) scoresStatus.textContent = "Select at least one risk model or use the option below.";
+
 	return pgsKeys.length;
 }
 window.clearPGSCache = clearPGSCache;
@@ -146,6 +164,15 @@ async function clearGenomeCache() {
 		await localforage.removeItem(key);
 	}
 	console.log(`Genome cache cleared: removed ${genomeKeys.length} item(s)`);
+
+	// Reset the loaded participants table and status.
+	loadedUsers = [];
+	window.loadedUsers = [];
+	const usersAction = document.getElementById("prsUsersAction");
+	if (usersAction) usersAction.innerHTML = "";
+	const usersStatus = document.getElementById("prsUsersdiv");
+	if (usersStatus) usersStatus.textContent = "Select at least one 23andMe file or click below.";
+
 	return genomeKeys.length;
 }
 window.clearGenomeCache = clearGenomeCache;

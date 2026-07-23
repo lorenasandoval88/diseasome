@@ -1,5 +1,5 @@
 ﻿import { getPgsTxt } from "../sdk/pgsSdk.js";
-import { Match2 } from "../sdk/prs.js";
+import { MatchOptimized } from "../sdk/prs.js";
 // import { parsePGP23, get23Txt } from "../sdk/get23me.js";
 import { get23Txt } from "../sdk/pgpSdk.js";
 import localforage from "localforage";
@@ -19,7 +19,7 @@ console.log("calculatePrs.js loaded");
 //      loads each genome one file at a time via get23Txt() (fetch + parse +
 //      cache). Results populate loadedUsers + window.loadedUsers.
 //   3. CALCULATE â€” calculatePRS() takes the checked users x checked scores, then for
-//      each pair calls calculateAndCachePRS() â†’ Match2() (the actual PRS math) and
+//      each pair calls calculateAndCachePRS() â†’ MatchOptimized() (the actual PRS math) and
 //      organizeResultsByAllele() (groups matches by 0/1/2 effect alleles for plots).
 //      Results are cached (getCachedPRS/setCachedPRS), exposed on window.prsResults,
 //      and rendered as a table.
@@ -120,7 +120,7 @@ window.clearGenomeCache = clearGenomeCache;
 /**
  * Organize PRS match results by allele count (0, 1, or 2).
  * Returns structured data suitable for plotting or analysis.
- * @param {Object} matchResult - Result from Match2 function (contains pgsMatchMy23, alleles, calcRiskScore, PRS, etc.)
+ * @param {Object} matchResult - Result from MatchOptimized function (contains pgsMatchMy23, alleles, calcRiskScore, PRS, etc.)
  * @param {Object} pgsData - Parsed PGS scoring file (contains cols, dt, meta)
  * @returns {Object} Organized data with matched/not_matched/matched_by_alleles breakdown
  */
@@ -936,7 +936,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
 	}
 
 	// Calculate if not cached
-	const result = Match2(mypgs, my23);
+	const result = MatchOptimized(mypgs, my23);
 	//console.log("Calculated PRS result:", result);
 	const organizedData = organizeResultsByAllele(result, mypgs);
 

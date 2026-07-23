@@ -1,6 +1,6 @@
 import * as sdk_mjs from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import { fetchProfile, get23Txt, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetch23andMeParticipants } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
-import { getTextSizeKB, checkStorageKB, estimateLocalForageSizeKB, getTxts, getScoresPerCategory, getScoresPerTrait, fetchTraits, fetchSomeScores, fetchAllScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { getTextSizeKB, checkStorageKB, estimateLocalForageSizeKB, getPgsTxt, getScoresPerCategory, getScoresPerTrait, fetchTraits, fetchSomeScores, fetchAllScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 
 function _mergeNamespaces(n, m) {
 	m.forEach(function (e) {
@@ -2862,7 +2862,7 @@ var clustSdk = /*#__PURE__*/_mergeNamespaces({
 	__proto__: null
 }, [sdk_mjs]);
 
-function Match2$1(mypgs, my23){
+function Match2(mypgs, my23){
   // Defensive checks
   if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
     console.error("Match2 error: invalid mypgs structure", mypgs);
@@ -2959,7 +2959,7 @@ function Match2$1(mypgs, my23){
   return data2
   }
   
-function MatchOptimized$1(mypgs, my23) {
+function MatchOptimized(mypgs, my23) {
   // Defensive checks
   if (!mypgs || !mypgs.cols || !Array.isArray(mypgs.cols)) {
     console.error("MatchOptimized error: invalid mypgs structure", mypgs);
@@ -3069,9 +3069,6 @@ function MatchOptimized$1(mypgs, my23) {
   return data2;
 }
 
-const Match2 = Match2$1;
-const MatchOptimized = MatchOptimized$1 ?? Match2$1;
-
 const pgp = {
 	fetch23andMeParticipants,
 	allUsersMetaDataByType_fast,
@@ -3086,7 +3083,7 @@ const pgs = {
 	fetchTraits,
 	getScoresPerTrait,
 	getScoresPerCategory,
-	getPgsTxt: getTxts,
+	getPgsTxt,
 	estimateLocalForageSizeKB, checkStorageKB, getTextSizeKB
 };
 

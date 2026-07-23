@@ -317,8 +317,8 @@ async function renderCluster() {
     await hclust_plot({
        divId:  "clusterPlotMount",
       data: pivoted,
-      width: 900,
-      height: 350,
+      width: 1200,
+      height: 520,
       clusterRows: clusterRows,
       clusterCols: clusterCols,
       clusteringMethodRows: clusterMethod,

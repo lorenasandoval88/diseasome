@@ -1,4 +1,4 @@
-import { getTxts } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { getPgsTxt } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import { get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { hclust_plot } from 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
 import * as webllm from 'https://esm.run/@mlc-ai/web-llm';
@@ -30,7 +30,7 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-D7vhTgUV.mjs');
+        await import('./chunks/displayScores-BHwPj1RY.mjs');
         pgsModuleLoaded = true;
     }
 }
@@ -3126,6 +3126,40 @@ console.log("calculatePrs.js loaded");
 let loadedScores = []; // parsed PGS scoring files (metadata objects)
 let loadedUsers = []; // parsed 23andMe genome data ({ user, parsed })
 
+const prsProgressBars = new Map();
+
+function ensureProgressBar(key, statusEl) {
+	if (!statusEl) return null;
+	if (prsProgressBars.has(key)) return prsProgressBars.get(key);
+
+	const wrap = document.createElement("div");
+	wrap.className = "progress mt-2";
+	wrap.style.height = "8px";
+
+	const bar = document.createElement("div");
+	bar.className = "progress-bar progress-bar-striped";
+	bar.setAttribute("role", "progressbar");
+	bar.setAttribute("aria-valuemin", "0");
+	bar.setAttribute("aria-valuemax", "100");
+	bar.setAttribute("aria-valuenow", "0");
+	bar.style.width = "0%";
+
+	wrap.appendChild(bar);
+	statusEl.insertAdjacentElement("afterend", wrap);
+
+	const entry = { wrap, bar };
+	prsProgressBars.set(key, entry);
+	return entry;
+}
+
+function setProgressBar(key, statusEl, percent) {
+	const entry = ensureProgressBar(key, statusEl);
+	if (!entry) return;
+	const p = Math.max(0, Math.min(100, Math.round(percent)));
+	entry.bar.style.width = `${p}%`;
+	entry.bar.setAttribute("aria-valuenow", String(p));
+}
+
 /*** Get cached PRS result for a user+PGS combination.
  * @param {string} userId - User ID
  * @param {string} pgsId - PGS ID
@@ -3384,13 +3418,18 @@ function organizeResultsByAllele(matchResult, pgsData) {
 window.organizeResultsByAllele = organizeResultsByAllele;
 
 
-/** Example local users (all 5 from data folder) */
+/** Example local users (all 10 from data folder) */
 const EXAMPLE_USERS = [
 	{
 		id: "hu09B28E",
 		name: "Joshua Yoakem",
 		participant_id: "hu09B28E",
 		publishedDate: "2025-01-27",
+		gender: null,
+		ethnicity: null,
+		race: null,
+		version: "v5",
+		build: 37,
 		genotypes: [{
 			filename: "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127054538.txt",
 			filetype: "23andme",
@@ -3402,6 +3441,11 @@ const EXAMPLE_USERS = [
 		name: "Cajun",
 		participant_id: "hu0F2E0D",
 		publishedDate: "2023-11-21",
+		gender: null,
+		ethnicity: null,
+		race: null,
+		version: "v5",
+		build: 37,
 		genotypes: [{
 			filename: "PGP_hu0F2E0D_genome_Cajun_v5_Full_20231121192441.txt",
 			filetype: "23andme",
@@ -3413,6 +3457,11 @@ const EXAMPLE_USERS = [
 		name: "Melinda Chaperlo",
 		participant_id: "hu50801B",
 		publishedDate: "2024-07-28",
+		gender: "Female",
+		ethnicity: "Not Hispanic or Latino",
+		race: "White",
+		version: "v5",
+		build: 37,
 		genotypes: [{
 			filename: "PGP_hu50801B_genome_Melinda_Chaperlo_v5_Full_20240728204807_(1).txt",
 			filetype: "23andme",
@@ -3424,6 +3473,11 @@ const EXAMPLE_USERS = [
 		name: "Marika Forsythe",
 		participant_id: "huAE4518",
 		publishedDate: "2024-08-26",
+		gender: null,
+		ethnicity: null,
+		race: null,
+		version: "v4",
+		build: 37,
 		genotypes: [{
 			filename: "PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt",
 			filetype: "23andme",
@@ -3435,10 +3489,95 @@ const EXAMPLE_USERS = [
 		name: "Christopher Smith",
 		participant_id: "huBE0518",
 		publishedDate: "2023-09-26",
+		gender: null,
+		ethnicity: null,
+		race: null,
+		version: "v5",
+		build: 37,
 		genotypes: [{
 			filename: "PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt",
 			filetype: "23andme",
 			download_url: "data/PGP_huBE0518_genome_Christopher_Smith_v5_Full_20230926164611.txt"
+		}]
+	},
+	{
+		id: "angela_prochazka",
+		name: "Angela Prochazka",
+		participant_id: "angela_prochazka",
+		publishedDate: "2018-02-16",
+		gender: "Female",
+		ethnicity: "Hispanic or Latino",
+		race: "American Indian / Alaska Native, Hispanic or Latino, White",
+		version: "v5",
+		build: 37,
+		genotypes: [{
+			filename: "genome_Angela_Prochazka_v5_Full_20180216181631.txt",
+			filetype: "23andme",
+			download_url: "data/genome_Angela_Prochazka_v5_Full_20180216181631.txt"
+		}]
+	},
+	{
+		id: "burnetta_hood",
+		name: "Burnetta Hood",
+		participant_id: "burnetta_hood",
+		publishedDate: "2017-06-16",
+		gender: "Female",
+		ethnicity: "Black or African American",
+		race: "Other",
+		version: "v4",
+		build: 37,
+		genotypes: [{
+			filename: "genome_Burnetta_Hood_v4_Full_20170616141234.txt",
+			filetype: "23andme",
+			download_url: "data/genome_Burnetta_Hood_v4_Full_20170616141234.txt"
+		}]
+	},
+	{
+		id: "lw",
+		name: "LW",
+		participant_id: "lw",
+		publishedDate: "2017-09-24",
+		gender: "Female",
+		ethnicity: "Other",
+		race: "Black or African American",
+		version: "v5",
+		build: 37,
+		genotypes: [{
+			filename: "genome_LW_v5_Full_20170924182428.txt",
+			filetype: "23andme",
+			download_url: "data/genome_LW_v5_Full_20170924182428.txt"
+		}]
+	},
+	{
+		id: "ritaann_valencia",
+		name: "RitaAnn Valencia",
+		participant_id: "ritaann_valencia",
+		publishedDate: "2017-10-11",
+		gender: "Female",
+		ethnicity: "Hispanic or Latino",
+		race: "Hispanic or Latino",
+		version: "v5",
+		build: 37,
+		genotypes: [{
+			filename: "genome_RitaAnn_Valencia_v5_Full_20171011005432.txt",
+			filetype: "23andme",
+			download_url: "data/genome_RitaAnn_Valencia_v5_Full_20171011005432.txt"
+		}]
+	},
+	{
+		id: "terrence_pinder",
+		name: "Terrence Pinder",
+		participant_id: "terrence_pinder",
+		publishedDate: "2016-08-22",
+		gender: "Male",
+		ethnicity: "Other",
+		race: "Black or African American",
+		version: "v4",
+		build: 37,
+		genotypes: [{
+			filename: "genome_Terrence_Pinder_v4_Full_20160822064115.txt",
+			filetype: "23andme",
+			download_url: "data/genome_Terrence_Pinder_v4_Full_20160822064115.txt"
 		}]
 	}
 ];
@@ -3572,8 +3711,18 @@ function renderUsersTable(users, loaded) {
 			? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
 			: "";
 		const name = escapeHtml(user?.name ?? "");
+		const ethnicity = escapeHtml(user?.ethnicity ?? "");
+		const race = escapeHtml(user?.race ?? "");
+		const gender = escapeHtml(user?.gender ?? "");
 		const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
 		const genos = user?.genotypes ?? [];
+		const filename = user?.fileName ?? user?.filename ?? genos?.[0]?.filename ?? "";
+		const inferredVersion = (() => {
+			const m = String(filename).match(/_v(\d+)_/i);
+			return m ? `v${m[1]}` : "";
+		})();
+		const version = escapeHtml(user?.version ?? genos?.[0]?.version ?? inferredVersion ?? "");
+		const build = escapeHtml(user?.build ?? genos?.[0]?.build ?? "");
 		const genoCount = genos.length;
 		const downloadUrl = resolveUserFilePath(user) ?? "";
 		const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
@@ -3585,6 +3734,11 @@ function renderUsersTable(users, loaded) {
 				<td><input type="checkbox" class="form-check-input prs-user-select-cb" value="${id}" checked /></td>
 				<td>${displayId}${fileTag}</td>
 				<td>${name}</td>
+				<td>${ethnicity || "-"}</td>
+				<td>${race || "-"}</td>
+				<td>${gender || "-"}</td>
+				<td>${version || "-"}</td>
+				<td>${build || "-"}</td>
 				<td>${published}</td>
 				<td>${genoCount}</td>
 				<td>${variantCount.toLocaleString()}</td>
@@ -3600,6 +3754,11 @@ function renderUsersTable(users, loaded) {
 					<th>Select</th>
 					<th>Participant ID</th>
 					<th>Name</th>
+					<th>Ethnicity</th>
+					<th>Race</th>
+					<th>Gender</th>
+					<th>Version</th>
+					<th>Build</th>
 					<th>Published Date</th>
 					<th>Genotypes #</th>
 					<th>Variants Loaded</th>
@@ -3617,40 +3776,44 @@ function renderUsersTable(users, loaded) {
  * @param {Object[]} scores - Score metadata objects (each with an .id)
  * @returns {Promise<Object[]>} Array of { score, parsed }
  */
-async function loadScoresFromList(scores) {
+async function loadScoresFromList(scores, onProgress = null) {
 	const results = [];
 	const toFetch = [];
+	let completed = 0;
+	const total = scores.length;
+	const reportProgress = () => {
+		if (typeof onProgress === "function") onProgress(completed, total);
+	};
+	reportProgress();
 	for (const score of scores) {
 		// Reuse pre-parsed data if present (e.g., pre-loaded elsewhere)
 		if (score?._parsed && score._parsed.dt && score._parsed.dt.length > 0) {
 			console.log(`Using pre-parsed data for ${score.id}: ${score._parsed.dt.length} variants`);
 			results.push({ score, parsed: score._parsed });
+			completed += 1;
+			reportProgress();
 		} else {
 			toFetch.push(score);
 		}
 	}
 
 	if (toFetch.length > 0) {
-		// Load each scoring file one id at a time via getPgsTxt (fetch + parse +
-		// cache), just like the genome loader in loadUsersFromList. getPgsTxt
-		// returns an array, so take the first (only) parsed score.
-		const fetched = await Promise.all(toFetch.map(async (score) => {
+		// Load one score at a time so progress can be updated per score.
+		for (const score of toFetch) {
 			try {
-				const result = await getTxts(score.id);
+				const result = await getPgsTxt(score.id);
 				const parsed = Array.isArray(result) ? result[0] : result;
-				return { score, parsed: parsed ?? null };
+				if (!parsed) {
+					console.warn(`No parseable file for score ${score?.id}`);
+				} else {
+					results.push({ score, parsed });
+				}
 			} catch (err) {
 				console.error(`Failed to load scoring file ${score?.id}:`, err);
-				return { score, parsed: null };
 			}
-		}));
-		for (const { score, parsed } of fetched) {
-			if (!parsed) {
-				console.warn(`No parseable file for score ${score?.id}`);
-				continue;
+			completed += 1;
+			reportProgress();
 			}
-			results.push({ score, parsed });
-		}
 	}
 
 	return results;
@@ -3664,6 +3827,8 @@ async function loadScoresFromList(scores) {
 async function fetchScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
+	const loadStartMs = performance.now();
+	setProgressBar("scores", statusEl, 0);
 
 
 	try {
@@ -3674,12 +3839,17 @@ async function fetchScores() {
 		if (selectedScores.length === 0) {
 			if (statusEl) statusEl.textContent = "Please select at least one scoring file.";
 			if (resultsDiv) resultsDiv.innerHTML = "";
+			setProgressBar("scores", statusEl, 0);
 			return;
 		}
 		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedScores.length} scoring file(s)...`;
+		setProgressBar("scores", statusEl, 10);
 
 		// Parse scoring files for all selected scores (getPgsTxt handles fetch, parse, and caching)
-		const added = await loadScoresFromList(selectedScores);
+		const added = await loadScoresFromList(selectedScores, (done, total) => {
+			const pct = total > 0 ? 10 + (done / total) * 80 : 90;
+			setProgressBar("scores", statusEl, pct);
+		});
 
 		// Populate loadedScores (metadata) so calculatePRS builds selectedIds correctly
 		loadedScores = added.map(a => a.score);
@@ -3687,7 +3857,9 @@ async function fetchScores() {
 		// Populate window.loadedPgsTxts (parsed) so calculatePRS reuses them without refetching
 		window.loadedPgsTxts = added.map(a => a.parsed);
 
-		if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} of ${selectedScores.length} scoring file(s).`;
+		const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
+		if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} of ${selectedScores.length} scoring file(s) in ${elapsedSec}s.`;
+		setProgressBar("scores", statusEl, 100);
 
 		// Render table
 		if (resultsDiv) {
@@ -3703,6 +3875,7 @@ async function fetchScores() {
 	} catch (err) {
 		console.error("fetchScores error:", err);
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+		setProgressBar("scores", statusEl, 100);
 	}
 }
 window.fetchScores = fetchScores;
@@ -3721,29 +3894,43 @@ window.fetchScores = fetchScores;
  * @param {Object[]} users - User/participant objects
  * @returns {Promise<Object[]>} Array of { user, parsed }
  */
-async function loadUsersFromList(users) {
-	const parsePromises = users.map(async (user) => {
+async function loadUsersFromList(users, onProgress = null) {
+	const results = [];
+	let completed = 0;
+	const total = users.length;
+	const reportProgress = () => {
+		if (typeof onProgress === "function") onProgress(completed, total);
+	};
+	reportProgress();
+
+	for (const user of users) {
 		// Check if user already has parsed data (e.g., from uploaded file)
 		if (user?._parsed && user._parsed.dt && user._parsed.dt.length > 0) {
 			console.log(`Using pre-parsed data for ${user.id}: ${user._parsed.dt.length} variants`);
-			return { user, parsed: user._parsed };
+			results.push({ user, parsed: user._parsed });
+			completed += 1;
+			reportProgress();
+			continue;
 		}
 
 		const filePath = resolveUserFilePath(user);
 		if (!filePath) {
 			console.warn(`No file path or pre-parsed data for user ${user?.id}`);
-			return null;
+			completed += 1;
+			reportProgress();
+			continue;
 		}
 		try {
 			const parsed = await get23Txt(filePath, user.id);
-			return { user, parsed };
+			results.push({ user, parsed });
 		} catch (err) {
 			console.error(`Failed to load genome for ${user.id}:`, err);
-			return null;
 		}
-	});
-	const results = await Promise.all(parsePromises);
-	return results.filter(Boolean);
+		completed += 1;
+		reportProgress();
+	}
+
+	return results;
 }
 
 /*** Fetch selected users, display them in a table, and parse their genome files.
@@ -3753,6 +3940,8 @@ async function fetchUsers() {
     console.log("fetchUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
+	const loadStartMs = performance.now();
+	setProgressBar("users", statusEl, 0);
 
 
 	try {
@@ -3763,12 +3952,17 @@ async function fetchUsers() {
 		if (selectedUsers.length === 0) {
 			if (statusEl) statusEl.textContent = "Please select at least one participant in the 23andMe Data tab.";
 			if (resultsDiv) resultsDiv.innerHTML = "";
+			setProgressBar("users", statusEl, 0);
 			return;
 		}
 		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
+		setProgressBar("users", statusEl, 10);
 
 		// Parse genome files for all selected users
-		loadedUsers = await loadUsersFromList(selectedUsers);
+		loadedUsers = await loadUsersFromList(selectedUsers, (done, total) => {
+			const pct = total > 0 ? 10 + (done / total) * 80 : 90;
+			setProgressBar("users", statusEl, pct);
+		});
 		window.loadedUsers = loadedUsers; // expose for cluster tab
 
 		const loadedFilesCount = document.getElementById('loadedFilesCount');
@@ -3777,7 +3971,9 @@ async function fetchUsers() {
 			loadedFilesCount.style.display = '';
 		}
 
-		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s).`;
+		const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
+		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s) in ${elapsedSec}s.`;
+		setProgressBar("users", statusEl, 100);
 
 		// Render table
 		if (resultsDiv) {
@@ -3788,6 +3984,7 @@ async function fetchUsers() {
 	} catch (err) {
 		console.error("fetchUsers error:", err);
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+		setProgressBar("users", statusEl, 100);
 	}
 }
 window.fetchUsers = fetchUsers;
@@ -3805,6 +4002,8 @@ async function loadExampleScores() {
 	const statusEl = document.getElementById("prsScoresDiv");
 	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
+	const loadStartMs = performance.now();
+	setProgressBar("scores", statusEl, 0);
 
 	// Preserve existing loaded scores; only add scores not already loaded (by id).
 	const existing = Array.isArray(loadedScores) ? loadedScores.slice() : [];
@@ -3826,6 +4025,7 @@ async function loadExampleScores() {
 
 	if (toLoad.length === 0) {
 		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded.`;
+		setProgressBar("scores", statusEl, 100);
 		return;
 	}
 
@@ -3833,7 +4033,10 @@ async function loadExampleScores() {
 	if (prsStatus) prsStatus.textContent = "";
 
 	// Fetch and parse each score (getPgsTxt handles fetch, parse, and caching)
-	const added = await loadScoresFromList(toLoad);
+	const added = await loadScoresFromList(toLoad, (done, total) => {
+		const pct = total > 0 ? 10 + (done / total) * 80 : 90;
+		setProgressBar("scores", statusEl, pct);
+	});
 
 	// Append metadata to loadedScores (dedup by id) so calculatePRS builds selectedIds correctly
 	loadedScores = existing.concat(added.map(a => a.score));
@@ -3844,7 +4047,9 @@ async function loadExampleScores() {
 	const addedTxts = added.map(a => a.parsed).filter(p => !existingTxtIds.has(p?.id ?? p?.meta?.pgs_id));
 	window.loadedPgsTxts = existingTxts.concat(addedTxts);
 
-	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} example.`;
+	const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} example in ${elapsedSec}s.`;
+	setProgressBar("scores", statusEl, 100);
 
 	if (resultsDiv) {
 		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
@@ -3865,6 +4070,8 @@ async function loadExampleUsers() {
 	const statusEl = document.getElementById("prsUsersdiv");
 	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
+	const loadStartMs = performance.now();
+	setProgressBar("users", statusEl, 0);
 
 	// Preserve existing loaded users; only add example users not already loaded (by id).
 	const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
@@ -3873,6 +4080,7 @@ async function loadExampleUsers() {
 
 	if (toLoad.length === 0) {
 		if (statusEl) statusEl.textContent = `All ${EXAMPLE_USERS.length} example participant(s) are already loaded.`;
+		setProgressBar("users", statusEl, 100);
 		return;
 	}
 
@@ -3881,12 +4089,17 @@ async function loadExampleUsers() {
 
 	// Fetch and parse each user's genome file (get23Txt caches internally)
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example participant(s) to ${existing.length} already loaded...`;
-	const added = await loadUsersFromList(toLoad);
+	const added = await loadUsersFromList(toLoad, (done, total) => {
+		const pct = total > 0 ? 10 + (done / total) * 80 : 90;
+		setProgressBar("users", statusEl, pct);
+	});
 
 	loadedUsers = existing.concat(added);
 	window.loadedUsers = loadedUsers; // expose for cluster tab
 
-	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} example.`;
+	const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
+	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} example in ${elapsedSec}s.`;
+	setProgressBar("users", statusEl, 100);
 
 	if (resultsDiv) {
 		const displayUsers = loadedUsers.map(entry => entry.user);
@@ -3927,13 +4140,25 @@ async function loadExampleUsers() {
 	}
 }
 
+function setupClickBlueButton(btn) {
+	if (!btn) return;
+	btn.classList.remove("btn-primary", "btn-success", "btn-info", "btn-warning", "btn-danger", "btn-dark");
+	btn.classList.add("btn-secondary");
+	btn.addEventListener("click", () => {
+		btn.classList.remove("btn-secondary");
+		btn.classList.add("btn-primary");
+	});
+}
+
 // Wire up example buttons
 const loadExampleScoresBtn = document.getElementById("loadExampleScoresBtn");
+setupClickBlueButton(loadExampleScoresBtn);
 if (loadExampleScoresBtn) {
 	loadExampleScoresBtn.addEventListener("click", loadExampleScores);
 }
 
 const loadExampleUsersBtn = document.getElementById("loadExampleUsersBtn");
+setupClickBlueButton(loadExampleUsersBtn);
 if (loadExampleUsersBtn) {
 	loadExampleUsersBtn.addEventListener("click", loadExampleUsers);
 }
@@ -4058,6 +4283,7 @@ async function calculatePRS() {
 	const statusEl = document.getElementById("prsResultsStatus");
 	const resultsDiv = document.getElementById("prsResultsDiv");
 	if (statusEl) statusEl.textContent = "Calculating PRS...";
+	setProgressBar("calculate", statusEl, 0);
 
 	try {
 		//// GET USERS: use loadedUsers (from fetchUsers / loadExampleUsers),
@@ -4160,6 +4386,8 @@ async function calculatePRS() {
 		const prsResults = [];
 		let cachedCount = 0;
 		let calculatedCount = 0;
+		const totalPairs = userDataForCalc.length * pgsTxts.length;
+		let completedPairs = 0;
 
 		for (const userData of userDataForCalc) {
 			const my23 = userData.parsed;
@@ -4170,6 +4398,8 @@ async function calculatePRS() {
 
 				const prsResult = await calculateAndCachePRS(mypgs, my23, userId, pgsId, userData);
 				prsResults.push(prsResult);
+				completedPairs += 1;
+				setProgressBar("calculate", statusEl, totalPairs > 0 ? (completedPairs / totalPairs) * 100 : 100);
 
 				if (prsResult.fromCache) cachedCount++;
 				else calculatedCount++;
@@ -4187,6 +4417,7 @@ async function calculatePRS() {
 
 		const elapsedSec = ((performance.now() - timerStartMs) / 1000).toFixed(2);
 		if (statusEl) statusEl.textContent = `Completed! ${elapsedSec}s. ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
+		setProgressBar("calculate", statusEl, 100);
 
 		// Display results
 		if (resultsDiv) {
@@ -4245,11 +4476,13 @@ async function calculatePRS() {
 	} catch (err) {
 		console.error("calculatePRS error:", err);
 		if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+		setProgressBar("calculate", statusEl, 100);
 	}
 }
 
 // Wire up Calculate PRS button
 const calculatePrsBtn = document.getElementById("calculatePrsBtn");
+setupClickBlueButton(calculatePrsBtn);
 if (calculatePrsBtn) {
 	calculatePrsBtn.addEventListener("click", calculatePRS);
 }
@@ -5590,8 +5823,8 @@ async function renderCluster() {
     await hclust_plot({
        divId:  "clusterPlotMount",
       data: pivoted,
-      width: 900,
-      height: 350,
+      width: 1200,
+      height: 520,
       clusterRows: clusterRows,
       clusterCols: clusterCols,
       clusteringMethodRows: clusterMethod,

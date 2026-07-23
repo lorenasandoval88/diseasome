@@ -184,7 +184,7 @@ window.clearPgsTxtCache = clearPgsTxtCache;
 
 // Dynamic variant filter state
 let variantMin = 1;
-let variantMax = 100;
+let variantMax = 1000;
 const ALL_VALUE = "__all_categories__";
 const ROWS_PER_PAGE = 50;
 const MAX_SELECTION = 10; // Max number of scores that can be selected at once for PRS calculation

@@ -148,7 +148,7 @@ async function clearPGSCache() {
 	const scoresAction = document.getElementById("prsScoresAction");
 	if (scoresAction) scoresAction.innerHTML = "";
 	const scoresStatus = document.getElementById("prsScoresDiv");
-	if (scoresStatus) scoresStatus.textContent = "Select at least one risk model or use the option below.";
+	if (scoresStatus) scoresStatus.textContent = "Choose a risk model from the PGS Catalog, or load example scores below to get started.";
 
 	return pgsKeys.length;
 }
@@ -171,7 +171,7 @@ async function clearGenomeCache() {
 	const usersAction = document.getElementById("prsUsersAction");
 	if (usersAction) usersAction.innerHTML = "";
 	const usersStatus = document.getElementById("prsUsersdiv");
-	if (usersStatus) usersStatus.textContent = "Select at least one 23andMe file or click below.";
+	if (usersStatus) usersStatus.textContent = "Choose a 23andMe file from your data, or load example users below to get started.";
 
 	return genomeKeys.length;
 }

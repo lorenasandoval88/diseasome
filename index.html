@@ -320,7 +320,7 @@
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearPGSCache().then(n => alert('Cleared ' + n + ' PGS cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
-                    <div id=prsScoresDiv>Select at least one risk model or use the option below. <a href="#"
+                    <div id=prsScoresDiv>Choose a risk model from the PGS Catalog, or load example models below to get started. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Go
                             to PGS Catalog →</a></div>
                     <button id="loadExampleScoresBtn" class="btn btn-primary btn-sm mt-2">Load Example
@@ -332,7 +332,7 @@
                     <button class="btn btn-outline-secondary btn-sm ms-2" style="font-size: 0.7rem; padding: 2px 6px;"
                         onclick="clearGenomeCache().then(n => alert('Cleared ' + n + ' genome cache item(s)')).catch(e => alert('Error: ' + e.message))">Clear
                         Cache</button>
-                    <div id=prsUsersdiv>Select at least one 23andMe file or click below. <a href="#"
+                    <div id=prsUsersdiv>Upload your 23andMe file and/or choose from available 23andMe files, or load examples below to get started. <a href="#"
                             onclick="document.querySelector('.tablinks[onclick*=GenomicData]').click(); return false;">Go
                             to 23andMe Data →</a></div>
                     <button id="loadExampleUsersBtn" class="btn btn-primary btn-sm mt-2">Load Example

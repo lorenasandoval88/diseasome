@@ -4041,6 +4041,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
  */
 async function calculatePRS() {
 	console.log("calculatePRS()");
+	const timerStartMs = performance.now();
 	const statusEl = document.getElementById("prsResultsStatus");
 	const resultsDiv = document.getElementById("prsResultsDiv");
 	if (statusEl) statusEl.textContent = "Calculating PRS...";
@@ -4171,7 +4172,8 @@ async function calculatePRS() {
 			window.invalidateClusterCache();
 		}
 
-		if (statusEl) statusEl.textContent = `Completed! ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
+		const elapsedSec = ((performance.now() - timerStartMs) / 1000).toFixed(2);
+		if (statusEl) statusEl.textContent = `Completed! ${elapsedSec}s. ${prsResults.length} result(s) (${cachedCount} from cache, ${calculatedCount} calculated).`;
 
 		// Display results
 		if (resultsDiv) {

@@ -1,4 +1,4 @@
-
+﻿
 # Diseasome SDK
 
 We present the Diseasome SDK, a JavaScript library and web application for computing polygenic risk scores from consumer genotype data (23andMe) and PGS Catalog score models. The SDK operates in both browser and Node.js environments, supporting programmatic use by developers and interactive exploration by end users.
@@ -26,8 +26,8 @@ Toolkit functionalities
 - PGS Catalog Tab: Browse polygenic score models by trait/category, inspect model metadata, and select scores to analyze.
 - PRS Tab: Run score matching between genotype inputs and selected PGS models, then review comparative PRS outputs.
 - Cluster Tab: Interactively visualize and group samples/scores to identify similarity patterns and trait-level structure.
-- AI Interpretation – Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
-- AI Interpretation – Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
+- AI Interpretation â€“ Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
+- AI Interpretation â€“ Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
 ---
 
 ## Quick Start
@@ -55,19 +55,19 @@ const sdk = await import("https://lorenasandoval88.github.io/polygenic_risk_scor
 
 ```
 polygenic_risk_scores/
-├── src/
-│   ├── app/           # Browser app entry and UI wiring
-│   ├── sdk/           # Reusable SDK modules (PGP, PGS, PRS)
-│   └── css/           # App styles
-├── data/              # Local 23andMe-compatible genome files
-├── dist/              # Rollup build outputs
-│   ├── sdk.mjs        # Browser SDK
-│   └── cloud_sdk.mjs  # Node-safe SDK
-├── sdk.js             # Public SDK entrypoint
-├── index.html         # Web interface
-├── rollup.config.js   # Build configuration
-├── package.json       # Project dependencies and scripts
-└── README.md          # Documentation
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ app/           # Browser app entry and UI wiring
+â”‚   â”œâ”€â”€ sdk/           # Reusable SDK modules (PGP, PGS, PRS)
+â”‚   â””â”€â”€ css/           # App styles
+â”œâ”€â”€ data/              # Local 23andMe-compatible genome files
+â”œâ”€â”€ dist/              # Rollup build outputs
+â”‚   â”œâ”€â”€ sdk.mjs        # Browser SDK
+â”‚   â””â”€â”€ cloud_sdk.mjs  # Node-safe SDK
+â”œâ”€â”€ sdk.js             # Public SDK entrypoint
+â”œâ”€â”€ index.html         # Web interface
+â”œâ”€â”€ rollup.config.js   # Build configuration
+â”œâ”€â”€ package.json       # Project dependencies and scripts
+â””â”€â”€ README.md          # Documentation
 ```
 
 | Directory/File       | Purpose                                                  |
@@ -103,7 +103,7 @@ polygenic_risk_scores/
 | `fetchAvailableDataTypes()` | List available data types |
 | `allUsersMetaDataByType_fast()` | Get user metadata by type |
 | `fetchProfile(id)` | Fetch a user profile |
-| `load23andMeFile(path, id, cache)` | Load and parse a 23andMe file |
+| `get23Txt(path, id, cache)` | Load and parse a 23andMe file |
 | `Match2(pgsTxt, my23Txt)` | Calculate PRS (2-input) |
 | `Match3(pgsTxt, my23Txt)` | Calculate PRS (3-input) |
 
@@ -143,3 +143,4 @@ Run `npm run build` to generate:
 ## License
 
 MIT
+

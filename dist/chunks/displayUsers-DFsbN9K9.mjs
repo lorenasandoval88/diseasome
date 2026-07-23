@@ -1,4 +1,4 @@
-import { allUsersMetaDataByType_fast, fetch23andMeParticipants, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+﻿import { allUsersMetaDataByType_fast, fetch23andMeParticipants, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { l as localforage } from '../app.mjs';
 import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
@@ -8,7 +8,7 @@ import 'https://esm.run/@mlc-ai/web-llm';
 
 /**
  * Extract a human-readable full name from a genome filename.
- * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" → "Joshua Yoakem"
+ * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" â†’ "Joshua Yoakem"
  */
 function nameFromFilename(filename) {
 	if (!filename) return null;
@@ -34,7 +34,7 @@ setParticipantsLoadingProgress(20);
 
 const INITIAL_LIMIT = 5;
 setParticipantsLoadingProgress(50);
-// Default to 'all' mode — fast fetch with no per-profile round trips
+// Default to 'all' mode â€” fast fetch with no per-profile round trips
 const data = await allUsersMetaDataByType_fast();
 setParticipantsLoadingProgress(100);
 
@@ -651,8 +651,8 @@ if (my23Btn && my23FileInput) {
 				// Use parse23Txt from the SDK if available, otherwise fall back to local parser
 				let parsed;
 
-				if (typeof load23andMeFile === "function") {
-					parsed = await load23andMeFile(file);
+				if (typeof get23Txt === "function") {
+					parsed = await get23Txt(file);
 					if (parsed && parsed.dt) {
 						parsed = {
 							cols: parsed.cols || [],
@@ -660,7 +660,7 @@ if (my23Btn && my23FileInput) {
 							meta: parsed.meta || ""
 						};
 					} else {
-						throw new Error("load23andMeFile did not return expected parsed data structure.");
+						throw new Error("get23Txt did not return expected parsed data structure.");
 					}
 				} else if (typeof window.parse23Txt === "function") {
 					parsed = await window.parse23Txt(text);
@@ -669,7 +669,7 @@ if (my23Btn && my23FileInput) {
 				}
 
 				if (!parsed || !parsed.dt || parsed.dt.length === 0) {
-					messages.push(`⚠ ${file.name}: failed to parse.`);
+					messages.push(`âš  ${file.name}: failed to parse.`);
 					continue;
 				}
 
@@ -709,13 +709,13 @@ if (my23Btn && my23FileInput) {
 					selectedUserIds.add(userId);
 					selectedUsersMap.set(userId, user);
 					updateGlobalSelectionCount();
-					messages.push(`✓ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
+					messages.push(`âœ“ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
 				} else {
-					messages.push(`⚠ ${file.name}: max selection (${MAX_SELECTION}) reached.`);
+					messages.push(`âš  ${file.name}: max selection (${MAX_SELECTION}) reached.`);
 				}
 			} catch (err) {
 				console.error("Error reading 23andMe file:", err);
-				messages.push(`✗ ${file.name}: ${err.message}`);
+				messages.push(`âœ— ${file.name}: ${err.message}`);
 			}
 		}
 
@@ -858,7 +858,7 @@ async function computeV4V5Overlap() {
   }
 }
 
-// Initialize v4_v5_23andme on load — store the promise so fetchScoresTxts can await it
+// Initialize v4_v5_23andme on load â€” store the promise so fetchScoresTxts can await it
 window._v4v5OverlapReady = computeV4V5Overlap();
 
 // --- window.sdk namespace (users/participants) ---
@@ -877,3 +877,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
 //# sourceMappingURL=displayUsers-DFsbN9K9.mjs.map
+

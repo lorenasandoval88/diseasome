@@ -3088,16 +3088,16 @@ console.log("calculatePrs.js loaded");
 // Calculate PRS for a given PGS and 23andMe genome data.
 //
 // Workflow (driven by buttons in the PRS tab):
-//   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
+//   1. LOAD SCORES â€” fetchScores() (selected in the Polygenic Scores tab) or
 //      loadExampleScores() (selection + EXAMPLE_SCORES). Both call
 //      loadScoresFromList(), which loads each PGS id one at a time via getPgsTxt()
 //      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
-//   2. LOAD USERS — fetchUsers() (selected in the 23andMe Data tab) or
+//   2. LOAD USERS â€” fetchUsers() (selected in the 23andMe Data tab) or
 //      loadExampleUsers() (EXAMPLE_USERS). Both call loadUsersFromList(), which
 //      loads each genome one file at a time via get23Txt() (fetch + parse +
 //      cache). Results populate loadedUsers + window.loadedUsers.
-//   3. CALCULATE — calculatePRS() takes the checked users x checked scores, then for
-//      each pair calls calculateAndCachePRS() → Match2() (the actual PRS math) and
+//   3. CALCULATE â€” calculatePRS() takes the checked users x checked scores, then for
+//      each pair calls calculateAndCachePRS() â†’ Match2() (the actual PRS math) and
 //      organizeResultsByAllele() (groups matches by 0/1/2 effect alleles for plots).
 //      Results are cached (getCachedPRS/setCachedPRS), exposed on window.prsResults,
 //      and rendered as a table.
@@ -3703,7 +3703,7 @@ window.fetchScores = fetchScores;
  * path and loads it via get23Txt (which caches internally under
  * "Genome:23andMe-txt-*"). Returns { user, parsed } entries, skipping failures.
  *
- * Like loadScoresFromList, genomes are loaded one file at a time — get23Txt
+ * Like loadScoresFromList, genomes are loaded one file at a time â€” get23Txt
  * fetches, parses, and cache-checks each file individually.
  * @param {Object[]} users - User/participant objects
  * @returns {Promise<Object[]>} Array of { user, parsed }
@@ -3952,8 +3952,8 @@ window.getBrowserStorageInfo = getBrowserStorageInfo;
 /**
  * Derive a human-readable name from a 23andMe / PGP genome filename.
  * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
- * e.g. "genome_James_Jones_v5_full_20171221.txt" → "James Jones"
- *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" → "Joshua Yoakem"
+ * e.g. "genome_James_Jones_v5_full_20171221.txt" â†’ "James Jones"
+ *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" â†’ "Joshua Yoakem"
  * Returns null if the pattern is not found.
  */
 function nameFromFilename(filename) {
@@ -4003,7 +4003,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
 		if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
 			organizedData = organizeResultsByAllele(cached, mypgs);
 		}
-		console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', userName);
+		console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, 'â†’', userName);
 		return {
 			...cached,
 			userName,
@@ -4063,7 +4063,7 @@ async function calculatePRS() {
 		if (userDataForCalc.length === 0) {
 			// Try to get selected users from the 23andMe Data tab
 			const selectedUsers = window.getSelectedUsers?.() ?? [];
-			console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
+			console.log("No loadedUsers â€” falling back to LocalData tab selection:", selectedUsers);
 			if (selectedUsers.length === 0) {
 				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Example Users' in the PRS tab, or select users in the 23andMe Data tab.";
 				return;
@@ -4193,8 +4193,8 @@ async function calculatePRS() {
 						<td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
 						<td>${r.totalVariants ?? "-"}</td>
 						<td>${org.matchRate ?? "-"}</td>
-						<td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
-						<td>${r.fromCache ? "📦" : "🔄"}</td>
+						<td>${r.QC ? "âœ“" : r.QCtext ?? "-"}</td>
+						<td>${r.fromCache ? "ðŸ“¦" : "ðŸ”„"}</td>
 					</tr>
 				`;
 				}).join("");
@@ -4215,7 +4215,7 @@ async function calculatePRS() {
 								<th>Total</th>
 								<th>Match %</th>
 								<th>QC</th>
-								<th title="📦 = cached, 🔄 = calculated">Src</th>
+								<th title="ðŸ“¦ = cached, ðŸ”„ = calculated">Src</th>
 							</tr>
 						</thead>
 						<tbody>${rows}</tbody>

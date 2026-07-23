@@ -1,4 +1,4 @@
-
+﻿
 
 /////// OVERVIEW: 
 A one-shot GCS batch ingestion job for running the full PRS workflow in Google Cloud composed of 4 files:
@@ -22,7 +22,7 @@ cloudshell edit index.js
 
 Paste the index.js code you uploaded. It imports fetchAllScores, getTxts, PGP functions, and Match2 from ./cloud_sdk.mjs, then runs the full workflow:
 
-PGP users → 23andMe files → PGS models → PRS results → GCS
+PGP users â†’ 23andMe files â†’ PGS models â†’ PRS results â†’ GCS
 
 Your uploaded index.js saves outputs under:
 
@@ -52,7 +52,7 @@ getTxts
 fetchAvailableDataTypes
 allUsersMetaDataByType_fast
 fetchProfile
-load23andMeFile
+get23Txt
 Match2
 4. Create package.json
 cat > package.json <<'EOF'
@@ -118,19 +118,19 @@ cloud_sdk.mjs	Node-safe SDK bundle used by index.js. It should export PGP, PGS, 
 package.json	Defines the Node.js project settings and dependencies, especially @google-cloud/storage.
 Dockerfile	Builds the container image that Cloud Run executes.
 
-Your uploaded index.js imports fetchAllScores, getTxts, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetchProfile, load23andMeFile, and Match2 from ./cloud_sdk.mjs. It also sets USER_LIMIT, PGS_LIMIT, and BATCH_SIZE from environment variables.
+Your uploaded index.js imports fetchAllScores, getTxts, fetchAvailableDataTypes, allUsersMetaDataByType_fast, fetchProfile, get23Txt, and Match2 from ./cloud_sdk.mjs. It also sets USER_LIMIT, PGS_LIMIT, and BATCH_SIZE from environment variables.
 
 Workflow
 
 The job runs this pipeline:
 
 PGP public 23andMe metadata
-  → fetch participant profiles
-  → download/load 23andMe genotype files
-  → fetch PGS Catalog score metadata
-  → download/load selected PGS scoring files
-  → run PRS matching for every user × PGS pair
-  → save results to Google Cloud Storage
+  â†’ fetch participant profiles
+  â†’ download/load 23andMe genotype files
+  â†’ fetch PGS Catalog score metadata
+  â†’ download/load selected PGS scoring files
+  â†’ run PRS matching for every user Ã— PGS pair
+  â†’ save results to Google Cloud Storage
 Output folder in GCS
 
 The script saves everything under:
@@ -175,11 +175,11 @@ prs_workflow/
       huXXXXXX_PGS000001.json
 Key steps inside index.js
 
-The script first checks the available PGP data types, then fetches all 23andMe participant metadata. It limits the number of users with USER_LIMIT, then loads each user’s profile and genotype data in batches.
+The script first checks the available PGP data types, then fetches all 23andMe participant metadata. It limits the number of users with USER_LIMIT, then loads each userâ€™s profile and genotype data in batches.
 
 It then fetches all PGS Catalog score metadata, selects the first PGS_LIMIT scores, downloads their scoring files with getTxts, and saves both metadata and parsed score files to GCS.
 
-Finally, it creates every user × PGS pair and runs:
+Finally, it creates every user Ã— PGS pair and runs:
 
 Match2(pgsObj.txt, userObj.genotype)
 

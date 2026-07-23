@@ -1,4 +1,4 @@
-import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+﻿import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { l as localforage } from '../app.mjs';
 import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
@@ -8,7 +8,7 @@ import 'https://esm.run/@mlc-ai/web-llm';
 
 /**
  * Extract a human-readable full name from a genome filename.
- * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" → "Joshua Yoakem"
+ * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" â†’ "Joshua Yoakem"
  */
 function nameFromFilename(filename) {
 	if (!filename) return null;
@@ -176,7 +176,7 @@ function flattenCuratedRecord(rec) {
 		// Preserve original profile for downstream use if needed
 		profile: rec.profile ?? null,
 	};
-	// Copy the primary file's fields (publishedDate, filename, build, size, download, …) up.
+	// Copy the primary file's fields (publishedDate, filename, build, size, download, â€¦) up.
 	applyActiveFile(flat, defaultFileIndex(flat));
 	return flat;
 }
@@ -201,7 +201,7 @@ function setParticipantsLoadingProgress(progress) {
 setParticipantsLoadingProgress(20);
 
 setParticipantsLoadingProgress(50);
-// Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
+// Default to 'json' mode â€” curated pre-validated list (fast, includes filename/build/size)
 let curatedJsonParticipants = null;
 try {
 	curatedJsonParticipants = await fetchCuratedParticipants();
@@ -215,7 +215,7 @@ let participants = curatedJsonParticipants ?? [];
 let allParticipantsFast = null; // fetched lazily when user switches to 'all' mode
 let allParticipantsFetchedAt = null; // ISO date string of last successful fetch
 const ALL_PARTICIPANTS_CACHE_KEY = 'PGP:AllParticipantsFast';
-let participantLoadMode = 'json'; // 'all' | 'json' — sorting is only enabled in 'json' mode
+let participantLoadMode = 'json'; // 'all' | 'json' â€” sorting is only enabled in 'json' mode
 let sortState = { key: null, dir: 'asc' }; // key: 'version' | 'build' | 'size' | null
 
 // Restore any prior cached "All Participants" fetch from localforage
@@ -304,14 +304,14 @@ window.clearUploadedFiles = function () {
  */
 function updateSelectionAvailability() {
 	const atLimit = selectedUserIds.size >= MAX_SELECTION;
-	// Parent (tri-state) checkboxes are excluded — they must always allow deselecting.
+	// Parent (tri-state) checkboxes are excluded â€” they must always allow deselecting.
 	document.querySelectorAll('#localUsersDiv .participant-select:not(.participant-parent)').forEach((cb) => {
 		if (cb.checked) {
 			cb.disabled = false;
 			cb.title = '';
 		} else {
 			cb.disabled = atLimit;
-			cb.title = atLimit ? `Limit of ${MAX_SELECTION} reached — deselect one to add another.` : '';
+			cb.title = atLimit ? `Limit of ${MAX_SELECTION} reached â€” deselect one to add another.` : '';
 		}
 	});
 }
@@ -810,7 +810,7 @@ function applyParticipantFilters() {
 	if (validDiv) validDiv.style.display = showJsonOnly ? '' : 'none';
 
 	const key = sanitizeKey('participants') || 'participants';
-	// Update the "Filters · N active" badge on the collapse toggle.
+	// Update the "Filters Â· N active" badge on the collapse toggle.
 	const activeCount = [versions, builds, genders, races, ethnicities, valids].filter(a => a.length > 0).length
 		+ ((sizeMin != null || sizeMax != null) ? 1 : 0);
 	const badge = document.getElementById('activeFilterBadge');
@@ -844,7 +844,7 @@ function renderParticipantActiveFilters({ versions, builds, genders, races, ethn
 	push('participantsEthnicitySelect', 'Ethnicity', ethnicities);
 	push('participantsValidSelect', 'Valid 23andMe', valids);
 	if (sizeMin != null || sizeMax != null) {
-		chips.push({ label: `Size: ${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`, group: 'size', value: '' });
+		chips.push({ label: `Size: ${sizeMin ?? 0}â€“${sizeMax ?? 'âˆž'} MB`, group: 'size', value: '' });
 	}
 
 	if (!chips.length) {
@@ -1183,8 +1183,8 @@ function fileCells(src) {
 	const sizeHtml = (sizeMB != null) ? `${Number(sizeMB).toFixed(2)}` : '-';
 	const valid = src.valid23File;
 	const validHtml = valid === true
-		? '<span class="badge rounded-pill bg-success">✓ Valid</span>'
-		: (valid === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">—</span>');
+		? '<span class="badge rounded-pill bg-success">âœ“ Valid</span>'
+		: (valid === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">â€”</span>');
 	const published = escapeHtml(String(getPublishedDate(src)));
 	const dl = getDownloadUrl(src);
 	const downloadHtml = dl
@@ -1262,7 +1262,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			});
 		}
 		const sortable = participantLoadMode === 'json';
-		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
+		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' â–²' : ' â–¼') : ' â‡…');
 		const sortAttrs = (k) => sortable ? `class="sortable" data-sort="${k}" style="cursor:pointer;user-select:none;"` : '';
 		// Right-aligned variant for numeric sortable columns (Build, Size)
 		const sortAttrsEnd = (k) => sortable ? `class="sortable text-end" data-sort="${k}" style="cursor:pointer;user-select:none;"` : 'class="text-end"';
@@ -1348,7 +1348,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const isExp = expanded.has(pid);
 			const parentRow = `
 				<tr class="file-parent-row">
-					<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none file-expander" data-id="${pidEsc}" aria-expanded="${isExp}" title="${isExp ? 'Collapse' : 'Expand'} files">${isExp ? '▾' : '▸'}</button></td>
+					<td class="text-center"><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none file-expander" data-id="${pidEsc}" aria-expanded="${isExp}" title="${isExp ? 'Collapse' : 'Expand'} files">${isExp ? 'â–¾' : 'â–¸'}</button></td>
 					<td>${rowNum}</td>
 					<td><input class="participant-select participant-parent" type="checkbox" data-id="${pidEsc}" ${allSel ? 'checked' : ''} title="Select all files for this participant" /></td>
 					<td>${pidEsc} <span class="badge bg-secondary rounded-pill ms-1" title="${files.length} files available">${files.length} files</span></td>
@@ -1357,14 +1357,14 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td>${genderHtml}</td>
 					<td title="${raceTitle}">${raceHtml}</td>
 					<td title="${ethnicityTitle}">${ethnicityHtml}</td>
-					<td class="text-center text-muted">—</td>
-					<td class="text-muted">—</td>
-					<td class="text-end text-muted">—</td>
-					<td class="text-end text-muted">—</td>
+					<td class="text-center text-muted">â€”</td>
+					<td class="text-muted">â€”</td>
+					<td class="text-end text-muted">â€”</td>
+					<td class="text-end text-muted">â€”</td>
 					<td style="max-width:200px;"><span class="small ${selCount ? 'text-success fw-semibold' : 'text-muted fst-italic'}">${selCount ? `${selCount} of ${files.length} selected` : 'expand to select'}</span></td>
-					<td class="text-muted">—</td>
+					<td class="text-muted">â€”</td>
 					<td>${profileHtml}</td>
-					<td class="text-muted">—</td>
+					<td class="text-muted">â€”</td>
 				</tr>
 			`;
 			let childRows = '';
@@ -1378,7 +1378,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<td></td>
 							<td class="text-end text-muted small">${rowNum}.${fi + 1}</td>
 							<td><input class="participant-select file-select" type="checkbox" data-id="${pidEsc}" data-fi="${fi}" value="${escapeHtml(key)}" ${selectedIds.has(key) ? 'checked' : ''} /></td>
-							<td class="text-muted small">↳ file ${fi + 1}</td>
+							<td class="text-muted small">â†³ file ${fi + 1}</td>
 							<td class="text-muted small" title="${cName}">${cName}</td>
 							<td></td>
 							<td></td>
@@ -1414,7 +1414,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 		const hasMultiFile = multiFileIds.length > 0;
 		const allExpanded = hasMultiFile && multiFileIds.every(id => expanded.has(id));
 
-		// (Selection table in the PRS tab is rendered by renderSelectedUsersTable() —
+		// (Selection table in the PRS tab is rendered by renderSelectedUsersTable() â€”
 		//  do NOT clear #prsUsersAction here, or it would wipe on every filter/sort.)
 
 		container.innerHTML = `
@@ -1429,14 +1429,14 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</div>
 			</div>
 			<div class="mb-2">
-				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by ID, name, age, race, or ethnicity…" value="${escapeHtml(searchQuery)}" />
+				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by ID, name, age, race, or ethnicityâ€¦" value="${escapeHtml(searchQuery)}" />
 				<div class="small text-muted mt-1">Showing ${displayList.length} of ${list.length}</div>
 			</div>
 			<div class="table-responsive sticky-scroll">
 				<table class="table table-sm table-striped table-bordered align-middle">
 					<thead class="table-dark">
 						<tr>
-							<th style="width:32px;" class="text-center p-1">${hasMultiFile ? `<button type="button" id="expandAllFiles_${key}" class="btn btn-sm p-0 file-expander-all" aria-expanded="${allExpanded}" title="${allExpanded ? 'Collapse all files' : 'Expand all files'}" aria-label="${allExpanded ? 'Collapse all files' : 'Expand all files'}">${allExpanded ? '▾' : '▸'}</button>` : ''}</th>
+							<th style="width:32px;" class="text-center p-1">${hasMultiFile ? `<button type="button" id="expandAllFiles_${key}" class="btn btn-sm p-0 file-expander-all" aria-expanded="${allExpanded}" title="${allExpanded ? 'Collapse all files' : 'Expand all files'}" aria-label="${allExpanded ? 'Collapse all files' : 'Expand all files'}">${allExpanded ? 'â–¾' : 'â–¸'}</button>` : ''}</th>
 							<th>#</th>
 							<th>Select</th>
 							<th>Participant ID</th>
@@ -1711,9 +1711,9 @@ if (my23Btn && my23FileInput) {
 			try {
 				const text = await file.text();
 
-				let parsed = await load23andMeFile(file);
+				let parsed = await get23Txt(file);
 				if (!parsed || !parsed.dt) {
-					throw new Error("load23andMeFile did not return expected parsed data structure.");
+					throw new Error("get23Txt did not return expected parsed data structure.");
 				}
 				parsed = {
 					cols: parsed.cols || [],
@@ -1722,7 +1722,7 @@ if (my23Btn && my23FileInput) {
 				};
 
 				if (!parsed.dt.length) {
-					messages.push(`⚠ ${file.name}: failed to parse.`);
+					messages.push(`âš  ${file.name}: failed to parse.`);
 					continue;
 				}
 
@@ -1762,13 +1762,13 @@ if (my23Btn && my23FileInput) {
 					selectedUserIds.add(userId);
 					selectedUsersMap.set(userId, user);
 					updateGlobalSelectionCount();
-					messages.push(`✓ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
+					messages.push(`âœ“ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
 				} else {
-					messages.push(`⚠ ${file.name}: max selection (${MAX_SELECTION}) reached.`);
+					messages.push(`âš  ${file.name}: max selection (${MAX_SELECTION}) reached.`);
 				}
 			} catch (err) {
 				console.error("Error reading 23andMe file:", err);
-				messages.push(`✗ ${file.name}: ${err.message}`);
+				messages.push(`âœ— ${file.name}: ${err.message}`);
 			}
 		}
 
@@ -1863,9 +1863,9 @@ if (loadByUrlBtn) {
 				if (statusEl) statusEl.textContent = `Loading ${id}...`;
 
 				try {
-					let parsed = await load23andMeFile(url, id, false);
+					let parsed = await get23Txt(url, id, false);
 					if (!parsed || !parsed.dt) {
-						throw new Error("load23andMeFile did not return expected parsed data.");
+						throw new Error("get23Txt did not return expected parsed data.");
 					}
 					const innerFilename = parsed.filename ?? '';
 					const finalUrl = parsed.finalUrl ?? parsed.meta?.finalUrl ?? record.finalUrl ?? url;
@@ -2013,8 +2013,8 @@ async function computeV4V5Overlap() {
     const marikaUrl = 'data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt';
 
     const [joshuaParsed, marikaParsed] = await Promise.all([
-      load23andMeFile(joshuaUrl),
-      load23andMeFile(marikaUrl),
+      get23Txt(joshuaUrl),
+      get23Txt(marikaUrl),
     ]);
 
     const joshuaSet = getChrPosSet(joshuaParsed);
@@ -2042,7 +2042,7 @@ async function computeV4V5Overlap() {
   }
 }
 
-// Initialize v4_v5_23andme on load — store the promise so fetchScoresTxts can await it
+// Initialize v4_v5_23andme on load â€” store the promise so fetchScoresTxts can await it
 window._v4v5OverlapReady = computeV4V5Overlap();
 
 // --- window.sdk namespace (users/participants) ---
@@ -2064,3 +2064,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
 //# sourceMappingURL=displayUsers-w0LVYoyT.mjs.map
+

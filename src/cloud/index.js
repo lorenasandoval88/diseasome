@@ -1,4 +1,4 @@
-import { Storage } from "@google-cloud/storage";
+﻿import { Storage } from "@google-cloud/storage";
 
 import {
   fetchAllScores,
@@ -6,7 +6,7 @@ import {
   fetchAvailableDataTypes,
   allUsersMetaDataByType_fast,
   fetchProfile,
-  load23andMeFile,
+  get23Txt,
   Match2
 } from "./cloud_sdk.mjs";
 
@@ -115,7 +115,7 @@ async function loadOneUser(user, index, total) {
 
     const [profile, loaded23] = await Promise.all([
       fetchProfile(id),
-      load23andMeFile(user.downloadUrl, id, false)
+      get23Txt(user.downloadUrl, id, false)
     ]);
 
     const { parsed } = normalizeLoaded23andMe(loaded23);
@@ -166,7 +166,7 @@ async function loadOneUser(user, index, total) {
 
 //     const [profile, loaded23] = await Promise.all([
 //       fetchProfile(id),
-//       load23andMeFile(user.downloadUrl, id, false)
+//       get23Txt(user.downloadUrl, id, false)
 //     ]);
 
 //     const { parsed } = normalizeLoaded23andMe(loaded23);
@@ -368,7 +368,7 @@ async function runPrsForPair({ userObj, pgsObj }) {
 
   try {
     if (await fileExists(resultPath)) {
-      console.log(`Skipping existing PRS result: ${userId} × ${pgsId}`);
+      console.log(`Skipping existing PRS result: ${userId} Ã— ${pgsId}`);
       return {
         userId,
         pgsId,
@@ -376,7 +376,7 @@ async function runPrsForPair({ userObj, pgsObj }) {
       };
     }
 
-    console.log(`Running PRS: ${userId} × ${pgsId}`);
+    console.log(`Running PRS: ${userId} Ã— ${pgsId}`);
 
     const result = await Match2(pgsObj.txt, userObj.genotype);
 
@@ -395,7 +395,7 @@ async function runPrsForPair({ userObj, pgsObj }) {
     };
 
   } catch (err) {
-    console.error(`Failed PRS ${userId} × ${pgsId}: ${err.message}`);
+    console.error(`Failed PRS ${userId} Ã— ${pgsId}: ${err.message}`);
 
     await saveJson(`${BASE_PATH}/errors/prs/${userId}_${pgsId}.json`, {
       userId,

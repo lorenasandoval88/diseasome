@@ -1,7 +1,7 @@
-import { getTxts, parseScore } from "../sdk/pgsSdk.js";
+﻿import { getTxts, parseScore } from "../sdk/pgsSdk.js";
 import {Match2 } from "../sdk/prs.js"
-// import { parsePGP23, load23andMeFile } from "../sdk/get23me.js";
-import { load23andMeFile } from "../sdk/pgpSdk.js";
+// import { parsePGP23, get23Txt } from "../sdk/get23me.js";
+import { get23Txt } from "../sdk/pgpSdk.js";
 import localforage from "localforage";
 console.log("calculatePrs.js loaded");
 
@@ -95,7 +95,7 @@ async function fetch23andMeFiles(paths, userIds = []) {
 		paths.map(async (path, idx) => {
 			try {
 				const userId = userIds[idx] ?? null;
-				const parsed = await load23andMeFile(path, userId);
+				const parsed = await get23Txt(path, userId);
 				console.log(`Loaded 23andMe file: ${path} (userId: ${userId})`);
 				return { userId, parsed };
 			} catch (err) {
@@ -629,8 +629,8 @@ console.log(`fetchUsers(): Selected user IDs from window.getSelectedUserIds():`,
 				return null;
 			}
 			try {
-				const parsed = await load23andMeFile(filePath, user.id);
-				// const parsed = await load23andMeFile(filePath, user.id);
+				const parsed = await get23Txt(filePath, user.id);
+				// const parsed = await get23Txt(filePath, user.id);
 				//console.log(`Parsed genome filePath:`, filePath, `for user:`, user.id);
 				return { user, parsed };
 			} catch (err) {
@@ -870,7 +870,7 @@ async function loadFallbackUsers() {
 			// Not cached - fetch and parse
 			if (statusEl) statusEl.textContent = `Fetching ${user.name || user.id}... (${idx + 1}/${toLoad.length})`;
 			console.log(`Fallback user NOT CACHED, Fetching genome for ${user.id} from filePath:`, filePath);
-			const parsed = await load23andMeFile(filePath);
+			const parsed = await get23Txt(filePath);
 			console.log(`Parsed genome filePath:`, filePath);
 
 			// Cache the result
@@ -1002,8 +1002,8 @@ window.getBrowserStorageInfo = getBrowserStorageInfo;
 /**
  * Derive a human-readable name from a 23andMe / PGP genome filename.
  * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
- * e.g. "genome_James_Jones_v5_full_20171221.txt" → "James Jones"
- *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" → "Joshua Yoakem"
+ * e.g. "genome_James_Jones_v5_full_20171221.txt" â†’ "James Jones"
+ *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" â†’ "Joshua Yoakem"
  * Returns null if the pattern is not found.
  */
 function nameFromFilename(filename) {
@@ -1053,7 +1053,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
                 userData.user?.downloadUrl ??
                 userData.user?.genotypes?.[0]?.filename
               ) || userData.user.name);
-        console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', freshName);
+        console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, 'â†’', freshName);
         return {
             ...cached,
             userName: freshName,
@@ -1123,7 +1123,7 @@ async function calculatePRS() {
         if (userDataForCalc.length === 0) {
             // Try to get selected users from the 23andMe Data tab
             const selectedUsers = window.getSelectedUsers?.() ?? [];
-            console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
+            console.log("No loadedUsers â€” falling back to LocalData tab selection:", selectedUsers);
             if (selectedUsers.length === 0) {
                 if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Fallback Users' in the PRS tab, or select users in the 23andMe Data tab.";
                 return;
@@ -1148,7 +1148,7 @@ async function calculatePRS() {
                 }
 
                 try {
-                    const parsed = await load23andMeFile(filePath, user.id);
+                    const parsed = await get23Txt(filePath, user.id);
                     return { user, parsed };
                 } catch (err) {
                     console.error(`Failed to load genome for ${user.id}:`, err);
@@ -1326,8 +1326,8 @@ async function calculatePRS() {
                         <td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
                         <td>${r.totalVariants ?? "-"}</td>
                         <td>${org.matchRate ?? "-"}</td>
-                        <td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
-                        <td>${r.fromCache ? "📦" : "🔄"}</td>
+                        <td>${r.QC ? "âœ“" : r.QCtext ?? "-"}</td>
+                        <td>${r.fromCache ? "ðŸ“¦" : "ðŸ”„"}</td>
                     </tr>
                 `}).join("");
                 
@@ -1347,7 +1347,7 @@ async function calculatePRS() {
                                 <th>Total</th>
                                 <th>Match %</th>
                                 <th>QC</th>
-                                <th title="📦 = cached, 🔄 = calculated">Src</th>
+                                <th title="ðŸ“¦ = cached, ðŸ”„ = calculated">Src</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>

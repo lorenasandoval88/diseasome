@@ -1,4 +1,4 @@
-import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+﻿import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { l as localforage } from '../app.mjs';
 import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
@@ -8,7 +8,7 @@ import 'https://esm.run/@mlc-ai/web-llm';
 
 /**
  * Extract a human-readable full name from a genome filename.
- * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" → "Joshua Yoakem"
+ * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" â†’ "Joshua Yoakem"
  */
 function nameFromFilename(filename) {
 	if (!filename) return null;
@@ -202,7 +202,7 @@ function setParticipantsLoadingProgress(progress) {
 setParticipantsLoadingProgress(20);
 
 setParticipantsLoadingProgress(50);
-// Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
+// Default to 'json' mode â€” curated pre-validated list (fast, includes filename/build/size)
 let curatedJsonParticipants = null;
 try {
 	const res = await fetch('data/pgp_participants_1017_with_profiles.json');
@@ -219,7 +219,7 @@ let participants = curatedJsonParticipants ?? [];
 let allParticipantsFast = null; // fetched lazily when user switches to 'all' mode
 let allParticipantsFetchedAt = null; // ISO date string of last successful fetch
 const ALL_PARTICIPANTS_CACHE_KEY = 'PGP:AllParticipantsFast';
-let participantLoadMode = 'json'; // 'all' | 'json' — sorting is only enabled in 'json' mode
+let participantLoadMode = 'json'; // 'all' | 'json' â€” sorting is only enabled in 'json' mode
 let sortState = { key: null, dir: 'asc' }; // key: 'version' | 'build' | 'size' | null
 
 // Restore any prior cached "All Participants" fetch from localforage
@@ -314,7 +314,7 @@ function updateSelectionAvailability() {
 			cb.title = '';
 		} else {
 			cb.disabled = atLimit;
-			cb.title = atLimit ? `Limit of ${MAX_SELECTION} reached — deselect one to add another.` : '';
+			cb.title = atLimit ? `Limit of ${MAX_SELECTION} reached â€” deselect one to add another.` : '';
 		}
 	});
 }
@@ -809,9 +809,9 @@ function applyParticipantFilters() {
 	if (races.length) labelParts.push(summarize(races));
 	if (ethnicities.length) labelParts.push(summarize(ethnicities));
 	if (valids.length) labelParts.push(summarize(valids));
-	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`);
+	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}â€“${sizeMax ?? 'âˆž'} MB`);
 	const filterLabel = labelParts.length ? labelParts.join(', ') : 'All';
-	// Update the "Filters · N active" badge on the collapse toggle.
+	// Update the "Filters Â· N active" badge on the collapse toggle.
 	const activeCount = [versions, builds, genders, races, ethnicities, valids].filter(a => a.length > 0).length
 		+ ((sizeMin != null || sizeMax != null) ? 1 : 0);
 	const badge = document.getElementById('activeFilterBadge');
@@ -1068,7 +1068,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			});
 		}
 		const sortable = participantLoadMode === 'json';
-		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
+		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' â–²' : ' â–¼') : ' â‡…');
 		const sortAttrs = (k) => sortable ? `class="sortable" data-sort="${k}" style="cursor:pointer;user-select:none;"` : '';
 		// Right-aligned variant for numeric sortable columns (Build, Size)
 		const sortAttrsEnd = (k) => sortable ? `class="sortable text-end" data-sort="${k}" style="cursor:pointer;user-select:none;"` : 'class="text-end"';
@@ -1158,8 +1158,8 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const ethnicityTitle = p.ethnicity ? escapeHtml(String(p.ethnicity)) : ethnicityHtml;
 			const valid23 = p.valid23File;
 			const valid23Html = valid23 === true
-				? '<span class="badge rounded-pill bg-success">✓ Valid</span>'
-				: (valid23 === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">—</span>');
+				? '<span class="badge rounded-pill bg-success">âœ“ Valid</span>'
+				: (valid23 === false ? '<span class="badge rounded-pill bg-light text-muted border">Invalid</span>' : '<span class="text-muted">â€”</span>');
 
 			return `
 				<tr>
@@ -1183,7 +1183,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			`;
 		}).join('');
 
-		// (Selection table in the PRS tab is rendered by renderSelectedUsersTable() —
+		// (Selection table in the PRS tab is rendered by renderSelectedUsersTable() â€”
 		//  do NOT clear #prsUsersAction here, or it would wipe on every filter/sort.)
 
 		container.innerHTML = `
@@ -1198,7 +1198,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</div>
 			</div>
 			<div class="mb-2">
-				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by participant ID or name…" value="${escapeHtml(searchQuery)}" />
+				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by participant ID or nameâ€¦" value="${escapeHtml(searchQuery)}" />
 				<div class="small text-muted mt-1">Showing ${displayList.length} of ${list.length}</div>
 			</div>
 			<div class="table-responsive">
@@ -1418,9 +1418,9 @@ if (my23Btn && my23FileInput) {
 			try {
 				const text = await file.text();
 
-				let parsed = await load23andMeFile(file);
+				let parsed = await get23Txt(file);
 				if (!parsed || !parsed.dt) {
-					throw new Error("load23andMeFile did not return expected parsed data structure.");
+					throw new Error("get23Txt did not return expected parsed data structure.");
 				}
 				parsed = {
 					cols: parsed.cols || [],
@@ -1429,7 +1429,7 @@ if (my23Btn && my23FileInput) {
 				};
 
 				if (!parsed.dt.length) {
-					messages.push(`⚠ ${file.name}: failed to parse.`);
+					messages.push(`âš  ${file.name}: failed to parse.`);
 					continue;
 				}
 
@@ -1469,13 +1469,13 @@ if (my23Btn && my23FileInput) {
 					selectedUserIds.add(userId);
 					selectedUsersMap.set(userId, user);
 					updateGlobalSelectionCount();
-					messages.push(`✓ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
+					messages.push(`âœ“ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
 				} else {
-					messages.push(`⚠ ${file.name}: max selection (${MAX_SELECTION}) reached.`);
+					messages.push(`âš  ${file.name}: max selection (${MAX_SELECTION}) reached.`);
 				}
 			} catch (err) {
 				console.error("Error reading 23andMe file:", err);
-				messages.push(`✗ ${file.name}: ${err.message}`);
+				messages.push(`âœ— ${file.name}: ${err.message}`);
 			}
 		}
 
@@ -1570,9 +1570,9 @@ if (loadByUrlBtn) {
 				if (statusEl) statusEl.textContent = `Loading ${id}...`;
 
 				try {
-					let parsed = await load23andMeFile(url, id, false);
+					let parsed = await get23Txt(url, id, false);
 					if (!parsed || !parsed.dt) {
-						throw new Error("load23andMeFile did not return expected parsed data.");
+						throw new Error("get23Txt did not return expected parsed data.");
 					}
 					const innerFilename = parsed.filename ?? '';
 					const finalUrl = parsed.finalUrl ?? parsed.meta?.finalUrl ?? record.finalUrl ?? url;
@@ -1733,8 +1733,8 @@ async function computeV4V5Overlap() {
     const marikaUrl = 'data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt';
 
     const [joshuaParsed, marikaParsed] = await Promise.all([
-      load23andMeFile(joshuaUrl),
-      load23andMeFile(marikaUrl),
+      get23Txt(joshuaUrl),
+      get23Txt(marikaUrl),
     ]);
 
     const joshuaSet = getChrPosSet(joshuaParsed);
@@ -1762,7 +1762,7 @@ async function computeV4V5Overlap() {
   }
 }
 
-// Initialize v4_v5_23andme on load — store the promise so fetchScoresTxts can await it
+// Initialize v4_v5_23andme on load â€” store the promise so fetchScoresTxts can await it
 window._v4v5OverlapReady = computeV4V5Overlap();
 
 // --- window.sdk namespace (users/participants) ---
@@ -1789,3 +1789,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
 //# sourceMappingURL=displayUsers-BVSywEAX.mjs.map
+

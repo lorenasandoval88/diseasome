@@ -3713,7 +3713,7 @@ function requireSetImmediate () {
 	        installMessageChannelImplementation();
 
 	    } else if (doc && "onreadystatechange" in doc.createElement("script")) {
-	        // For IE 6–8
+	        // For IE 6â€“8
 	        installReadyStateChangeImplementation();
 
 	    } else {
@@ -15081,9 +15081,9 @@ async function parse23Txt(txt, url) {
   return obj;
 }
 
-async function load23andMeFile(path, id = null) {
+async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
+    throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
   }
 
   if (!id) {
@@ -22645,5 +22645,5 @@ function Match2(mypgs, my23){
   return data2;
 }
 
-export { Match2, Match3, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, load23andMeFile as get23Txt, getTxts as getPgsTxt, getScoresPerCategory, getScoresPerTrait };
+export { Match2, Match3, allUsersMetaDataByType_fast, fetchAllScores, fetchAvailableDataTypes, fetchProfile, fetchSomeScores, fetchTraits, get23Txt, getTxts as getPgsTxt, getScoresPerCategory, getScoresPerTrait };
 //# sourceMappingURL=cloud_sdk.mjs.map

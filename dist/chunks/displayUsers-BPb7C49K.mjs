@@ -1,4 +1,4 @@
-import { allUsersMetaDataByType_fast, load23andMeFile } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+﻿import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
 import { l as localforage } from '../app.mjs';
 import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
 import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
@@ -8,7 +8,7 @@ import 'https://esm.run/@mlc-ai/web-llm';
 
 /**
  * Extract a human-readable full name from a genome filename.
- * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" → "Joshua Yoakem"
+ * e.g. "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_...txt" â†’ "Joshua Yoakem"
  */
 function nameFromFilename(filename) {
 	if (!filename) return null;
@@ -33,7 +33,7 @@ function setParticipantsLoadingProgress(progress) {
 setParticipantsLoadingProgress(20);
 
 setParticipantsLoadingProgress(50);
-// Default to 'json' mode — curated pre-validated list (fast, includes filename/build/size)
+// Default to 'json' mode â€” curated pre-validated list (fast, includes filename/build/size)
 let curatedJsonParticipants = null;
 try {
 	const res = await fetch('data/PGP_participants.json');
@@ -47,13 +47,13 @@ setParticipantsLoadingProgress(100);
 
 let participants = curatedJsonParticipants ?? [];
 let allParticipantsFast = null; // fetched lazily when user switches to 'all' mode
-let participantLoadMode = 'json'; // 'all' | 'json' — sorting is only enabled in 'json' mode
+let participantLoadMode = 'json'; // 'all' | 'json' â€” sorting is only enabled in 'json' mode
 let sortState = { key: null, dir: 'asc' }; // key: 'version' | 'build' | 'size' | null
 
 // Reflect count on the curated JSON button now that it's loaded
 {
 	const jsonBtn = document.getElementById('modeJsonBtn');
-	if (jsonBtn) jsonBtn.textContent = `From Curated JSON with build (${participants.length}) — updated 06-2026`;
+	if (jsonBtn) jsonBtn.textContent = `From Curated JSON with build (${participants.length}) â€” updated 06-2026`;
 }
 
 const ROWS_PER_PAGE = 200;
@@ -310,7 +310,7 @@ function applyParticipantFilters() {
 	const labelParts = [];
 	if (version) labelParts.push(version);
 	if (build) labelParts.push(`build ${build}`);
-	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`);
+	if (sizeMin != null || sizeMax != null) labelParts.push(`${sizeMin ?? 0}â€“${sizeMax ?? 'âˆž'} MB`);
 	const filterLabel = labelParts.length ? labelParts.join(', ') : 'All';
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants (${list.length}) - ${filterLabel}`, key);
 }
@@ -481,7 +481,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			});
 		}
 		const sortable = participantLoadMode === 'json';
-		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅');
+		const sortArrow = (k) => !sortable ? '' : (sortState.key === k ? (sortState.dir === 'asc' ? ' â–²' : ' â–¼') : ' â‡…');
 		const sortAttrs = (k) => sortable ? `class="sortable" data-sort="${k}" style="cursor:pointer;user-select:none;"` : '';
 
 		const totalPages = Math.max(1, Math.ceil(displayList.length / ROWS_PER_PAGE));
@@ -753,9 +753,9 @@ if (my23Btn && my23FileInput) {
 			try {
 				const text = await file.text();
 
-				let parsed = await load23andMeFile(file);
+				let parsed = await get23Txt(file);
 				if (!parsed || !parsed.dt) {
-					throw new Error("load23andMeFile did not return expected parsed data structure.");
+					throw new Error("get23Txt did not return expected parsed data structure.");
 				}
 				parsed = {
 					cols: parsed.cols || [],
@@ -764,7 +764,7 @@ if (my23Btn && my23FileInput) {
 				};
 
 				if (!parsed.dt.length) {
-					messages.push(`⚠ ${file.name}: failed to parse.`);
+					messages.push(`âš  ${file.name}: failed to parse.`);
 					continue;
 				}
 
@@ -804,13 +804,13 @@ if (my23Btn && my23FileInput) {
 					selectedUserIds.add(userId);
 					selectedUsersMap.set(userId, user);
 					updateGlobalSelectionCount();
-					messages.push(`✓ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
+					messages.push(`âœ“ ${file.name}: ${parsed.dt.length.toLocaleString()} variants added.`);
 				} else {
-					messages.push(`⚠ ${file.name}: max selection (${MAX_SELECTION}) reached.`);
+					messages.push(`âš  ${file.name}: max selection (${MAX_SELECTION}) reached.`);
 				}
 			} catch (err) {
 				console.error("Error reading 23andMe file:", err);
-				messages.push(`✗ ${file.name}: ${err.message}`);
+				messages.push(`âœ— ${file.name}: ${err.message}`);
 			}
 		}
 
@@ -863,9 +863,9 @@ if (loadByUrlBtn) {
 		loadByUrlBtn.disabled = true;
 
 		try {
-			let parsed = await load23andMeFile(url, id, false);
+			let parsed = await get23Txt(url, id, false);
 			if (!parsed || !parsed.dt) {
-				throw new Error("load23andMeFile did not return expected parsed data.");
+				throw new Error("get23Txt did not return expected parsed data.");
 			}
 			parsed = {
 				cols: parsed.cols || [],
@@ -1022,8 +1022,8 @@ async function computeV4V5Overlap() {
     const marikaUrl = 'data/PGP_huAE4518_genome_Marika_Forsythe_v4_Full_20240826181111.txt';
 
     const [joshuaParsed, marikaParsed] = await Promise.all([
-      load23andMeFile(joshuaUrl),
-      load23andMeFile(marikaUrl),
+      get23Txt(joshuaUrl),
+      get23Txt(marikaUrl),
     ]);
 
     const joshuaSet = getChrPosSet(joshuaParsed);
@@ -1051,7 +1051,7 @@ async function computeV4V5Overlap() {
   }
 }
 
-// Initialize v4_v5_23andme on load — store the promise so fetchScoresTxts can await it
+// Initialize v4_v5_23andme on load â€” store the promise so fetchScoresTxts can await it
 window._v4v5OverlapReady = computeV4V5Overlap();
 
 // --- window.sdk namespace (users/participants) ---
@@ -1072,3 +1072,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
 //# sourceMappingURL=displayUsers-BPb7C49K.mjs.map
+

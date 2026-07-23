@@ -49,8 +49,9 @@ export async function getBrowserStorageInfo() {
 
 export const prs = {
 	Match2, // pgsTxt, my23Txt
-	Match3,  // pgsTxt, my23Txt
+	MatchOptimized
 };
+
 
 export { clustjs };
 

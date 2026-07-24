@@ -69,7 +69,7 @@
                         href="https://www.nature.com/articles/nrg.2016.27" target="_blank"><u>risk profiles</u></a>
                     for
                     <br>23andme reports,using the <a class="link-unstyled" href='https://www.pgscatalog.org'
-                        target="_blank">PGS Catalog</a>.</p>
+                        target="_blank"><u>PGS Catalog</u></a>.</p>
                 <button class="glow-on-hover"
                     onclick="window.open('https://observablehq.com/@lorenasandoval88/polygenic-risk-scores-sdk-examples', '_blank', 'noopener,noreferrer')"
                     type="button">
@@ -576,10 +576,6 @@
                 <!-- PGS Catalog: trait selector and actions ---------------------------->
                 <div id="PGSCatalog" class="tabcontent">
 
-                    <h3>The Polygenic Score (PGS) Catalog</h3>
-                    <p>The PGS Catalog is an open database of published polygenic scores (PGS), annotated with relevant
-                        metadata;including scoring files (variants, effect alleles/weights).</p>
-                    <h3>Data Selection</h3>
 
                     <hr class="my-3" />
                     <div class="my-3">
@@ -607,7 +603,20 @@
 
                             <!-- Tab: By Trait / Category (with variant count range filter) -->
                             <div class="tab-pane fade show active" id="pane-pgs-trait" role="tabpanel" aria-labelledby="tab-pgs-trait">
-                                <p class="text-muted small">Browse and select up to 10 publicly available models from PGS Catalog for demo or research workflows.</p>
+                                <div class="d-flex flex-column">
+                                    <h5 class="card-title">Select Polygenic Risk Models</h5>
+                                    <p class="card-text text-muted small flex-grow-1">Browse and select up to 10 publicly available models from the PGS Catalog for demo or research workflows.
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                                style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.8rem"
+                                                data-bs-toggle="popover"
+                                                data-bs-trigger="focus"
+                                                data-bs-placement="right"
+                                                data-bs-html="true"
+                                                title="About the PGS Catalog"
+                                                data-bs-content="<p class='mb-2'>The <strong>PGS Catalog</strong> is an open database of published polygenic scores (PGS), annotated with relevant metadata such as trait, publication, genome build, and scoring files.</p><p class='mb-0'>Browse by category or trait, filter by variant count, and select up to 10 risk models for your PRS workflow. Learn more at <a href='https://www.pgscatalog.org' target='_blank' rel='noopener'>pgscatalog.org</a>.</p>"
+                                                aria-label="About the PGS Catalog">?</button>
+                                    </p>
+                                </div>
 
                                 <!-- Labeled filter bar: groups the browse mode, selector, and variant filter -->
                                 <div class="border rounded bg-light p-2 mb-2">

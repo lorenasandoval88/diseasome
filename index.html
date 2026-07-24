@@ -928,6 +928,50 @@
                             </div>
                         </div>
 
+                        <!-- Data & memory -->
+                        <h4 class="mb-1"><i class="fa fa-microchip text-primary me-2" aria-hidden="true"></i>Where your
+                            data lives</h4>
+                        <p class="text-secondary mb-3">When you fetch models and participant genomes in the PRS tab, they
+                            are parsed and held in two places &mdash; and nothing ever leaves your device.</p>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-bolt text-primary me-2"
+                                                aria-hidden="true"></i>In memory (RAM)</h6>
+                                        <p class="card-text small text-secondary mb-0">Selected genomes and scoring files
+                                            are loaded into JavaScript arrays and stay resident while the page is open.
+                                            The PRS math runs directly on these in-memory arrays &mdash; no round-trips.
+                                            Reloading the page clears them.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-hdd-o text-primary me-2"
+                                                aria-hidden="true"></i>On-device cache</h6>
+                                        <p class="card-text small text-secondary mb-0">Parsed genomes, scoring files, and
+                                            computed scores are cached in the browser's IndexedDB storage, so they
+                                            survive reloads and avoid re-fetching. Clear it anytime with the cache
+                                            buttons.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-balance-scale text-primary me-2"
+                                                aria-hidden="true"></i>Memory footprint</h6>
+                                        <p class="card-text small text-secondary mb-0">A single genome holds
+                                            600K&ndash;1.4M SNPs, so memory scales mainly with the number of selected
+                                            participants. A cap of <strong>10 models</strong> and <strong>10
+                                                participants</strong> keeps usage in check.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Privacy + Limitations -->
                         <div class="row g-3">
                             <div class="col-lg-6">

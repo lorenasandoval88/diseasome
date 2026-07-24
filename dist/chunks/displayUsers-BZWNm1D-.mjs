@@ -1,10 +1,10 @@
-import { get23Txt, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
-// console.log("displayUsers.js loaded")
+import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
 
-// Persistent reference to the selection status bar so it can be relocated below
-// the search box on every re-render (innerHTML resets would otherwise detach it).
-let _participantsStickyBar = null;
+// console.log("displayUsers.js loaded")
 
 /**
  * Extract a human-readable full name from a genome filename.
@@ -476,7 +476,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -1516,7 +1516,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 			<div class="mb-2">
 				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by ID, name, age, race, or ethnicity…" value="${escapeHtml(searchQuery)}" />
 			</div>
-			<div id="participantsStickyBarSlot_${key}" class="mb-2"></div>
+			<div id="selectedParticipantsSummary_${key}" class="small text-muted mb-2">${selectedIds.size} of ${MAX_SELECTION} files selected</div>
 			<div class="table-responsive sticky-scroll">
 				<table class="table table-sm table-striped table-bordered align-middle">
 					<thead class="table-dark">
@@ -1553,15 +1553,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</div>
 			</div>
 		`;
-
-		// Move the selection status bar to sit directly below the search box.
-		const stickyBarSlot = document.getElementById(`participantsStickyBarSlot_${key}`);
-		if (!_participantsStickyBar) _participantsStickyBar = document.getElementById('selectionStickyBar');
-		if (stickyBarSlot && _participantsStickyBar) {
-			_participantsStickyBar.classList.remove('sticky-top');
-			_participantsStickyBar.style.top = '';
-			stickyBarSlot.appendChild(_participantsStickyBar);
-		}
 
 		const selectAll = document.getElementById(`selectAllParticipants_${key}`);
 		const deselectAllBtn = document.getElementById(`deselectAllParticipants_${key}`);
@@ -2164,3 +2155,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-BZWNm1D-.mjs.map

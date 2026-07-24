@@ -92,7 +92,7 @@
     </script>
 
     <div class="tab">
-        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">1. Select/Upload 23andMe Users</button>
+        <button class="tablinks" onclick="tabFunction(event, 'GenomicData')">1. Select/Upload 23andMe Files</button>
         <button class="tablinks" onclick="tabFunction(event, 'PGSCatalog')">2. Select Risk Models</button>
         <button id="prsButton" class="tablinks active" onclick="tabFunction(event, 'PRS')">3. Calculate PRS</button>
         <button id="plotPrsButton" class="tablinks" onclick="tabFunction(event, 'PlotPRS')">4. Inspect Individual PRS Results</button>
@@ -576,12 +576,8 @@
                 <!-- PGS Catalog: trait selector and actions ---------------------------->
                 <div id="PGSCatalog" class="tabcontent">
 
-
-                    <hr class="my-3" />
+                    <!-- Selection options as tabs (mirror the PGP users tab) -->
                     <div class="my-3">
-                        <!-- Buttons intentionally left with no inline handlers; wiring occurs in module code when available. -->
-
-                        <!-- Selection options as tabs (mirror the PGP users tab) -->
                         <ul class="nav nav-tabs mt-2" id="pgsSelectTabs" role="tablist">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" id="tab-pgs-trait" data-bs-toggle="tab" data-bs-target="#pane-pgs-trait" type="button" role="tab" aria-controls="pane-pgs-trait" aria-selected="true">
@@ -599,7 +595,7 @@
                                 </button>
                             </li>
                         </ul>
-                        <div class="tab-content border border-top-0 rounded-bottom p-3 mb-2" id="pgsSelectTabsContent">
+                        <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="pgsSelectTabsContent">
 
                             <!-- Tab: By Trait / Category (with variant count range filter) -->
                             <div class="tab-pane fade show active" id="pane-pgs-trait" role="tabpanel" aria-labelledby="tab-pgs-trait">
@@ -732,7 +728,7 @@
                             <div class="d-flex align-items-center gap-3 flex-wrap">
                                 <div style="min-width:200px; flex:0 0 auto;">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span id="globalSelectionCount" class="fw-semibold small text-dark">0 of 10 selected</span>
+                                        <span id="globalSelectionCount" class="fw-semibold small text-dark">0 of 10 models selected</span>
                                         <span id="pgsSelectionLimitMsg" class="small text-danger fw-semibold ms-2" style="display:none;">Limit reached — deselect one to add another</span>
                                     </div>
                                     <div class="progress" style="height:12px;">
@@ -783,32 +779,192 @@
 
                 <!-- About tab -->
                 <div id="About" class="tabcontent">
-                    <h3>About</h3>
-                    <p>A prototype personal risk score <a class="link-unstyled" href="https://episphere.github.io/prs"
-                            target="_blank"><u>calculator</u></a>, created for research purposes, was developed to
-                        demonstrate how the PGS Catalog can be privately and readily applied to readily available
-                        direct-to-consumer genetic testing services, such as 23andMe. No software download, installation,
-                        or configuration is needed. The PRS web calculator matches individual PGS catalog entries with an
-                        individual's 23andMe genome data composed of 600k to 1.4 M single-nucleotide polymorphisms
-                        (SNPs). Beta coefficients provide researchers with a convenient assessment of risk associated
-                        with matched SNPs. This in-browser application was tested in a variety of personal devices,
-                        including smartphones, establishing the feasibility of privately calculating personal risk scores
-                        with up to a few thousand reference genetic variations and from the full 23andMe SNP data file
-                        (compressed or not).</p>
+                    <div class="container-fluid px-0" style="max-width: 1080px;">
 
-                    <h5>Privacy</h5>
-                    <p>All data and calculations take place in the browser. No data or calculations circulate by a
-                        server. This application is, foremost, an exercise in privacy-preserving biomedical informatics
-                        for consumer genomics data.</p>
+                        <!-- Hero / overview -->
+                        <div class="p-4 mb-4 rounded-3 border bg-light">
+                            <h2 class="h3 mb-2"><i class="fa fa-flask text-primary me-2" aria-hidden="true"></i>About this
+                                calculator</h2>
+                            <p class="lead mb-2">A privacy-preserving <a class="fw-semibold text-decoration-none"
+                                    href="https://episphere.github.io/prs" target="_blank" rel="noopener">polygenic risk
+                                    score (PRS) calculator</a> that runs entirely in your browser.</p>
+                            <p class="mb-0 text-secondary">Created for research purposes, it demonstrates how the
+                                <strong>PGS Catalog</strong> can be privately applied to direct-to-consumer genetic testing
+                                data (such as 23andMe). No software download, installation, or configuration is needed. The
+                                calculator matches individual PGS Catalog entries against a personal genome of roughly
+                                <strong>600K&nbsp;&ndash;&nbsp;1.4M single-nucleotide polymorphisms (SNPs)</strong>, using
+                                the reported beta coefficients to estimate risk associated with the matched variants. It has
+                                been tested on a range of devices &mdash; including smartphones &mdash; confirming the
+                                feasibility of computing personal risk scores locally from a full 23andMe SNP file
+                                (compressed or not).</p>
+                        </div>
 
-                    <h5>Scope / Limitations</h5>
-                    <p>This calculator was devised as an implementation proof of concept. It has a number of important
-                        limitations for epidemiology research and it does not meet criteria for clinical use. The current
-                        tool uses pre-imputation genotype data and thus results in a low number of SNP matches. Most
-                        important, only the relative risk model <a href='https://www.nature.com/articles/nrg.2016.27#Sec5'
-                            target="_blank">(Box 1, eq 2)</a> is calculated, with no effort to determine absolute risk
-                        of disease. Finally, the risk calculation will only be attempted for PGS catalog entries
-                        reporting effects as beta values under "effect_weight".</p>
+                        <!-- How it works -->
+                        <h4 class="mb-3"><i class="fa fa-cogs text-primary me-2" aria-hidden="true"></i>How it works</h4>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge rounded-pill bg-primary me-2">1</span>
+                                            <i class="fa fa-users text-primary" aria-hidden="true"></i>
+                                        </div>
+                                        <h6 class="card-title">Load genomic data</h6>
+                                        <p class="card-text small text-secondary mb-0">Upload your own 23andMe file or
+                                            browse public Personal Genome Project (PGP) participants. Files are parsed into
+                                            SNP tables directly in the browser.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge rounded-pill bg-primary me-2">2</span>
+                                            <i class="fa fa-search text-primary" aria-hidden="true"></i>
+                                        </div>
+                                        <h6 class="card-title">Select risk models</h6>
+                                        <p class="card-text small text-secondary mb-0">Search the PGS Catalog by trait or
+                                            category and select up to 10 scoring models to evaluate against the loaded
+                                            genomes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge rounded-pill bg-primary me-2">3</span>
+                                            <i class="fa fa-calculator text-primary" aria-hidden="true"></i>
+                                        </div>
+                                        <h6 class="card-title">Match &amp; compute PRS</h6>
+                                        <p class="card-text small text-secondary mb-0">Each model's variants are matched to
+                                            your genotype by chromosome, position, and allele, then weighted by their
+                                            effect coefficients to produce a polygenic risk score.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge rounded-pill bg-primary me-2">4</span>
+                                            <i class="fa fa-object-group text-primary" aria-hidden="true"></i>
+                                        </div>
+                                        <h6 class="card-title">Visualize &amp; cluster</h6>
+                                        <p class="card-text small text-secondary mb-0">Compare scores across individuals
+                                            with interactive plots and clustering, revealing patterns across traits and
+                                            participants.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SDKs -->
+                        <h4 class="mb-1"><i class="fa fa-cubes text-primary me-2" aria-hidden="true"></i>Powered by open
+                            SDKs</h4>
+                        <p class="text-secondary mb-3">The calculator is assembled from small, independently published
+                            JavaScript SDKs. Each is imported directly in the browser and handles one part of the
+                            pipeline.</p>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="card h-100 border-start border-4 border-info shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-database text-info me-2"
+                                                aria-hidden="true"></i>PGP SDK</h6>
+                                        <p class="card-text small text-secondary mb-2">Fetches and parses
+                                            <strong>Personal Genome Project</strong> participant metadata, profiles, and
+                                            23andMe genome files, turning raw SNP text into structured genotype tables.</p>
+                                        <a class="small text-decoration-none"
+                                            href="https://lorenasandoval88.github.io/personal_genomes_project_sdk/"
+                                            target="_blank" rel="noopener">View SDK <i class="fa fa-external-link"
+                                                aria-hidden="true"></i></a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 border-start border-4 border-success shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-search text-success me-2"
+                                                aria-hidden="true"></i>PGS Catalog SDK</h6>
+                                        <p class="card-text small text-secondary mb-2">Queries the
+                                            <strong>PGS Catalog</strong> for scoring models &mdash; by trait or category
+                                            &mdash; and downloads the harmonized scoring files (variants, alleles, and
+                                            effect weights) used for matching.</p>
+                                        <a class="small text-decoration-none"
+                                            href="https://lorenasandoval88.github.io/pgs_catalog_sdk/" target="_blank"
+                                            rel="noopener">View SDK <i class="fa fa-external-link"
+                                                aria-hidden="true"></i></a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 border-start border-4 border-warning shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-sitemap text-warning me-2"
+                                                aria-hidden="true"></i>ClustJS</h6>
+                                        <p class="card-text small text-secondary mb-2">Provides the
+                                            <strong>clustering and dimensionality-reduction</strong> routines that group
+                                            individuals and traits by their computed risk scores for visual comparison.</p>
+                                        <a class="small text-decoration-none"
+                                            href="https://lorenasandoval88.github.io/clustjs/" target="_blank"
+                                            rel="noopener">View SDK <i class="fa fa-external-link"
+                                                aria-hidden="true"></i></a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 border-start border-4 border-primary shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-1"><i class="fa fa-calculator text-primary me-2"
+                                                aria-hidden="true"></i>PRS matching engine</h6>
+                                        <p class="card-text small text-secondary mb-2">An in-browser routine that aligns
+                                            each PGS entry with your genotype by chromosome, position, and effect/other
+                                            allele, then sums the effect weights to produce the polygenic risk score and
+                                            quality-control flags.</p>
+                                        <span class="badge bg-light text-dark border">Runs locally &mdash; no server</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Privacy + Limitations -->
+                        <div class="row g-3">
+                            <div class="col-lg-6">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><i class="fa fa-lock text-success me-2"
+                                                aria-hidden="true"></i>Privacy</h5>
+                                        <p class="card-text mb-0 text-secondary">All data and calculations take place in
+                                            the browser. No data or results are ever sent to a server. This application is,
+                                            foremost, an exercise in privacy-preserving biomedical informatics for consumer
+                                            genomics data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><i class="fa fa-exclamation-triangle text-warning me-2"
+                                                aria-hidden="true"></i>Scope &amp; limitations</h5>
+                                        <ul class="small text-secondary mb-0 ps-3">
+                                            <li>Devised as an implementation proof of concept &mdash; <strong>not for
+                                                    clinical use</strong>.</li>
+                                            <li>Uses pre-imputation genotype data, which yields a relatively low number of
+                                                SNP matches.</li>
+                                            <li>Only the relative-risk model is computed <a
+                                                    href="https://www.nature.com/articles/nrg.2016.27#Sec5"
+                                                    target="_blank" rel="noopener">(Box&nbsp;1, eq&nbsp;2)</a>, with no
+                                                estimate of absolute disease risk.</li>
+                                            <li>Risk is only calculated for PGS entries reporting effects as beta values
+                                                under <code>effect_weight</code>.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
 
                 <!-- Scripts: app module and third-party libs -->

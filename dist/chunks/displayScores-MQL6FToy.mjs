@@ -1,9 +1,8 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getPgsTxt } from "../sdk/pgsSdk.js";
-import localforage from "localforage";
-
-// Persistent reference to the PGS selection status bar so it can be relocated
-// below the search box on every re-render (innerHTML resets would detach it).
-let _pgsStickyBar = null;
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getPgsTxt, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
 
 /*
  Module: displayScores.js
@@ -448,10 +447,10 @@ function getSelectionScores() {
 /** Render the score table for the current category/trait/variant selection. */
 function renderPgsFromSelection() {
 	const scores = getSelectionScores();
-	const catLabel = selectedCategories.size
+	selectedCategories.size
 		? `${selectedCategories.size} categor${selectedCategories.size === 1 ? "y" : "ies"}`
 		: "All categories";
-	const traitLabel = selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
+	selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
 	const title = `PGS Catalog Scoring Files - ${scores.length} of ${totalAvailableScores}`;
 	const key = sanitizeKey(`sel_${Array.from(selectedCategories).join("_")}_${Array.from(selectedTraits).join("_")}`) || "sel";
 	renderPgsTable(scores, "scoresDiv", title, key);
@@ -638,11 +637,9 @@ function renderPgsTable(scores, targetId, title, key) {
 			.join("");
 
 		scoresDiv.innerHTML = `
-			<div class="d-flex justify-content-between align-items-center my-2 flex-wrap gap-2">
+			<div class="d-flex justify-content-between align-items-center my-2">
 				<h5 class="mb-0">${escapeHtml(title)}</h5>
-				<div class="d-flex align-items-center gap-2 flex-wrap">
-					<button id="downloadJsonBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as JSON">Download JSON</button>
-					<button id="downloadCsvBtn_${key}" class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" title="Download the currently filtered list as CSV">Download CSV</button>
+				<div>
 					<label class="form-check-label me-2" for="selectAllPgs_${key}">Select all</label>
 					<input class="form-check-input" id="selectAllPgs_${key}" type="checkbox" ${filtered.length > 0 && selectedIds.size === filtered.length ? "checked" : ""} />
 				</div>
@@ -650,7 +647,6 @@ function renderPgsTable(scores, targetId, title, key) {
 			<div class="mb-2">
 				<input id="pgsSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by PGS ID, name, or trait…" value="${escapeHtml(searchQuery)}" />
 			</div>
-			<div id="pgsStickyBarSlot_${key}" class="mb-2"></div>
 			<div class="table-responsive sticky-scroll">
 				<table class="table table-sm table-striped table-bordered align-middle">
 					<thead  class="table-dark">
@@ -669,7 +665,8 @@ function renderPgsTable(scores, targetId, title, key) {
 					</tbody>
 				</table>
 			</div>
-			<div class="d-flex justify-content-end align-items-center mt-2">
+			<div class="d-flex justify-content-between align-items-center mt-2">
+				<div id="selectedPgsSummary_${key}" class="small text-muted">Selected: ${selectedIds.size} / ${MAX_SELECTION}</div>
 				<div class="d-flex align-items-center gap-2">
 					<button id="prevPage_${key}" class="btn btn-sm btn-outline-secondary" ${currentPage === 1 ? "disabled" : ""}>Previous</button>
 					<span id="pageInfo_${key}" class="small text-muted">Page ${currentPage} of ${totalPages}</span>
@@ -678,41 +675,11 @@ function renderPgsTable(scores, targetId, title, key) {
 			</div>
 		`;
 
-		// Move the PGS selection status bar to sit directly below the search box.
-		const pgsStickyBarSlot = document.getElementById(`pgsStickyBarSlot_${key}`);
-		if (!_pgsStickyBar) _pgsStickyBar = document.getElementById('pgsSelectionStickyBar');
-		if (pgsStickyBarSlot && _pgsStickyBar) {
-			_pgsStickyBar.classList.remove('sticky-top');
-			_pgsStickyBar.style.top = '';
-			pgsStickyBarSlot.appendChild(_pgsStickyBar);
-		}
-
 		const selectAll = document.getElementById(`selectAllPgs_${key}`);
 		const searchInput = document.getElementById(`pgsSearch_${key}`);
 		const rowCheckboxes = Array.from(scoresDiv.querySelectorAll(".pgs-select"));
 		const prevPageBtn = document.getElementById(`prevPage_${key}`);
 		const nextPageBtn = document.getElementById(`nextPage_${key}`);
-		const downloadJsonBtn = document.getElementById(`downloadJsonBtn_${key}`);
-		const downloadCsvBtn = document.getElementById(`downloadCsvBtn_${key}`);
-
-		if (downloadJsonBtn) {
-			downloadJsonBtn.addEventListener("click", () => {
-				downloadAsFile(
-					JSON.stringify(getFilteredScores(), null, 2),
-					`PGS_scores.json`,
-					"application/json"
-				);
-			});
-		}
-		if (downloadCsvBtn) {
-			downloadCsvBtn.addEventListener("click", () => {
-				downloadAsFile(
-					scoresToCsv(getFilteredScores()),
-					`PGS_scores.csv`,
-					"text/csv"
-				);
-			});
-		}
 
 		if (searchInput) {
 			searchInput.addEventListener("input", () => {
@@ -766,6 +733,10 @@ function renderPgsTable(scores, targetId, title, key) {
 				if (selectAll) {
 					selectAll.checked = filtered.length > 0 && selectedIds.size === Math.min(filtered.length, MAX_SELECTION);
 				}
+				const selectedPgsSummary = document.getElementById(`selectedPgsSummary_${key}`);
+				if (selectedPgsSummary) {
+					selectedPgsSummary.textContent = `Selected: ${selectedIds.size} / ${MAX_SELECTION}`;
+				}
 				updateGlobalSelectionCount();
 				// Notify participants table of PGS selection change
 				window.onPgsSelectionChange?.();
@@ -789,34 +760,6 @@ function renderPgsTable(scores, targetId, title, key) {
 
 	renderPage();
 	updateGlobalSelectionCount();
-}
-
-/** Trigger a browser download of `content` as a file. */
-function downloadAsFile(content, filename, mime = "text/plain") {
-	const blob = new Blob([content], { type: `${mime};charset=utf-8` });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = filename;
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/** Escape a single CSV field per RFC 4180. */
-function csvEscape(value) {
-	if (value == null) return "";
-	const s = String(value);
-	return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-}
-
-/** Convert a PGS scores list to CSV using a curated, human-friendly column set. */
-function scoresToCsv(list) {
-	const cols = ["id", "name", "trait_reported", "variants_number", "date_release"];
-	const header = cols.join(",");
-	const rows = (list ?? []).map((s) => cols.map((c) => csvEscape(s?.[c])).join(","));
-	return [header, ...rows].join("\r\n");
 }
 
 /**
@@ -861,7 +804,7 @@ function renderScores(value, type = "Trait") {
 		: `${type}: ${value} (${scores.length} scoring files)`;
 
 	renderPgsTable(scores, "scoresDiv", title, key);
-	renderActiveFilterChips(value, type);
+	renderActiveFilterChips();
 }
 
 /**
@@ -970,54 +913,6 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	const title = `${match.id} - ${match.name ?? match.trait_reported ?? "PGS"}`;
 	renderPgsTable([match], "scoresDiv", title, sanitizeKey(pgsId));
 };
-
-
-// --- Helpers for dropdown management ---
-
-/** Default onchange handler for trait selection. */
-function setDefaultTraitOnChange(select) {
-	select.onchange = (e) => {
-		try { window.onPgsTraitChange(e.target.value); } catch (err) { console.error('onPgsTraitChange error', err); }
-	};
-}
-
-/** Build options HTML from a Map of name → scores[]. */
-function buildOptionsHtml(map, keys, allLabel, filteredCount) {
-	const allOption = `<option value="${ALL_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
-	const itemOptions = keys
-		.map((key) => {
-			const filtered = (map.get(key) ?? []).filter(passesVariantFilter);
-			return `<option value="${escapeHtml(key)}">${escapeHtml(key)} (${filtered.length})</option>`;
-		})
-		.join("");
-	return allOption + itemOptions;
-}
-
-/** Populate dropdown with traits and wire default handler. */
-function populateTraitDropdown(select) {
-	select.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Trait");
-	setDefaultTraitOnChange(select);
-}
-
-/** Populate dropdown with categories and wire category handler. */
-function populateCategoryDropdown(select) {
-	select.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Category");
-
-	select.onchange = (e) => {
-		const val = e.target.value;
-		if (!val) return;
-		if (val === ALL_VALUE) {
-			setDefaultTraitOnChange(select);
-			renderScores(ALL_VALUE, "Category");
-			return;
-		}
-		renderScores(val, "Category");
-	};
-}
 
 // --- Initialize category + trait filters ---
 
@@ -1631,3 +1526,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-MQL6FToy.mjs.map

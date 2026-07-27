@@ -93,6 +93,86 @@ function pivotPrsResults(rawResults) {
 }
 
 /**
+ * Standardize (z-score) each PGS column across users so that no single model
+ * dominates the clustering distance purely because of its scale.
+ * For each PGS: z = (value - mean) / sd, computed across all users that have a
+ * finite value. Columns with fewer than 2 finite values (or zero variance) are
+ * left effectively unscaled (sd defaults to 1). Missing values stay missing.
+ * @param {Array<Object>} pivoted - Row objects: { label, <pgsId>: value, ... }
+ * @param {string[]} pgsIds - PGS column ids to standardize
+ * @returns {Array<Object>} New row objects with z-scored values.
+ */
+function standardizePivot(pivoted, pgsIds) {
+  if (!Array.isArray(pivoted) || pivoted.length === 0) return pivoted;
+  const round = v => (Number.isFinite(v) ? Number(v.toFixed(4)) : null);
+
+  // Per-PGS mean/sd across users.
+  const stats = {};
+  for (const pgsId of pgsIds) {
+    const vals = pivoted.map(row => row[pgsId]).filter(v => Number.isFinite(v));
+    if (vals.length < 2) continue;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
+    stats[pgsId] = { mean, sd };
+  }
+
+  return pivoted.map(row => {
+    const out = { label: row.label };
+    for (const pgsId of pgsIds) {
+      const v = row[pgsId];
+      if (!Number.isFinite(v)) continue;
+      const s = stats[pgsId];
+      out[pgsId] = s ? round((v - s.mean) / s.sd) : round(v);
+    }
+    return out;
+  });
+}
+
+/**
+ * Build a { pgsId -> reported trait } lookup from the raw PRS results.
+ * @param {Array<Object>} rawResults - window.prsResults entries
+ * @returns {Object<string,string>} Map of PGS id to its trait name.
+ */
+function getPgsTraitMap(rawResults) {
+  const map = {};
+  if (!Array.isArray(rawResults)) return map;
+  for (const r of rawResults) {
+    const pgsId = r?.pgsId;
+    if (!pgsId || map[pgsId]) continue;
+    const trait =
+      r.pgs?.meta?.trait_reported ??
+      r.pgs?.meta?.trait_mapped ??
+      r.organized?.summary?.trait ??
+      '';
+    if (trait) map[pgsId] = String(trait);
+  }
+  return map;
+}
+
+/**
+ * Return a copy of the pivoted matrix with each PGS column key relabeled as
+ * "<pgsId> — <trait>" for display. The `label` (user name) key is preserved.
+ * Used only for the plot so cached data and CSV/JSON downloads keep raw PGS ids.
+ * Note: ClustJS truncates axis labels to 12 chars, but hover tooltips show the
+ * full relabeled text.
+ * @param {Array<Object>} matrix - Row objects: { label, <pgsId>: value, ... }
+ * @param {Object<string,string>} traitMap - { pgsId -> trait }
+ * @returns {Array<Object>} New rows with trait-augmented column keys.
+ */
+function relabelPgsColumns(matrix, traitMap) {
+  if (!Array.isArray(matrix) || !traitMap) return matrix;
+  return matrix.map(row => {
+    const out = {};
+    for (const key of Object.keys(row)) {
+      if (key === 'label') { out.label = row.label; continue; }
+      const trait = traitMap[key];
+      out[trait ? `${key} — ${trait}` : key] = row[key];
+    }
+    return out;
+  });
+}
+
+/**
  * Get unique PGS IDs from prsResults
  */
 function getUniquePgsIds(rawResults) {
@@ -197,6 +277,9 @@ async function renderCluster() {
   const clusterMethod = window.clusterOptions?.clusterMethod ?? 'complete';
   const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
 
+  // Scale mode: raw PRS vs. per-PGS z-scored (normalized) values.
+  const normalize = window.clusterOptions?.normalize ?? false;
+
   clusterContainer.innerHTML = `
     <div id="clusterSectionA">
     <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
@@ -236,6 +319,14 @@ async function renderCluster() {
         <button id="clusterDistManhattan" class="btn btn-sm ${clusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
         <button id="clusterDistCosine" class="btn btn-sm ${clusterDistance === 'cosine' ? 'btn-info' : 'btn-outline-info'}">Cosine</button>
       </div>
+    </div>
+    <div class="mb-3">
+      <strong>Scale:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="clusterScaleRaw" class="btn btn-sm ${!normalize ? 'btn-dark' : 'btn-outline-dark'}">Raw PRS</button>
+        <button id="clusterScaleZ" class="btn btn-sm ${normalize ? 'btn-dark' : 'btn-outline-dark'}">Z-score (per PGS)</button>
+      </div>
+      <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
     <div id="clusterPlotMount"></div>
     </div>
@@ -302,6 +393,16 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // PRS clustering scale (normalization) handlers
+  document.getElementById('clusterScaleRaw').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, normalize: false };
+    renderCluster();
+  };
+  document.getElementById('clusterScaleZ').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, normalize: true };
+    renderCluster();
+  };
+
   // Wire PRS matrix CSV download
   const downloadPrsCsvBtn = document.getElementById('downloadPrsCsvBtn');
   if (downloadPrsCsvBtn) {
@@ -312,13 +413,28 @@ async function renderCluster() {
     };
   }
 
+  // Apply per-PGS z-score standardization when the Z-score scale is selected.
+  const plotData = normalize ? standardizePivot(pivoted, pgsIds) : pivoted;
+
+  // Append the reported trait to each PGS column label (plot only; downloads
+  // keep raw PGS ids). Full label shows on hover; axis text is capped at 12 chars.
+  const plotDataLabeled = relabelPgsColumns(plotData, getPgsTraitMap(window.prsResults));
+
+  // Grow the canvas with the matrix so dendrograms and axis labels have room
+  // and aren't clipped at the plot edges.
+  const colCount = Object.keys(pivoted[0]).length - 1;
+  const plotWidth = Math.max(1500, 150 * colCount + 500);
+  const plotHeight = Math.max(760, 46 * pivoted.length + 320);
+
   // Render PRS cluster plot
   try {
     await hclust_plot({
        divId:  "clusterPlotMount",
-      data: pivoted,
-      width: 1200,
-      height: 520,
+      data: plotDataLabeled,
+      width: plotWidth,
+      height: plotHeight,
+      marginBottom: 180,
+      marginRight: 240,
       clusterRows: clusterRows,
       clusterCols: clusterCols,
       clusteringMethodRows: clusterMethod,

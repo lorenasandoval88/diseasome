@@ -3101,16 +3101,16 @@ console.log("calculatePrs.js loaded");
 // Calculate PRS for a given PGS and 23andMe genome data.
 //
 // Workflow (driven by buttons in the PRS tab):
-//   1. LOAD SCORES â€” fetchScores() (selected in the Polygenic Scores tab) or
+//   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
 //      loadExampleScores() (selection + EXAMPLE_SCORES). Both call
 //      loadScoresFromList(), which loads each PGS id one at a time via getPgsTxt()
 //      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
-//   2. LOAD USERS â€” fetchUsers() (selected in the 23andMe Data tab) or
+//   2. LOAD USERS — fetchUsers() (selected in the 23andMe Data tab) or
 //      loadExampleUsers() (EXAMPLE_USERS). Both call loadUsersFromList(), which
 //      loads each genome one file at a time via get23Txt() (fetch + parse +
 //      cache). Results populate loadedUsers + window.loadedUsers.
-//   3. CALCULATE â€” calculatePRS() takes the checked users x checked scores, then for
-//      each pair calls calculateAndCachePRS() â†’ MatchOptimized() (the actual PRS math) and
+//   3. CALCULATE — calculatePRS() takes the checked users x checked scores, then for
+//      each pair calls calculateAndCachePRS() → MatchOptimized() (the actual PRS math) and
 //      organizeResultsByAllele() (groups matches by 0/1/2 effect alleles for plots).
 //      Results are cached (getCachedPRS/setCachedPRS), exposed on window.prsResults,
 //      and rendered as a table.
@@ -3916,7 +3916,7 @@ window.fetchScores = fetchScores;
  * path and loads it via get23Txt (which caches internally under
  * "Genome:23andMe-txt-*"). Returns { user, parsed } entries, skipping failures.
  *
- * Like loadScoresFromList, genomes are loaded one file at a time â€” get23Txt
+ * Like loadScoresFromList, genomes are loaded one file at a time — get23Txt
  * fetches, parses, and cache-checks each file individually.
  * @param {Object[]} users - User/participant objects
  * @returns {Promise<Object[]>} Array of { user, parsed }
@@ -4217,8 +4217,8 @@ window.getBrowserStorageInfo = getBrowserStorageInfo;
 /**
  * Derive a human-readable name from a 23andMe / PGP genome filename.
  * Extracts the portion between "genome_" and the version marker "_v\d+_" / "_V\d+_".
- * e.g. "genome_James_Jones_v5_full_20171221.txt" â†’ "James Jones"
- *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" â†’ "Joshua Yoakem"
+ * e.g. "genome_James_Jones_v5_full_20171221.txt" → "James Jones"
+ *      "PGP_hu09B28E_genome_Joshua_Yoakem_v5_Full_20250127.txt" → "Joshua Yoakem"
  * Returns null if the pattern is not found.
  */
 function nameFromFilename(filename) {
@@ -4268,7 +4268,7 @@ async function calculateAndCachePRS(mypgs, my23, userId, pgsId, userData) {
 		if (!organizedData && cached.pgsMatchMy23 && cached.alleles) {
 			organizedData = organizeResultsByAllele(cached, mypgs);
 		}
-		console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, 'â†’', userName);
+		console.log('[nameFromFilename] cache hit:', userData.user?.id, 'src:', userData.user?.fileName ?? userData.user?.finalUrl, '→', userName);
 		return {
 			...cached,
 			userName,
@@ -4329,7 +4329,7 @@ async function calculatePRS() {
 		if (userDataForCalc.length === 0) {
 			// Try to get selected users from the 23andMe Data tab
 			const selectedUsers = window.getSelectedUsers?.() ?? [];
-			console.log("No loadedUsers â€” falling back to LocalData tab selection:", selectedUsers);
+			console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
 			if (selectedUsers.length === 0) {
 				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Example Users' in the PRS tab, or select users in the 23andMe Data tab.";
 				return;
@@ -4464,8 +4464,8 @@ async function calculatePRS() {
 						<td title="Two alleles">${org.twoAlleleCount ?? "-"}</td>
 						<td>${r.totalVariants ?? "-"}</td>
 						<td>${org.matchRate ?? "-"}</td>
-						<td>${r.QC ? "âœ“" : r.QCtext ?? "-"}</td>
-						<td>${r.fromCache ? "ðŸ“¦" : "ðŸ”„"}</td>
+						<td>${r.QC ? "✓" : r.QCtext ?? "-"}</td>
+						<td>${r.fromCache ? "📦" : "🔄"}</td>
 					</tr>
 				`;
 				}).join("");
@@ -4486,7 +4486,7 @@ async function calculatePRS() {
 								<th>Total</th>
 								<th>Match %</th>
 								<th>QC</th>
-								<th title="ðŸ“¦ = cached, ðŸ”„ = calculated">Src</th>
+								<th title="📦 = cached, 🔄 = calculated">Src</th>
 							</tr>
 						</thead>
 						<tbody>${rows}</tbody>
@@ -5626,6 +5626,86 @@ function pivotPrsResults(rawResults) {
 }
 
 /**
+ * Standardize (z-score) each PGS column across users so that no single model
+ * dominates the clustering distance purely because of its scale.
+ * For each PGS: z = (value - mean) / sd, computed across all users that have a
+ * finite value. Columns with fewer than 2 finite values (or zero variance) are
+ * left effectively unscaled (sd defaults to 1). Missing values stay missing.
+ * @param {Array<Object>} pivoted - Row objects: { label, <pgsId>: value, ... }
+ * @param {string[]} pgsIds - PGS column ids to standardize
+ * @returns {Array<Object>} New row objects with z-scored values.
+ */
+function standardizePivot(pivoted, pgsIds) {
+  if (!Array.isArray(pivoted) || pivoted.length === 0) return pivoted;
+  const round = v => (Number.isFinite(v) ? Number(v.toFixed(4)) : null);
+
+  // Per-PGS mean/sd across users.
+  const stats = {};
+  for (const pgsId of pgsIds) {
+    const vals = pivoted.map(row => row[pgsId]).filter(v => Number.isFinite(v));
+    if (vals.length < 2) continue;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
+    stats[pgsId] = { mean, sd };
+  }
+
+  return pivoted.map(row => {
+    const out = { label: row.label };
+    for (const pgsId of pgsIds) {
+      const v = row[pgsId];
+      if (!Number.isFinite(v)) continue;
+      const s = stats[pgsId];
+      out[pgsId] = s ? round((v - s.mean) / s.sd) : round(v);
+    }
+    return out;
+  });
+}
+
+/**
+ * Build a { pgsId -> reported trait } lookup from the raw PRS results.
+ * @param {Array<Object>} rawResults - window.prsResults entries
+ * @returns {Object<string,string>} Map of PGS id to its trait name.
+ */
+function getPgsTraitMap(rawResults) {
+  const map = {};
+  if (!Array.isArray(rawResults)) return map;
+  for (const r of rawResults) {
+    const pgsId = r?.pgsId;
+    if (!pgsId || map[pgsId]) continue;
+    const trait =
+      r.pgs?.meta?.trait_reported ??
+      r.pgs?.meta?.trait_mapped ??
+      r.organized?.summary?.trait ??
+      '';
+    if (trait) map[pgsId] = String(trait);
+  }
+  return map;
+}
+
+/**
+ * Return a copy of the pivoted matrix with each PGS column key relabeled as
+ * "<pgsId> — <trait>" for display. The `label` (user name) key is preserved.
+ * Used only for the plot so cached data and CSV/JSON downloads keep raw PGS ids.
+ * Note: ClustJS truncates axis labels to 12 chars, but hover tooltips show the
+ * full relabeled text.
+ * @param {Array<Object>} matrix - Row objects: { label, <pgsId>: value, ... }
+ * @param {Object<string,string>} traitMap - { pgsId -> trait }
+ * @returns {Array<Object>} New rows with trait-augmented column keys.
+ */
+function relabelPgsColumns(matrix, traitMap) {
+  if (!Array.isArray(matrix) || !traitMap) return matrix;
+  return matrix.map(row => {
+    const out = {};
+    for (const key of Object.keys(row)) {
+      if (key === 'label') { out.label = row.label; continue; }
+      const trait = traitMap[key];
+      out[trait ? `${key} — ${trait}` : key] = row[key];
+    }
+    return out;
+  });
+}
+
+/**
  * Get unique PGS IDs from prsResults
  */
 function getUniquePgsIds(rawResults) {
@@ -5730,6 +5810,9 @@ async function renderCluster() {
   const clusterMethod = window.clusterOptions?.clusterMethod ?? 'complete';
   const clusterDistance = window.clusterOptions?.clusterDistance ?? 'euclidean';
 
+  // Scale mode: raw PRS vs. per-PGS z-scored (normalized) values.
+  const normalize = window.clusterOptions?.normalize ?? false;
+
   clusterContainer.innerHTML = `
     <div id="clusterSectionA">
     <h5>PRS Clustering (${pivoted.length} Users × ${Object.keys(pivoted[0]).length - 1} PGS Entries)</h5>
@@ -5769,6 +5852,14 @@ async function renderCluster() {
         <button id="clusterDistManhattan" class="btn btn-sm ${clusterDistance === 'manhattan' ? 'btn-info' : 'btn-outline-info'}">Manhattan</button>
         <button id="clusterDistCosine" class="btn btn-sm ${clusterDistance === 'cosine' ? 'btn-info' : 'btn-outline-info'}">Cosine</button>
       </div>
+    </div>
+    <div class="mb-3">
+      <strong>Scale:</strong>
+      <div class="btn-group ms-2" role="group">
+        <button id="clusterScaleRaw" class="btn btn-sm ${!normalize ? 'btn-dark' : 'btn-outline-dark'}">Raw PRS</button>
+        <button id="clusterScaleZ" class="btn btn-sm ${normalize ? 'btn-dark' : 'btn-outline-dark'}">Z-score (per PGS)</button>
+      </div>
+      <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
     <div id="clusterPlotMount"></div>
     </div>
@@ -5835,6 +5926,16 @@ async function renderCluster() {
     renderCluster();
   };
 
+  // PRS clustering scale (normalization) handlers
+  document.getElementById('clusterScaleRaw').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, normalize: false };
+    renderCluster();
+  };
+  document.getElementById('clusterScaleZ').onclick = () => {
+    window.clusterOptions = { ...window.clusterOptions, normalize: true };
+    renderCluster();
+  };
+
   // Wire PRS matrix CSV download
   const downloadPrsCsvBtn = document.getElementById('downloadPrsCsvBtn');
   if (downloadPrsCsvBtn) {
@@ -5845,13 +5946,28 @@ async function renderCluster() {
     };
   }
 
+  // Apply per-PGS z-score standardization when the Z-score scale is selected.
+  const plotData = normalize ? standardizePivot(pivoted, pgsIds) : pivoted;
+
+  // Append the reported trait to each PGS column label (plot only; downloads
+  // keep raw PGS ids). Full label shows on hover; axis text is capped at 12 chars.
+  const plotDataLabeled = relabelPgsColumns(plotData, getPgsTraitMap(window.prsResults));
+
+  // Grow the canvas with the matrix so dendrograms and axis labels have room
+  // and aren't clipped at the plot edges.
+  const colCount = Object.keys(pivoted[0]).length - 1;
+  const plotWidth = Math.max(1500, 150 * colCount + 500);
+  const plotHeight = Math.max(760, 46 * pivoted.length + 320);
+
   // Render PRS cluster plot
   try {
     await hclust_plot({
        divId:  "clusterPlotMount",
-      data: pivoted,
-      width: 1200,
-      height: 520,
+      data: plotDataLabeled,
+      width: plotWidth,
+      height: plotHeight,
+      marginBottom: 180,
+      marginRight: 240,
       clusterRows: clusterRows,
       clusterCols: clusterCols,
       clusteringMethodRows: clusterMethod,

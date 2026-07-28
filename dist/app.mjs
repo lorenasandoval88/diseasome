@@ -6114,7 +6114,9 @@ async function renderCluster() {
       <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
     <div id="clusterPlotBox" style="position:relative;">
-      <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm" style="position:absolute; top:0; right:0; z-index:5;">⬇ Download PNG</button>
+      <div style="position:sticky; top:8px; z-index:5; height:0; text-align:right; pointer-events:none;">
+        <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm" style="pointer-events:auto; margin-right:8px;">⬇ Download PNG</button>
+      </div>
       <div id="clusterPlotScroll" style="overflow:auto; max-width:100%;">
         <div id="clusterPlotMount"></div>
       </div>

@@ -434,7 +434,11 @@ async function renderCluster() {
       width: plotWidth,
       height: plotHeight,
       marginBottom: 180,
-      marginRight: 240,
+     // marginRight: 240,
+         // Pull the color legend + "Missing" swatch left so they aren't clipped at
+      // the right edge. hclust_plot auto-computes the right margin (marginRight
+      // is ignored), so legendOffsetX is the lever for legend position.
+      legendOffsetX: 38,
       clusterRows: clusterRows,
       clusterCols: clusterCols,
       clusteringMethodRows: clusterMethod,

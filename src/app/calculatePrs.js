@@ -177,6 +177,112 @@ async function clearGenomeCache() {
 }
 window.clearGenomeCache = clearGenomeCache;
 
+/* -------------------------------------------------------------------------- *
+ * Download helpers for the PRS tab.
+ *   §1 "Select Risk Models"  -> selected PGS models (window.getSelectedScores)
+ *   §3 "Calculate PRS"       -> computed PRS results (window.prsResults)
+ * Each is offered as JSON (full objects) and CSV (curated columns).
+ * -------------------------------------------------------------------------- */
+
+/** Trigger a browser download of `content` as a file. */
+function triggerDownload(content, filename, mime) {
+	const blob = new Blob([content], { type: mime });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}
+
+/** Escape a single CSV cell (quote if it contains a comma, quote, or newline). */
+function csvCell(value) {
+	if (value === null || value === undefined) return "";
+	const s = String(value);
+	return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Build a CSV string from a header array and an array of row arrays. */
+function rowsToCsv(headers, rows) {
+	const lines = [headers.map(csvCell).join(",")];
+	for (const row of rows) lines.push(row.map(csvCell).join(","));
+	return lines.join("\n");
+}
+
+/** Filesystem-safe timestamp for download filenames, e.g. 2026-07-28-14-30-05. */
+function downloadTimestamp() {
+	return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+}
+
+/** Currently selected risk models (from the PGS Catalog tab). */
+function getSelectedRiskModels() {
+	const models = typeof window.getSelectedScores === "function" ? window.getSelectedScores() : [];
+	return Array.isArray(models) ? models : [];
+}
+
+/** Download the selected risk models as JSON (full model objects). */
+function downloadRiskModelsJson() {
+	const models = getSelectedRiskModels();
+	if (!models.length) { alert("No risk models selected. Select models in the PGS Catalog first."); return; }
+	triggerDownload(JSON.stringify(models, null, 2), `risk_models_${downloadTimestamp()}.json`, "application/json");
+}
+
+/** Download the selected risk models as CSV (curated columns). */
+function downloadRiskModelsCsv() {
+	const models = getSelectedRiskModels();
+	if (!models.length) { alert("No risk models selected. Select models in the PGS Catalog first."); return; }
+	const headers = ["PGS ID", "Name", "Trait", "Variants", "Release Date"];
+	const rows = models.map(m => [
+		m?.id ?? "",
+		m?.name ?? "",
+		m?.trait_reported ?? "",
+		m?.variants_number ?? "",
+		m?.date_release ?? "",
+	]);
+	triggerDownload(rowsToCsv(headers, rows), `risk_models_${downloadTimestamp()}.csv`, "text/csv");
+}
+
+/** Download the computed PRS results as JSON (full result objects). */
+function downloadRiskScoresJson() {
+	const results = Array.isArray(window.prsResults) ? window.prsResults : [];
+	if (!results.length) { alert("No PRS results yet. Click \"Calculate PRS\" first."); return; }
+	triggerDownload(JSON.stringify(results, null, 2), `risk_scores_${downloadTimestamp()}.json`, "application/json");
+}
+
+/** Download the computed PRS results as CSV (matches the results table columns). */
+function downloadRiskScoresCsv() {
+	const results = Array.isArray(window.prsResults) ? window.prsResults : [];
+	if (!results.length) { alert("No PRS results yet. Click \"Calculate PRS\" first."); return; }
+	const headers = [
+		"User ID", "Name", "PGS ID", "PRS Score", "Matched Alleles",
+		"Zero Allele Count", "One Allele Count", "Two Allele Count",
+		"Total Variants", "Match Rate", "QC", "Source",
+	];
+	const rows = results.map(r => {
+		const org = r.organized?.summary ?? {};
+		return [
+			r.userId ?? "",
+			r.userName ?? "",
+			r.pgsId ?? "",
+			typeof r.PRS === "number" ? r.PRS : (r.PRS ?? ""),
+			r.alleles?.length ?? 0,
+			org.zeroAlleleCount ?? "",
+			org.oneAlleleCount ?? "",
+			org.twoAlleleCount ?? "",
+			r.totalVariants ?? "",
+			org.matchRate ?? "",
+			r.QC ? "pass" : (r.QCtext ?? ""),
+			r.fromCache ? "cached" : "calculated",
+		];
+	});
+	triggerDownload(rowsToCsv(headers, rows), `risk_scores_${downloadTimestamp()}.csv`, "text/csv");
+}
+
+window.downloadRiskModelsJson = downloadRiskModelsJson;
+window.downloadRiskModelsCsv = downloadRiskModelsCsv;
+window.downloadRiskScoresJson = downloadRiskScoresJson;
+window.downloadRiskScoresCsv = downloadRiskScoresCsv;
+
 
 /**
  * Organize PRS match results by allele count (0, 1, or 2).
@@ -1380,6 +1486,10 @@ async function calculatePRS() {
 				}).join("");
 
 				resultsDiv.innerHTML = `
+					<div class="d-flex justify-content-end gap-2 mt-3">
+						<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskScoresJson && window.downloadRiskScoresJson()">⬇ Download Scores (JSON)</button>
+						<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskScoresCsv && window.downloadRiskScoresCsv()">⬇ Download Scores (CSV)</button>
+					</div>
 					<table class="table table-striped table-sm mt-3">
 						<thead class="table-dark">
 							<tr>

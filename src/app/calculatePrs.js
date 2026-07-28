@@ -44,6 +44,9 @@ function ensureProgressBar(key, statusEl) {
 	const wrap = document.createElement("div");
 	wrap.className = "progress mt-2";
 	wrap.style.height = "8px";
+	// Cap the bar at ~1/3 of the section width so it reads as a compact
+	// indicator rather than spanning the full page.
+	wrap.style.maxWidth = "33%";
 
 	const bar = document.createElement("div");
 	bar.className = "progress-bar progress-bar-striped";

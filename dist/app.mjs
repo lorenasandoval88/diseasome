@@ -4928,54 +4928,69 @@ function pieChart(data = PGS23.data) {
     // Show the heading when results are available
     const heading = document.getElementById('pieChartHeading');
     if (heading) heading.style.display = '';
+    const caption = document.getElementById('pieChartCaption');
+    if (caption) caption.style.display = '';
 
     /* Plot percent of matched and not matched betas */
+    // Consistent typography for the whole figure.
+    const fontFamily = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+    const pgsId = data.pgs.meta.pgs_id.replace(/^.*0+/, '');
+
     const risk_composition = {};
     const risk1 = data.plot.matched.risk.reduce((partialSum, a) => partialSum + a, 0);
     const risk2 = data.plot.not_matched.risk.reduce((partialSum, a) => partialSum + a, 0);
-    risk_composition[`total β for ${data.plot.matched.risk.length} <br>matched variants`] = risk1;
-    risk_composition[`total β for ${data.plot.not_matched.risk.length} <br>unmatched variants`] = risk2;
+    // Short, non-redundant labels; the counts live here so the title stays clean.
+    risk_composition[`Matched (${data.plot.matched.risk.length})`] = risk1;
+    risk_composition[`Unmatched (${data.plot.not_matched.risk.length})`] = risk2;
     var y = Object.values(risk_composition);
     var x = Object.keys(risk_composition);
     var piePlotData = [{
         values: y,
         labels: x,
+        sort: false,
         insidetextorientation: "horizontal",
         textinfo: "percent",
         textposition: "outside",
         type: 'pie',
         marker: {
-            colors: ["#2ca02c", "grey"],
-            size: 19,
+            colors: ["#2ca02c", "#bdbdbd"],
             line: {
-                color: 'black'
+                color: 'white',
+                width: 1.5
             }
         },
         textfont: {
-            color: 'black',
-            size: 19
+            family: fontFamily,
+            color: '#222',
+            size: 13
         },
+        hovertemplate: '%{label}<br>β = %{value:.3f} (%{percent})<extra></extra>',
         hoverlabel: {
             bgcolor: 'black',
             bordercolor: 'black',
             font: {
+                family: fontFamily,
                 color: 'white',
-                size: 18
+                size: 13
             }
         }
     }];
     var layout = {
+        font: { family: fontFamily },
         title: {
-            text: ` PGS#${data.pgs.meta.pgs_id.replace(/^.*0+/, '')}: total β contribution for ${data.pgsMatchMy23.length} matched <br>and ${data.pgs.dt.length - data.pgsMatchMy23.length} unmatched variants`,
+            text: `PGS#${pgsId}: β contribution by match status`,
             font: {
-                size: 19
+                family: fontFamily,
+                size: 16,
+                color: '#333'
             }
         },
         width: '20em',
         legend: {
             xanchor: "right",
             font: {
-                size: 16
+                family: fontFamily,
+                size: 13
             }
         },
     };
@@ -5584,6 +5599,8 @@ function renderPlotPRS() {
             pieChartDiv.style.height = 'auto';
         }
         if (pieChartHeading) pieChartHeading.style.display = 'none';
+        const pieChartCaption = document.getElementById('pieChartCaption');
+        if (pieChartCaption) pieChartCaption.style.display = 'none';
         if (plotPrsHr) plotPrsHr.style.display = 'none';
         if (inspectFilesDiv) inspectFilesDiv.style.display = 'none';
         return;
@@ -5649,6 +5666,124 @@ function renderPlotPRS() {
 window.plotAllMatchByEffect4 = plotAllMatchByEffect4;
 window.tabulateAllMatchByEffect = tabulateAllMatchByEffect;
 window.renderPlotPRS = renderPlotPRS;
+
+var d3SvgToPng;
+var hasRequiredD3SvgToPng;
+
+function requireD3SvgToPng () {
+	if (hasRequiredD3SvgToPng) return d3SvgToPng;
+	hasRequiredD3SvgToPng = 1;
+	function inlineStyles(source, target) {
+	  // inline style from source element to the target (detached) one
+	  const computed = window.getComputedStyle(source);
+	  for (const styleKey of computed) {
+	    target.style[styleKey] = computed[styleKey];
+	  }
+
+	  // recursively call inlineStyles for the element children
+	  for (let i = 0; i < source.children.length; i++) {
+	    inlineStyles(source.children[i], target.children[i]);
+	  }
+	}
+
+	function copyToCanvas({ source, target, scale, format, quality }) {
+	  let svgData = new XMLSerializer().serializeToString(target);
+	  let canvas = document.createElement('canvas');
+	  let svgSize = source.getBoundingClientRect();
+
+	  //Resize can break shadows
+	  canvas.width = svgSize.width * scale;
+	  canvas.height = svgSize.height * scale;
+	  canvas.style.width = svgSize.width;
+	  canvas.style.height = svgSize.height;
+
+	  let ctxt = canvas.getContext('2d');
+	  ctxt.scale(scale, scale);
+
+	  let img = document.createElement('img');
+
+	  img.setAttribute(
+	    'src',
+	    'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
+	  );
+	  return new Promise(resolve => {
+	    img.onload = () => {
+	      ctxt.drawImage(img, 0, 0);
+	      resolve(
+	        canvas.toDataURL(`image/${format === 'jpg' ? 'jpeg' : format}`, quality)
+	      );
+	    };
+	  });
+	}
+
+	function downloadImage({ file, name, format }) {
+	  let a = document.createElement('a');
+	  a.download = `${name}.${format}`;
+	  a.href = file;
+	  document.body.appendChild(a);
+	  a.click();
+	  document.body.removeChild(a);
+	}
+
+	d3SvgToPng = async function (
+	  source,
+	  name,
+	  {
+	    scale = 1,
+	    format = 'png',
+	    quality = 0.92,
+	    download = true,
+	    ignore = null,
+	    cssinline = 1,
+	    background = null
+	  } = {}
+	) {
+	  // Accept a selector or directly a DOM Element
+	  source = source instanceof Element ? source : document.querySelector(source);
+
+	  // Create a new SVG element similar to the source one to avoid modifying the
+	  // source element.
+	  const target = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	  target.innerHTML = source.innerHTML;
+	  for (const attr of source.attributes) {
+	    target.setAttribute(attr.name, attr.value);
+	  }
+
+	  // Set all the css styles inline on the target element based on the styles
+	  // of the source element
+	  if (cssinline === 1) {
+	    inlineStyles(source, target);
+	  }
+
+	  if (background) {
+	    target.style.background = background;
+	  }
+
+	  //Remove unwanted elements
+	  if (ignore != null) {
+	    const elts = target.querySelectorAll(ignore);
+	    [].forEach.call(elts, elt => elt.parentNode.removeChild(elt));
+	  }
+
+	  //Copy all html to a new canvas
+	  const file = await copyToCanvas({
+	    source,
+	    target,
+	    scale,
+	    format,
+	    quality
+	  });
+
+	  if (download) {
+	    downloadImage({ file, name, format });
+	  }
+	  return file;
+	};
+	return d3SvgToPng;
+}
+
+var d3SvgToPngExports = requireD3SvgToPng();
+var d3ToPng = /*@__PURE__*/getDefaultExportFromCjs(d3SvgToPngExports);
 
 // clust.js adds the PRS Clustering tab for your PRS app.
 //
@@ -5979,6 +6114,9 @@ async function renderCluster() {
       <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
     <div id="clusterPlotMount"></div>
+    <div class="mt-2">
+      <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm">⬇ Download PNG</button>
+    </div>
     </div>
   `;
 
@@ -5994,6 +6132,14 @@ async function renderCluster() {
     a.download = 'prs_matrix.json';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Download the rendered heatmap (the SVG inside the mount) as a PNG.
+  document.getElementById('downloadHeatmapPngBtn').onclick = () => {
+    const svg = document.querySelector('#clusterPlotMount svg');
+    if (!svg) { alert('No plot available yet. Render the clustering heatmap first.'); return; }
+    d3ToPng(svg, 'prs_clustering_heatmap', { scale: 2, background: 'white' })
+      .catch(err => { console.error('[PRS Clustering] PNG export error:', err); alert('Could not export the plot as PNG.'); });
   };
 
   // Attach button handlers for PRS clustering

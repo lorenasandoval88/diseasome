@@ -268,54 +268,69 @@ function pieChart(data = PGS23.data) {
     // Show the heading when results are available
     const heading = document.getElementById('pieChartHeading');
     if (heading) heading.style.display = '';
+    const caption = document.getElementById('pieChartCaption');
+    if (caption) caption.style.display = '';
 
     /* Plot percent of matched and not matched betas */
+    // Consistent typography for the whole figure.
+    const fontFamily = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+    const pgsId = data.pgs.meta.pgs_id.replace(/^.*0+/, '');
+
     const risk_composition = {};
     const risk1 = data.plot.matched.risk.reduce((partialSum, a) => partialSum + a, 0);
     const risk2 = data.plot.not_matched.risk.reduce((partialSum, a) => partialSum + a, 0);
-    risk_composition[`total β for ${data.plot.matched.risk.length} <br>matched variants`] = risk1;
-    risk_composition[`total β for ${data.plot.not_matched.risk.length} <br>unmatched variants`] = risk2;
+    // Short, non-redundant labels; the counts live here so the title stays clean.
+    risk_composition[`Matched (${data.plot.matched.risk.length})`] = risk1;
+    risk_composition[`Unmatched (${data.plot.not_matched.risk.length})`] = risk2;
     var y = Object.values(risk_composition);
     var x = Object.keys(risk_composition);
     var piePlotData = [{
         values: y,
         labels: x,
+        sort: false,
         insidetextorientation: "horizontal",
         textinfo: "percent",
         textposition: "outside",
         type: 'pie',
         marker: {
-            colors: ["#2ca02c", "grey"],
-            size: 19,
+            colors: ["#2ca02c", "#bdbdbd"],
             line: {
-                color: 'black'
+                color: 'white',
+                width: 1.5
             }
         },
         textfont: {
-            color: 'black',
-            size: 19
+            family: fontFamily,
+            color: '#222',
+            size: 13
         },
+        hovertemplate: '%{label}<br>β = %{value:.3f} (%{percent})<extra></extra>',
         hoverlabel: {
             bgcolor: 'black',
             bordercolor: 'black',
             font: {
+                family: fontFamily,
                 color: 'white',
-                size: 18
+                size: 13
             }
         }
     }];
     var layout = {
+        font: { family: fontFamily },
         title: {
-            text: ` PGS#${data.pgs.meta.pgs_id.replace(/^.*0+/, '')}: total β contribution for ${data.pgsMatchMy23.length} matched <br>and ${data.pgs.dt.length - data.pgsMatchMy23.length} unmatched variants`,
+            text: `PGS#${pgsId}: β contribution by match status`,
             font: {
-                size: 19
+                family: fontFamily,
+                size: 16,
+                color: '#333'
             }
         },
         width: '20em',
         legend: {
             xanchor: "right",
             font: {
-                size: 16
+                family: fontFamily,
+                size: 13
             }
         },
     };
@@ -929,6 +944,8 @@ function renderPlotPRS() {
             pieChartDiv.style.height = 'auto';
         }
         if (pieChartHeading) pieChartHeading.style.display = 'none';
+        const pieChartCaption = document.getElementById('pieChartCaption');
+        if (pieChartCaption) pieChartCaption.style.display = 'none';
         if (plotPrsHr) plotPrsHr.style.display = 'none';
         if (inspectFilesDiv) inspectFilesDiv.style.display = 'none';
         return;

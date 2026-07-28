@@ -1,4 +1,5 @@
 import { hclust_plot } from "../sdk/clustSdk.js";
+import d3ToPng from "d3-svg-to-png";
 
 // clust.js adds the PRS Clustering tab for your PRS app.
 //
@@ -329,6 +330,9 @@ async function renderCluster() {
       <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
     <div id="clusterPlotMount"></div>
+    <div class="mt-2">
+      <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm">⬇ Download PNG</button>
+    </div>
     </div>
   `;
 
@@ -344,6 +348,14 @@ async function renderCluster() {
     a.download = 'prs_matrix.json';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Download the rendered heatmap (the SVG inside the mount) as a PNG.
+  document.getElementById('downloadHeatmapPngBtn').onclick = () => {
+    const svg = document.querySelector('#clusterPlotMount svg');
+    if (!svg) { alert('No plot available yet. Render the clustering heatmap first.'); return; }
+    d3ToPng(svg, 'prs_clustering_heatmap', { scale: 2, background: 'white' })
+      .catch(err => { console.error('[PRS Clustering] PNG export error:', err); alert('Could not export the plot as PNG.'); });
   };
 
   // Attach button handlers for PRS clustering

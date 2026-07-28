@@ -329,9 +329,11 @@ async function renderCluster() {
       </div>
       <span class="text-muted small ms-2">Z-score standardizes each PGS column across users so no single model dominates the distance by scale.</span>
     </div>
-    <div id="clusterPlotMount"></div>
-    <div class="mt-2">
-      <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm">⬇ Download PNG</button>
+    <div id="clusterPlotBox" style="position:relative;">
+      <button id="downloadHeatmapPngBtn" class="btn btn-outline-secondary btn-sm" style="position:absolute; top:0; right:0; z-index:5;">⬇ Download PNG</button>
+      <div id="clusterPlotScroll" style="overflow:auto; max-width:100%;">
+        <div id="clusterPlotMount"></div>
+      </div>
     </div>
     </div>
   `;
@@ -435,8 +437,21 @@ async function renderCluster() {
   // Grow the canvas with the matrix so dendrograms and axis labels have room
   // and aren't clipped at the plot edges.
   const colCount = Object.keys(pivoted[0]).length - 1;
-  const plotWidth = Math.max(1500, 150 * colCount + 500);
-  const plotHeight = Math.max(760, 46 * pivoted.length + 320);
+  const fullWidth = Math.max(1500, 150 * colCount + 500);
+  const fullHeight = Math.max(760, 46 * pivoted.length + 320);
+  // Render the plot smaller while keeping the reserved area (box) unchanged, so
+  // the surrounding layout and the top-right download button stay put.
+  const plotScale = 0.8;
+  const plotWidth = Math.round(fullWidth * plotScale);
+  const plotHeight = Math.round(fullHeight * plotScale);
+
+  // Preserve the original footprint even though the plot is drawn smaller, and
+  // bound the scroll area so wide/tall matrices scroll inside the box while the
+  // top-right download button stays pinned to the visible corner.
+  const plotBox = document.getElementById('clusterPlotBox');
+  if (plotBox) plotBox.style.minHeight = fullHeight + 'px';
+  const plotScroll = document.getElementById('clusterPlotScroll');
+  if (plotScroll) plotScroll.style.maxHeight = fullHeight + 'px';
 
   // Render PRS cluster plot
   try {

@@ -3814,6 +3814,10 @@ function renderScoresTable(scores, txts = []) {
 	}).join("");
 
 	return `
+		<div class="d-flex justify-content-end gap-2 mt-3">
+			<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskModelsJson && window.downloadRiskModelsJson()">⬇ Download Models (JSON)</button>
+			<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskModelsCsv && window.downloadRiskModelsCsv()">⬇ Download Models (CSV)</button>
+		</div>
 		<table class="table table-striped table-sm mt-3">
 			<thead class="table-dark">
 				<tr>

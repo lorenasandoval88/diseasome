@@ -30,7 +30,7 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-CtqBMwV6.mjs');
+        await import('./chunks/displayScores-BlYjdeZg.mjs');
         pgsModuleLoaded = true;
     }
 }
@@ -3818,8 +3818,8 @@ function renderScoresTable(scores, txts = []) {
 
 	return `
 		<div class="d-flex justify-content-end gap-2 mt-3">
-			<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskModelsJson && window.downloadRiskModelsJson()">⬇ Download Models (JSON)</button>
-			<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskModelsCsv && window.downloadRiskModelsCsv()">⬇ Download Models (CSV)</button>
+			<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskModelsJson && window.downloadRiskModelsJson()">⬇ Download Models (JSON)</button>
+			<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskModelsCsv && window.downloadRiskModelsCsv()">⬇ Download Models (CSV)</button>
 		</div>
 		<table class="table table-striped table-sm mt-3">
 			<thead class="table-dark">
@@ -4647,8 +4647,8 @@ async function calculatePRS() {
 
 				resultsDiv.innerHTML = `
 					<div class="d-flex justify-content-end gap-2 mt-3">
-						<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskScoresJson && window.downloadRiskScoresJson()">⬇ Download Scores (JSON)</button>
-						<button class="btn btn-outline-secondary btn-sm" onclick="window.downloadRiskScoresCsv && window.downloadRiskScoresCsv()">⬇ Download Scores (CSV)</button>
+						<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskScoresJson && window.downloadRiskScoresJson()">⬇ Download Scores (JSON)</button>
+						<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskScoresCsv && window.downloadRiskScoresCsv()">⬇ Download Scores (CSV)</button>
 					</div>
 					<table class="table table-striped table-sm mt-3">
 						<thead class="table-dark">

@@ -1,5 +1,9 @@
-import { get23Txt, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 // Persistent reference to the selection status bar so it can be relocated below
@@ -148,55 +152,6 @@ function normalizeEthnicityCategories(raw) {
 	return ['Other'];
 }
 
-/** Survey question whose answers list a participant's diagnosed conditions. */
-const CONDITION_QUESTION_RE = /diagnosed with one of the following conditions/i;
-
-/**
- * Split a comma-joined condition answer into individual conditions, ignoring commas
- * inside parentheses (e.g. "Chronic tension headaches (15+ days per month, at least 6 months)").
- * @param {string} raw
- * @returns {string[]}
- */
-function splitConditionList(raw) {
-	const out = [];
-	let depth = 0;
-	let cur = '';
-	for (const ch of String(raw)) {
-		if (ch === '(') depth++;
-		else if (ch === ')') depth = Math.max(0, depth - 1);
-		if (ch === ',' && depth === 0) { out.push(cur); cur = ''; continue; }
-		cur += ch;
-	}
-	out.push(cur);
-	return out.map(s => s.trim()).filter(Boolean);
-}
-
-/**
- * Collect every condition a participant reported across all their surveys.
- * Answers are comma-joined multi-selects; the question repeats in several surveys.
- * @param {Object|null} profile
- * @returns {string[]} de-duplicated, alphabetically sorted condition names
- */
-function extractConditions(profile) {
-	const surveys = profile?.google_survey_results;
-	if (!Array.isArray(surveys)) return [];
-	const byKey = new Map(); // lowercase name -> original casing
-	for (const survey of surveys) {
-		if (!Array.isArray(survey)) continue;
-		for (const pair of survey) {
-			if (!Array.isArray(pair) || pair.length < 2) continue;
-			if (!CONDITION_QUESTION_RE.test(String(pair[0] ?? ''))) continue;
-			const a = pair[1];
-			if (a == null || a === '') continue;
-			for (const c of splitConditionList(a)) {
-				const k = c.toLowerCase();
-				if (!byKey.has(k)) byKey.set(k, c);
-			}
-		}
-	}
-	return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
-}
-
 /**
  * Flatten a curated participant record from `pgp_participants_1017_with_profiles.json`
  * into the shape expected by the rest of this module. The new schema nests file-level
@@ -222,7 +177,6 @@ function flattenCuratedRecord(rec) {
 		ethnicity,
 		raceCategories: normalizeRaceCategories(race),
 		ethnicityCategories: normalizeEthnicityCategories(ethnicity),
-		conditions: extractConditions(rec.profile),
 		// Preserve original profile for downstream use if needed
 		profile: rec.profile ?? null,
 	};
@@ -481,7 +435,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -525,7 +479,7 @@ function csvEscape(value) {
 /** Convert a participants list to CSV using a curated, human-friendly column set. */
 function participantsToCsv(list) {
 	const cols = [
-		'id', 'name', 'age', 'gender', 'race', 'ethnicity', 'conditions', 'valid23File', 'version', 'build', 'sizeMB', 'filename',
+		'id', 'name', 'age', 'gender', 'race', 'ethnicity', 'valid23File', 'version', 'build', 'sizeMB', 'filename',
 		'publishedDate', 'profileUrl', 'downloadUrl', 'finalUrl'
 	];
 	const rows = list.map((p) => {
@@ -541,7 +495,6 @@ function participantsToCsv(list) {
 			p.gender ?? '',
 			p.race ?? '',
 			p.ethnicity ?? '',
-			Array.isArray(p.conditions) ? p.conditions.join('; ') : '',
 			p.valid23File == null ? '' : (p.valid23File ? 'true' : 'false'),
 			version,
 			build,
@@ -708,40 +661,6 @@ window.populateGenderSelect = populateGenderSelect;
 window.populateRaceSelect = populateRaceSelect;
 window.populateEthnicitySelect = populateEthnicitySelect;
 
-/** Read the free-text "contains" query used to narrow the conditions filter. */
-function getConditionQuery() {
-	return (document.getElementById('participantsConditionText')?.value ?? '').trim().toLowerCase();
-}
-
-/**
- * Populate the Conditions checkbox filter from the current participants list.
- * Options are sorted by frequency and narrowed by the "contains" text box, so typing
- * `cancer` leaves only cancer-related conditions (Breast cancer, Melanoma, …).
- * Already-checked options are always kept so a narrowing search can't silently drop them.
- */
-function populateConditionSelect() {
-	const sel = document.getElementById('participantsConditionSelect');
-	if (!sel) return;
-	const counts = new Map();
-	participants.forEach((p) => {
-		const cs = Array.isArray(p?.conditions) ? p.conditions : [];
-		new Set(cs).forEach(c => counts.set(c, (counts.get(c) || 0) + 1));
-	});
-	const q = getConditionQuery();
-	const checked = new Set(getSelectValues(sel));
-	const values = Array.from(counts.keys())
-		.filter(v => !q || checked.has(v) || v.toLowerCase().includes(q))
-		.sort((a, b) => (counts.get(b) - counts.get(a)) || a.localeCompare(b));
-	renderCheckboxFilter(sel, values.map(v => [v, counts.get(v)]));
-}
-window.populateConditionSelect = populateConditionSelect;
-
-/** Handler for the conditions "contains" text box (wired via oninput in index.html). */
-window.onParticipantsConditionSearch = function onParticipantsConditionSearch() {
-	populateConditionSelect();
-	applyParticipantFilters();
-};
-
 /** Bucket a participant's 23andMe validity into a filter category. */
 function validCategory(p) {
 	return p?.valid23File === true ? 'Valid' : (p?.valid23File === false ? 'Invalid' : 'Unknown');
@@ -788,14 +707,13 @@ function populateValidSelect() {
 }
 window.populateValidSelect = populateValidSelect;
 
-/** Populate all participant filter selects (version, build, gender, race, ethnicity, conditions, valid). */
+/** Populate all participant filter selects (version, build, gender, race, ethnicity, valid). */
 function populateAllFilters() {
 	populateVersionSelect();
 	populateBuildSelect();
 	populateGenderSelect();
 	populateRaceSelect();
 	populateEthnicitySelect();
-	populateConditionSelect();
 	populateValidSelect();
 }
 
@@ -809,7 +727,6 @@ function applyParticipantFilters() {
 	const genderSel = document.getElementById('participantsGenderSelect');
 	const raceSel = document.getElementById('participantsRaceSelect');
 	const ethnicitySel = document.getElementById('participantsEthnicitySelect');
-	const conditionSel = document.getElementById('participantsConditionSelect');
 	const validSel = document.getElementById('participantsValidSelect');
 	const sizeMinEl = document.getElementById('participantsSizeMin');
 	const sizeMaxEl = document.getElementById('participantsSizeMax');
@@ -818,8 +735,6 @@ function applyParticipantFilters() {
 	const genders = getSelectValues(genderSel);
 	const races = getSelectValues(raceSel);
 	const ethnicities = getSelectValues(ethnicitySel);
-	const conditions = getSelectValues(conditionSel);
-	const conditionQuery = getConditionQuery();
 	const valids = getSelectValues(validSel);
 	const sizeMinRaw = sizeMinEl?.value ?? '';
 	const sizeMaxRaw = sizeMaxEl?.value ?? '';
@@ -856,16 +771,6 @@ function applyParticipantFilters() {
 	filterByDemographic(genders, 'gender', false);
 	filterByDemographic(races, 'raceCategories', true);
 	filterByDemographic(ethnicities, 'ethnicityCategories', true);
-	// Conditions: free-text "contains" match on any reported condition (e.g. "cancer"
-	// matches "Breast cancer" and "Non-melanoma skin cancer"), then the checked options (OR).
-	if (conditionQuery) {
-		list = list.filter(p => (Array.isArray(p?.conditions) ? p.conditions : [])
-			.some(c => String(c).toLowerCase().includes(conditionQuery)));
-	}
-	if (conditions.length > 0) {
-		const set = new Set(conditions);
-		list = list.filter(p => (Array.isArray(p?.conditions) ? p.conditions : []).some(c => set.has(c)));
-	}
 	if (valids.length > 0) {
 		const set = new Set(valids);
 		list = list.filter(p => set.has(validCategory(p)));
@@ -909,7 +814,6 @@ function applyParticipantFilters() {
 	const genderDiv = document.getElementById('participantsGenderFilterDiv');
 	const raceDiv = document.getElementById('participantsRaceFilterDiv');
 	const ethnicityDiv = document.getElementById('participantsEthnicityFilterDiv');
-	const conditionDiv = document.getElementById('participantsConditionFilterDiv');
 	const validDiv = document.getElementById('participantsValidFilterDiv');
 	const showJsonOnly = participantLoadMode === 'json';
 	if (buildDiv) buildDiv.style.display = showJsonOnly ? '' : 'none';
@@ -917,14 +821,12 @@ function applyParticipantFilters() {
 	if (genderDiv) genderDiv.style.display = showJsonOnly ? '' : 'none';
 	if (raceDiv) raceDiv.style.display = showJsonOnly ? '' : 'none';
 	if (ethnicityDiv) ethnicityDiv.style.display = showJsonOnly ? '' : 'none';
-	if (conditionDiv) conditionDiv.style.display = showJsonOnly ? '' : 'none';
 	if (validDiv) validDiv.style.display = showJsonOnly ? '' : 'none';
 
 	const key = sanitizeKey('participants') || 'participants';
 	// Update the "Filters · N active" badge on the collapse toggle.
-	const activeCount = [versions, builds, genders, races, ethnicities, conditions, valids].filter(a => a.length > 0).length
-		+ ((sizeMin != null || sizeMax != null) ? 1 : 0)
-		+ (conditionQuery ? 1 : 0);
+	const activeCount = [versions, builds, genders, races, ethnicities, valids].filter(a => a.length > 0).length
+		+ ((sizeMin != null || sizeMax != null) ? 1 : 0);
 	const badge = document.getElementById('activeFilterBadge');
 	if (badge) {
 		if (activeCount > 0) {
@@ -934,7 +836,7 @@ function applyParticipantFilters() {
 			badge.style.display = 'none';
 		}
 	}
-	renderParticipantActiveFilters({ versions, builds, genders, races, ethnicities, conditions, conditionQuery, valids, sizeMin, sizeMax });
+	renderParticipantActiveFilters({ versions, builds, genders, races, ethnicities, valids, sizeMin, sizeMax });
 	renderParticipantsTable(list, 'localUsersDiv', `Personal Genome Project Participants - ${list.length} of ${participants.length}`, key);
 	// If filtering deselected any now-hidden files, refresh the sticky selection counter.
 	if (prunedSelection) updateGlobalSelectionCount();
@@ -945,7 +847,7 @@ window.applyParticipantFilters = applyParticipantFilters;
  * Render the active participant filter selections as removable chips under the filter box
  * (mirrors the PGS Catalog tab), instead of appending them to the table title.
  */
-function renderParticipantActiveFilters({ versions, builds, genders, races, ethnicities, conditions, conditionQuery, valids, sizeMin, sizeMax }) {
+function renderParticipantActiveFilters({ versions, builds, genders, races, ethnicities, valids, sizeMin, sizeMax }) {
 	const el = document.getElementById('participantsActiveFilters');
 	if (!el) return;
 
@@ -956,8 +858,6 @@ function renderParticipantActiveFilters({ versions, builds, genders, races, ethn
 	push('participantsGenderSelect', 'Gender', genders);
 	push('participantsRaceSelect', 'Race', races);
 	push('participantsEthnicitySelect', 'Ethnicity', ethnicities);
-	if (conditionQuery) chips.push({ label: `Condition contains: ${conditionQuery}`, group: 'conditionText', value: '' });
-	push('participantsConditionSelect', 'Condition', conditions);
 	push('participantsValidSelect', 'Valid 23andMe', valids);
 	if (sizeMin != null || sizeMax != null) {
 		chips.push({ label: `Size: ${sizeMin ?? 0}–${sizeMax ?? '∞'} MB`, group: 'size', value: '' });
@@ -983,10 +883,6 @@ function renderParticipantActiveFilters({ versions, builds, genders, races, ethn
 				const mx = document.getElementById('participantsSizeMax');
 				if (mn) mn.value = '';
 				if (mx) mx.value = '';
-			} else if (group === 'conditionText') {
-				const t = document.getElementById('participantsConditionText');
-				if (t) t.value = '';
-				populateConditionSelect();
 			} else {
 				const container = document.getElementById(group);
 				container?.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -998,12 +894,9 @@ function renderParticipantActiveFilters({ versions, builds, genders, races, ethn
 	});
 	const clearAll = el.querySelector('#clearAllParticipantFilters');
 	if (clearAll) clearAll.addEventListener('click', () => {
-		['participantsVersionSelect', 'participantsBuildSelect', 'participantsGenderSelect', 'participantsRaceSelect', 'participantsEthnicitySelect', 'participantsConditionSelect', 'participantsValidSelect'].forEach(id => {
+		['participantsVersionSelect', 'participantsBuildSelect', 'participantsGenderSelect', 'participantsRaceSelect', 'participantsEthnicitySelect', 'participantsValidSelect'].forEach(id => {
 			document.getElementById(id)?.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
 		});
-		const condText = document.getElementById('participantsConditionText');
-		if (condText) condText.value = '';
-		populateConditionSelect();
 		const mn = document.getElementById('participantsSizeMin');
 		const mx = document.getElementById('participantsSizeMax');
 		if (mn) mn.value = '';
@@ -1257,7 +1150,6 @@ function makeFileSelection(p, fi) {
 		ethnicity: p.ethnicity ?? null,
 		raceCategories: p.raceCategories ?? [],
 		ethnicityCategories: p.ethnicityCategories ?? [],
-		conditions: p.conditions ?? [],
 		profileUrl: p.profileUrl ?? getProfileUrl(p),
 		profile: p.profile ?? null,
 		dataSource: p.dataSource,
@@ -1373,7 +1265,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				return (av < bv ? -1 : 1) * mult;
 			});
 		}
-		// Apply free-text search (participant ID, name, age, race, ethnicity, or condition)
+		// Apply free-text search (participant ID, name, age, race, or ethnicity)
 		const q = searchQuery.trim().toLowerCase();
 		if (q) {
 			displayList = displayList.filter((p) => {
@@ -1383,8 +1275,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				const age = String(p.age ?? '').toLowerCase();
 				const race = [p.race, ...(Array.isArray(p.raceCategories) ? p.raceCategories : [])].filter(Boolean).join(' ').toLowerCase();
 				const ethnicity = [p.ethnicity, ...(Array.isArray(p.ethnicityCategories) ? p.ethnicityCategories : [])].filter(Boolean).join(' ').toLowerCase();
-				const conditions = (Array.isArray(p.conditions) ? p.conditions : []).join(' ').toLowerCase();
-				return id.includes(q) || nm.includes(q) || age.includes(q) || race.includes(q) || ethnicity.includes(q) || conditions.includes(q);
+				return id.includes(q) || nm.includes(q) || age.includes(q) || race.includes(q) || ethnicity.includes(q);
 			});
 		}
 		const sortable = participantLoadMode === 'json';
@@ -1430,12 +1321,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 			const ethnicityHtml = ethnicityCats ? escapeHtml(String(ethnicityCats)) : '-';
 			const raceTitle = p.race ? escapeHtml(String(p.race)) : raceHtml;
 			const ethnicityTitle = p.ethnicity ? escapeHtml(String(p.ethnicity)) : ethnicityHtml;
-			// Conditions: show the first few, keep the full list in the tooltip.
-			const condList = Array.isArray(p.conditions) ? p.conditions : [];
-			const condTitle = condList.length ? escapeHtml(condList.join(', ')) : 'No conditions reported';
-			const condHtml = condList.length
-				? escapeHtml(condList.slice(0, 2).join(', ')) + (condList.length > 2 ? ` <span class="badge bg-light text-muted border">+${condList.length - 2}</span>` : '')
-				: '-';
 			const profileUrl = getProfileUrl(p);
 			const profileHtml = profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener">View</a>` : "-";
 
@@ -1461,7 +1346,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 						<td>${genderHtml}</td>
 						<td title="${raceTitle}">${raceHtml}</td>
 						<td title="${ethnicityTitle}">${ethnicityHtml}</td>
-						<td style="max-width:220px;"><div class="text-truncate" style="max-width:210px;" title="${condTitle}">${condHtml}</div></td>
 						<td class="text-center">${c.validHtml}</td>
 						<td>${c.version}</td>
 						<td class="text-end">${c.buildHtml}</td>
@@ -1504,7 +1388,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 					<td>${genderHtml}</td>
 					<td title="${raceTitle}">${raceHtml}</td>
 					<td title="${ethnicityTitle}">${ethnicityHtml}</td>
-					<td style="max-width:220px;"><div class="text-truncate" style="max-width:210px;" title="${condTitle}">${condHtml}</div></td>
 					<td class="text-center text-muted">—</td>
 					<td class="text-muted">—</td>
 					<td class="text-end text-muted">—</td>
@@ -1537,7 +1420,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<td><input class="${cbCls}" type="checkbox" data-id="${pidEsc}" data-fi="${fi}" value="${escapeHtml(key)}" ${cbAttrs} /></td>
 							<td class="text-muted small">${fileLabel}</td>
 							<td class="text-muted small" title="${cName}">${cName}</td>
-							<td></td>
 							<td></td>
 							<td></td>
 							<td></td>
@@ -1592,7 +1474,7 @@ function renderParticipantsTable(list, targetId, title, key) {
 				</div>
 			</div>
 			<div class="mb-2">
-				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by ID, name, age, race, ethnicity, or condition…" value="${escapeHtml(searchQuery)}" />
+				<input id="participantSearch_${key}" type="search" class="form-control form-control-sm" style="max-width: 420px;" placeholder="Search by ID, name, age, race, or ethnicity…" value="${escapeHtml(searchQuery)}" />
 			</div>
 			<div id="participantsStickyBarSlot_${key}" class="mb-2"></div>
 			<div class="table-responsive sticky-scroll">
@@ -1608,7 +1490,6 @@ function renderParticipantsTable(list, targetId, title, key) {
 							<th>Gender</th>
 							<th>Race</th>
 							<th>Ethnicity</th>
-							<th title="Conditions reported in the PGP survey question &quot;Have you ever been diagnosed with one of the following conditions?&quot;">Conditions</th>
 							<th title="File matched the 23andMe header signature">Valid 23andMe</th>
 							<th ${sortAttrs('version')}>Version${sortArrow('version')}</th>
 							<th ${sortAttrsEnd('build')}>Build${sortArrow('build')}</th>
@@ -2239,9 +2120,8 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	populateGenderSelect,
 	populateRaceSelect,
 	populateEthnicitySelect,
-	populateConditionSelect,
 	onParticipantsSizeChange: window.onParticipantsSizeChange,
-	onParticipantsConditionSearch: window.onParticipantsConditionSearch,
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-mMn0RPCH.mjs.map

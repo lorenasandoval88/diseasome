@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-DlijR8LO.mjs');
+        await import('./chunks/displayUsers-Cegqf2P2.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -3863,8 +3863,9 @@ function renderUsersTable(users, loaded) {
 		})();
 		const version = escapeHtml(user?.version ?? genos?.[0]?.version ?? inferredVersion ?? "");
 		const build = escapeHtml(user?.build ?? genos?.[0]?.build ?? "");
-		const genoCount = genos.length;
-		const downloadUrl = resolveUserFilePath(user) ?? "";
+		const downloadUrl = resolveUserFilePath(user) ?? user?.finalUrl ?? "";
+		// Uploaded files have no genotypes array; count the file itself.
+		const genoCount = genos.length || (downloadUrl || filename ? 1 : 0);
 		const downloadHtml = downloadUrl ? `<a href="${escapeHtml(downloadUrl)}" target="_blank" rel="noopener">Download</a>` : "-";
 		const loadedData = loaded.find(d => d.user.id === user.id);
 		const variantCount = loadedData?.parsed?.dt?.length ?? 0;
@@ -3908,6 +3909,69 @@ function renderUsersTable(users, loaded) {
 			<tbody>${rows}</tbody>
 		</table>`;
 }
+
+/*** Every user that belongs in the PRS users table: the Genomic Data tab selection
+ * (uploaded files / PGP participants) merged with users loaded here (examples / fetched).
+ * Deduplicated by id so neither source can drop the other.
+ * @returns {Object[]} User objects
+ */
+function getPrsDisplayUsers() {
+	const merged = [];
+	const seen = new Set();
+	const add = (user) => {
+		const id = user?.id ?? user?.participant_id;
+		if (!id || seen.has(id)) return;
+		seen.add(id);
+		merged.push(user);
+	};
+	(window.getSelectedUsers?.() ?? []).forEach(add);
+	(Array.isArray(loadedUsers) ? loadedUsers : []).forEach(entry => add(entry?.user));
+	return merged;
+}
+
+/*** Loaded { user, parsed } entries for every displayed user whose genome data is already
+ * available — either loaded here, or pre-parsed on an uploaded file object.
+ * @returns {Object[]} Array of { user, parsed }
+ */
+function getPrsLoadedEntries() {
+	const entries = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
+	const seen = new Set(entries.map(d => d?.user?.id ?? d?.user?.participant_id).filter(Boolean));
+	for (const user of getPrsDisplayUsers()) {
+		const id = user?.id ?? user?.participant_id;
+		if (!id || seen.has(id)) continue;
+		if (user?._parsed?.dt?.length > 0) {
+			entries.push({ user, parsed: user._parsed });
+			seen.add(id);
+		}
+	}
+	return entries;
+}
+
+/*** Single render path for #prsUsersAction. Called by the Genomic Data tab whenever the
+ * selection changes, and by fetchUsers / loadExampleUsers, so uploads, PGP participants
+ * and example users always appear together instead of overwriting each other. */
+function renderPrsUsersTable() {
+	const container = document.getElementById("prsUsersAction");
+	if (!container) return;
+	const users = getPrsDisplayUsers();
+	if (users.length === 0) {
+		container.innerHTML = "";
+		return;
+	}
+	container.innerHTML = renderUsersTable(users, getPrsLoadedEntries());
+}
+window.renderPrsUsersTable = renderPrsUsersTable;
+
+/*** Drop users from the loaded set, so unselecting them in the Genomic Data tab also
+ * removes them from the PRS users table and the calculation.
+ * @param {string[]} ids - User ids to remove
+ */
+window.removeLoadedUsers = function (ids) {
+	const drop = new Set(ids ?? []);
+	if (drop.size === 0) return;
+	loadedUsers = (Array.isArray(loadedUsers) ? loadedUsers : []).filter(d => !drop.has(d?.user?.id));
+	window.loadedUsers = loadedUsers;
+};
 
 /*** Load and parse a list of PGS scoring files.
  * Reuses each score's pre-parsed data when present; the rest are fetched one id
@@ -4098,27 +4162,29 @@ async function fetchUsers() {
 		if (statusEl) statusEl.textContent = `Fetching and parsing ${selectedUsers.length} participant genome file(s)...`;
 		setProgressBar("users", statusEl, 10);
 
-		// Parse genome files for all selected users
-		loadedUsers = await loadUsersFromList(selectedUsers, (done, total) => {
+		// Parse genome files for all selected users, keeping any users already loaded
+		// here (e.g. example participants) so fetching does not drop them.
+		const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
+		const fetched = await loadUsersFromList(selectedUsers, (done, total) => {
 			const pct = total > 0 ? 10 + (done / total) * 80 : 90;
 			setProgressBar("users", statusEl, pct);
 		});
+		const fetchedIds = new Set(fetched.map(d => d?.user?.id).filter(Boolean));
+		loadedUsers = existing.filter(d => !fetchedIds.has(d?.user?.id)).concat(fetched);
 		window.loadedUsers = loadedUsers; // expose for cluster tab
 
 		const loadedFilesCount = document.getElementById('loadedFilesCount');
 		if (loadedFilesCount) {
-			loadedFilesCount.textContent = `Loaded Data: ${loadedUsers.length} / ${selectedUsers.length}`;
+			loadedFilesCount.textContent = `Loaded Data: ${fetched.length} / ${selectedUsers.length}`;
 			loadedFilesCount.style.display = '';
 		}
 
 		const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
-		if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} of ${selectedUsers.length} participant(s) in ${elapsedSec}s.`;
+		if (statusEl) statusEl.textContent = `Loaded ${fetched.length} of ${selectedUsers.length} participant(s) in ${elapsedSec}s.`;
 		setProgressBar("users", statusEl, 100);
 
 		// Render table
-		if (resultsDiv) {
-			resultsDiv.innerHTML = renderUsersTable(selectedUsers, loadedUsers);
-		}
+		renderPrsUsersTable();
 
 		console.log("fetchUsers() loadedUsers:", loadedUsers);
 	} catch (err) {
@@ -4208,7 +4274,6 @@ async function loadExampleScores() {
 async function loadExampleUsers() {
 	console.log("775 loadExampleUsers() called");
 	const statusEl = document.getElementById("prsUsersdiv");
-	const resultsDiv = document.getElementById("prsUsersAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 	const loadStartMs = performance.now();
 	setProgressBar("users", statusEl, 0);
@@ -4227,8 +4292,7 @@ async function loadExampleUsers() {
 	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example participant(s) to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
-	// Fetch and parse each user's genome file (get23Txt caches internally)
-	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example participant(s) to ${existing.length} already loaded...`;
+	// Fetch and parse each example user's genome file (get23Txt caches internally)
 	const added = await loadUsersFromList(toLoad, (done, total) => {
 		const pct = total > 0 ? 10 + (done / total) * 80 : 90;
 		setProgressBar("users", statusEl, pct);
@@ -4241,10 +4305,7 @@ async function loadExampleUsers() {
 	if (statusEl) statusEl.textContent = `Loaded ${loadedUsers.length} participant(s) total: ${existing.length} previously + ${added.length} example in ${elapsedSec}s.`;
 	setProgressBar("users", statusEl, 100);
 
-	if (resultsDiv) {
-		const displayUsers = loadedUsers.map(entry => entry.user);
-		resultsDiv.innerHTML = renderUsersTable(displayUsers, loadedUsers);
-	}
+	renderPrsUsersTable();
 
 	console.log("Loaded example users with parsed data:", loadedUsers);
 
@@ -4426,10 +4487,9 @@ async function calculatePRS() {
 	setProgressBar("calculate", statusEl, 0);
 
 	try {
-		//// GET USERS: use loadedUsers (from fetchUsers / loadExampleUsers),
-		//  filtered to only those whose checkbox is still checked in the PRS users table.
-		//  If loadedUsers is empty, fall back to window.getSelectedUsers() from the LocalData tab.
-		let userDataForCalc = loadedUsers;
+		//// GET USERS: everything shown in the PRS users table (Genomic Data tab selection
+		//  + users loaded here), filtered to the rows whose checkbox is still checked.
+		let userDataForCalc = getPrsLoadedEntries();
 		console.log("loadedUsers", userDataForCalc);
 
 		// Filter by checkboxes in the PRS users table (if rendered)
@@ -4439,27 +4499,26 @@ async function calculatePRS() {
 			console.log(`Filtered to ${userDataForCalc.length} checked user(s):`, Array.from(checkedUserIds));
 		}
 
-		if (userDataForCalc.length === 0) {
-			// Try to get selected users from the 23andMe Data tab
-			const selectedUsers = window.getSelectedUsers?.() ?? [];
-			console.log("No loadedUsers — falling back to LocalData tab selection:", selectedUsers);
-			if (selectedUsers.length === 0) {
-				if (statusEl) statusEl.textContent = "No users loaded. Use 'Fetch Users' or 'Load Example Users' in the PRS tab, or select users in the 23andMe Data tab.";
-				return;
-			}
-
-			if (statusEl) statusEl.textContent = `Loading ${selectedUsers.length} user genome file(s)...`;
-
-			// Process each user - use pre-parsed data if available, otherwise fetch from URL
-			userDataForCalc = await loadUsersFromList(selectedUsers);
-
-			console.log("userDataForCalc (from LocalData tab):", userDataForCalc);
-
-			if (userDataForCalc.length === 0) {
-				if (statusEl) statusEl.textContent = "Failed to load user genome files.";
-				return;
-			}
+		// Load any checked user whose genome has not been parsed yet (e.g. a participant
+		// selected in the Genomic Data tab without clicking "Fetch Users").
+		const haveIds = new Set(userDataForCalc.map(d => d.user?.id ?? d.user?.participant_id));
+		const notLoaded = getPrsDisplayUsers().filter(u => {
+			const id = u?.id ?? u?.participant_id;
+			if (!id || haveIds.has(id)) return false;
+			return checkedUserIds.size === 0 || checkedUserIds.has(id);
+		});
+		if (notLoaded.length > 0) {
+			if (statusEl) statusEl.textContent = `Loading ${notLoaded.length} user genome file(s)...`;
+			userDataForCalc = userDataForCalc.concat(await loadUsersFromList(notLoaded));
 		}
+
+		if (userDataForCalc.length === 0) {
+			if (statusEl) statusEl.textContent = getPrsDisplayUsers().length === 0
+				? "No users loaded. Use 'Fetch Users' or 'Load Example Users' in the PRS tab, or select users in the 23andMe Data tab."
+				: "Failed to load user genome files.";
+			return;
+		}
+		console.log("userDataForCalc:", userDataForCalc);
 
 		//// GET SCORES: prefer dynamically selected scores, else loadedScores
 		const dynamicScores = window.getSelectedScores?.() ?? [];
@@ -4665,7 +4724,7 @@ window.sdk = Object.assign(window.sdk ?? {}, {
  */
 
 /**
- * Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+ * Clear genome/23andMe cache (Genome:23andMe-txt-* keys only, not metadata)
  */
 async function clearGenomeCache() {
     const keys = await localforage.keys();
@@ -4741,11 +4800,22 @@ window.inspect23File = async function(userId) {
     modal.show();
     
     try {
-        const cacheKey = `Genome:id-${userId}`;
+        // Genomes are cached by get23Txt / the upload handler under this key.
+        const cacheKey = `Genome:23andMe-txt-${userId}`;
         const cached = await localforage.getItem(cacheKey);
-        
+
         // SDK caches under .data, local caching uses .dt
-        const genomeData = cached?.data ?? cached;
+        let genomeData = cached?.data ?? cached;
+
+        // Fall back to already-parsed data held in memory (e.g. an uploaded file
+        // that was parsed this session).
+        if (!genomeData?.dt) {
+            const sameId = (id) => id === userId;
+            const loadedEntry = (window.loadedUsers ?? []).find(d => sameId(d?.user?.id ?? d?.user?.participant_id));
+            const selectedUser = (window.getSelectedUsers?.() ?? []).find(u => sameId(u?.id ?? u?.participant_id));
+            genomeData = loadedEntry?.parsed ?? selectedUser?._parsed ?? genomeData;
+        }
+
         if (genomeData && genomeData.dt) {
             window._inspectData = { data: genomeData, type: '23andMe', id: userId };
             renderInspectPage(0);
@@ -5857,6 +5927,56 @@ window.getClusterCache = () => clusterCache;
 
 
 /**
+ * Find the user/participant object behind a PRS result id, looking in the users
+ * loaded for the PRS calculation and in the Genomic Data tab selection.
+ * @param {string} userId
+ * @returns {Object|null}
+ */
+function findUserById(userId) {
+  const matches = (id) => id != null && id === userId;
+  const loaded = (window.loadedUsers ?? []).find(d => matches(d?.user?.id) || matches(d?.user?.participant_id));
+  if (loaded?.user) return loaded.user;
+  const selected = (window.getSelectedUsers?.() ?? []).find(u => matches(u?.id) || matches(u?.participant_id));
+  return selected ?? null;
+}
+
+/**
+ * Build the 23andMe array-version prefix for a user, e.g. "v5" or "v4_v5" when the
+ * participant has files from more than one chip version. Versions come from the
+ * curated metadata (user.version / genotypes[].version) or, failing that, are
+ * inferred from the filename/URL (…_v5_Full_….txt).
+ * @param {string} userId
+ * @returns {string} "v5", "v4_v5", or "" when no version is known
+ */
+function getUserVersionPrefix(userId) {
+  const user = findUserById(userId);
+  if (!user) return '';
+
+  const genos = Array.isArray(user.genotypes) ? user.genotypes : [];
+  const versions = new Set();
+
+  const addVersion = (value) => {
+    const m = String(value ?? '').match(/^v?(\d+)$/i);
+    if (m) versions.add(Number(m[1]));
+  };
+  const addFromFilename = (value) => {
+    const m = String(value ?? '').match(/[_-]v(\d+)[_.-]/i);
+    if (m) versions.add(Number(m[1]));
+  };
+
+  addVersion(user.version);
+  addFromFilename(user.fileName ?? user.filename);
+  addFromFilename(user.downloadUrl ?? user.download_url ?? user.url ?? user.finalUrl);
+  for (const g of genos) {
+    addVersion(g?.version);
+    addFromFilename(g?.filename ?? g?.file ?? g?.download_url);
+  }
+
+  if (versions.size === 0) return '';
+  return Array.from(versions).sort((a, b) => a - b).map(v => `v${v}`).join('_');
+}
+
+/**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
  * one object per user where each key is a pgsId and the value is PRS.
  * Returns null if no usable results exist.
@@ -5868,7 +5988,9 @@ function pivotPrsResults(rawResults) {
   for (const r of rawResults) {
     if (!r.userId || r.PRS == null || !Number.isFinite(r.PRS)) continue;
     if (!byUser.has(r.userId)) {
-      byUser.set(r.userId, { label: r.userName ?? r.userId });
+      const name = r.userName ?? r.userId;
+      const version = getUserVersionPrefix(r.userId);
+      byUser.set(r.userId, { label: version ? `${version} ${name}` : name });
     }
     byUser.get(r.userId)[r.pgsId] = r.PRS;
   }

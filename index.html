@@ -489,6 +489,24 @@
                                             <div id="participantsEthnicitySelect" class="filter-check-list" style="max-width:240px;"></div>
                                             <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsEthnicitySelect')">Clear</button>
                                         </div>
+                                        <div id="participantsConditionFilterDiv">
+                                            <label class="form-label mb-1 small" for="participantsConditionText"><b>Conditions</b>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                                    style="line-height:1;border-radius:50%;font-weight:bold;font-size:0.7rem"
+                                                    data-bs-toggle="popover"
+                                                    data-bs-trigger="focus"
+                                                    data-bs-placement="top"
+                                                    data-bs-html="true"
+                                                    title="Conditions"
+                                                    data-bs-content="Answers to the PGP survey question <em>&quot;Have you ever been diagnosed with one of the following conditions?&quot;</em><br><br>Type a word to match any condition containing it &mdash; e.g. <code>cancer</code> matches <em>Breast cancer</em>, <em>Prostate cancer</em>, and <em>Non-melanoma skin cancer</em>. The checklist below narrows to the matching conditions, so you can tick specific ones."
+                                                    aria-label="Conditions filter info">?</button>
+                                            </label>
+                                            <input id="participantsConditionText" type="search" class="form-control form-control-sm mb-1"
+                                                style="max-width:260px;" placeholder="contains, e.g. cancer"
+                                                oninput="onParticipantsConditionSearch()" />
+                                            <div id="participantsConditionSelect" class="filter-check-list" style="max-width:260px;"></div>
+                                            <button type="button" class="btn btn-link btn-sm p-0 mt-1" style="font-size:0.7rem;" onclick="clearCheckboxFilter('participantsConditionSelect')">Clear</button>
+                                        </div>
                                     </div>
                                     </div>
 
@@ -739,7 +757,7 @@
                                 </div>
                                 <button id="unselectAllModelsBtn" class="btn btn-outline-danger btn-sm" style="display:none;" onclick="window.clearSelectedScores && window.clearSelectedScores()">Unselect All</button>
                                 <button id="fetchPgsFilesBtn" class="btn btn-success btn-sm" style="display:none;">Fetch PGS Files</button>
-                                <button id="nextToPrsBtn" class="btn btn-outline-primary btn-sm" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Continue to Risk Models →</button>
+                                <button id="nextToPrsBtn" class="btn btn-outline-primary btn-sm" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PRS]').click(); return false;">Continue to Calculation →</button>
                             </div>
                         </div>
 

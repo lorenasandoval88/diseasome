@@ -73,6 +73,56 @@ window.getClusterCache = () => clusterCache;
 
 
 /**
+ * Find the user/participant object behind a PRS result id, looking in the users
+ * loaded for the PRS calculation and in the Genomic Data tab selection.
+ * @param {string} userId
+ * @returns {Object|null}
+ */
+function findUserById(userId) {
+  const matches = (id) => id != null && id === userId;
+  const loaded = (window.loadedUsers ?? []).find(d => matches(d?.user?.id) || matches(d?.user?.participant_id));
+  if (loaded?.user) return loaded.user;
+  const selected = (window.getSelectedUsers?.() ?? []).find(u => matches(u?.id) || matches(u?.participant_id));
+  return selected ?? null;
+}
+
+/**
+ * Build the 23andMe array-version prefix for a user, e.g. "v5" or "v4_v5" when the
+ * participant has files from more than one chip version. Versions come from the
+ * curated metadata (user.version / genotypes[].version) or, failing that, are
+ * inferred from the filename/URL (…_v5_Full_….txt).
+ * @param {string} userId
+ * @returns {string} "v5", "v4_v5", or "" when no version is known
+ */
+function getUserVersionPrefix(userId) {
+  const user = findUserById(userId);
+  if (!user) return '';
+
+  const genos = Array.isArray(user.genotypes) ? user.genotypes : [];
+  const versions = new Set();
+
+  const addVersion = (value) => {
+    const m = String(value ?? '').match(/^v?(\d+)$/i);
+    if (m) versions.add(Number(m[1]));
+  };
+  const addFromFilename = (value) => {
+    const m = String(value ?? '').match(/[_-]v(\d+)[_.-]/i);
+    if (m) versions.add(Number(m[1]));
+  };
+
+  addVersion(user.version);
+  addFromFilename(user.fileName ?? user.filename);
+  addFromFilename(user.downloadUrl ?? user.download_url ?? user.url ?? user.finalUrl);
+  for (const g of genos) {
+    addVersion(g?.version);
+    addFromFilename(g?.filename ?? g?.file ?? g?.download_url);
+  }
+
+  if (versions.size === 0) return '';
+  return Array.from(versions).sort((a, b) => a - b).map(v => `v${v}`).join('_');
+}
+
+/**
  * Pivot window.prsResults (flat array of {userId, pgsId, PRS}) into
  * one object per user where each key is a pgsId and the value is PRS.
  * Returns null if no usable results exist.
@@ -84,7 +134,9 @@ function pivotPrsResults(rawResults) {
   for (const r of rawResults) {
     if (!r.userId || r.PRS == null || !Number.isFinite(r.PRS)) continue;
     if (!byUser.has(r.userId)) {
-      byUser.set(r.userId, { label: r.userName ?? r.userId });
+      const name = r.userName ?? r.userId;
+      const version = getUserVersionPrefix(r.userId);
+      byUser.set(r.userId, { label: version ? `${version} ${name}` : name });
     }
     byUser.get(r.userId)[r.pgsId] = r.PRS;
   }

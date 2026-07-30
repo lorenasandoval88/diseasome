@@ -5,7 +5,7 @@
 import localforage from "localforage";
 
 /**
- * Clear genome/23andMe cache (Genome:id-* keys only, not metadata)
+ * Clear genome/23andMe cache (Genome:23andMe-txt-* keys only, not metadata)
  */
 async function clearGenomeCache() {
     const keys = await localforage.keys();
@@ -81,11 +81,22 @@ window.inspect23File = async function(userId) {
     modal.show();
     
     try {
-        const cacheKey = `Genome:id-${userId}`;
+        // Genomes are cached by get23Txt / the upload handler under this key.
+        const cacheKey = `Genome:23andMe-txt-${userId}`;
         const cached = await localforage.getItem(cacheKey);
-        
+
         // SDK caches under .data, local caching uses .dt
-        const genomeData = cached?.data ?? cached;
+        let genomeData = cached?.data ?? cached;
+
+        // Fall back to already-parsed data held in memory (e.g. an uploaded file
+        // that was parsed this session).
+        if (!genomeData?.dt) {
+            const sameId = (id) => id === userId;
+            const loadedEntry = (window.loadedUsers ?? []).find(d => sameId(d?.user?.id ?? d?.user?.participant_id));
+            const selectedUser = (window.getSelectedUsers?.() ?? []).find(u => sameId(u?.id ?? u?.participant_id));
+            genomeData = loadedEntry?.parsed ?? selectedUser?._parsed ?? genomeData;
+        }
+
         if (genomeData && genomeData.dt) {
             window._inspectData = { data: genomeData, type: '23andMe', id: userId };
             renderInspectPage(0);

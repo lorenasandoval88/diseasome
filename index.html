@@ -395,6 +395,10 @@
                                     <p class="card-text text-muted small flex-grow-1">Upload your own raw 23andMe export file(s) directly from your device. Up to 5 files accepted.</p>
                                     <button id="my23Btn" class="btn btn-primary btn-sm mb-2">Upload Local 23andMe Files</button>
                                     <input type="file" id="my23FileInput" accept=".txt,.csv" multiple style="display: none;" />
+                                    <div id="my23Progress" class="progress mb-2" style="height:6px; display:none;">
+                                        <div id="my23ProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                            style="width:0%; transition:width .15s linear;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
                                     <div id="my23Status" class="small text-muted"></div>
                                     <p class="small text-muted mt-2 mb-2"><i class="fa fa-lock me-1"></i>Files are processed locally in your browser and are never uploaded to a server.</p>
                                     <button id="clearUploadedBtn" class="btn btn-outline-danger btn-sm mt-auto" style="display:none;font-size:0.7rem;padding:2px 6px;width:fit-content;" onclick="window.clearUploadedFiles && window.clearUploadedFiles()">Unselect Uploaded Files</button>

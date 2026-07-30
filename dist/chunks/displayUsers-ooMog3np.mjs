@@ -1,5 +1,9 @@
-import { get23Txt, parse23Txt, allUsersMetaDataByType_fast } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { allUsersMetaDataByType_fast, get23Txt, parse23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
+
 // console.log("displayUsers.js loaded")
 
 // Persistent reference to the selection status bar so it can be relocated below
@@ -8,6 +12,8 @@ let _participantsStickyBar = null;
 
 // Version label used for uploads whose filename carries no chip version.
 const UNKNOWN_VERSION_LABEL = 'unkn_v';
+// Mirrors the SDK's accepted upload naming rule (get23Txt throws for anything else).
+const SDK_SUPPORTED_VERSION_RE = /(^|[^a-z0-9])v(?:3|4|5)(?=[^a-z0-9]|$)/i;
 
 /**
  * Extract a human-readable full name from a genome filename.
@@ -484,7 +490,7 @@ function escapeHtml(value) {
  * @returns {string}
  */
 function sanitizeKey(value) {
-	return String(value ?? "")
+	return String(value)
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "_")
 		.replaceAll(/^_+|_+$/g, "");
@@ -1869,45 +1875,6 @@ const my23Btn = document.getElementById("my23Btn");
 const my23FileInput = document.getElementById("my23FileInput");
 const my23Status = document.getElementById("my23Status");
 
-/**
- * Drive the upload progress bar. Pass a 0-100 percentage, or null to hide it.
- * @param {number|null} percent
- */
-function setUploadProgress(percent) {
-	const wrap = document.getElementById("my23Progress");
-	const bar = document.getElementById("my23ProgressBar");
-	if (!wrap || !bar) return;
-	if (percent == null) {
-		wrap.style.display = "none";
-		bar.style.width = "0%";
-		bar.setAttribute("aria-valuenow", "0");
-		return;
-	}
-	const p = Math.max(0, Math.min(100, Math.round(percent)));
-	wrap.style.display = "";
-	bar.style.width = `${p}%`;
-	bar.setAttribute("aria-valuenow", String(p));
-}
-
-/**
- * Read a File as text while reporting read progress (0-1), so large genome files
- * show movement in the upload bar instead of freezing at 0%.
- * @param {File} file
- * @param {(fraction:number)=>void} onProgress
- * @returns {Promise<string>}
- */
-function readFileTextWithProgress(file, onProgress) {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onprogress = (e) => {
-			if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
-		};
-		reader.onload = () => { onProgress(1); resolve(String(reader.result ?? "")); };
-		reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-		reader.readAsText(file);
-	});
-}
-
 if (my23Btn && my23FileInput) {
 	// console.log("Setting up 23andMe file upload handler");
 	// Clicking the button triggers the hidden file input
@@ -1923,30 +1890,25 @@ if (my23Btn && my23FileInput) {
 		if (files.length === 0) return;
 
 		if (my23Status) my23Status.textContent = `Reading ${files.length} file(s)...`;
-		setUploadProgress(0);
 
 		const messages = [];
 
 		// (Selection table in the PRS tab is populated via renderSelectedUsersTable()
 		//  from updateGlobalSelectionCount(); no need to clear #prsUsersAction here.)
 
-		for (const [fileIdx, file] of files.entries()) {
-			// Each file owns an equal slice of the bar: reading fills 70% of it, parsing the rest.
-			const base = (fileIdx / files.length) * 100;
-			const span = 100 / files.length;
+		for (const file of files) {
 			try {
-				if (my23Status) my23Status.textContent = `Reading ${file.name} (${fileIdx + 1} of ${files.length})...`;
-				setUploadProgress(base);
-				const text = await readFileTextWithProgress(file, (frac) => setUploadProgress(base + span * frac * 0.7));
+				const text = await file.text();
 
-				// Chip version is informational only; files without a v3/v4/v5 marker are
-				// labelled "unkn_v" rather than rejected.
+				// The SDK's get23Txt() rejects uploads whose name lacks a v3/v4/v5 marker.
+				// Those files still parse fine, so fall back to parse23Txt() and label the
+				// chip version "unkn_v" instead of failing the upload.
 				const versionLabel = extractVersion({ fileName: file.name }) ?? UNKNOWN_VERSION_LABEL;
-				if (my23Status) my23Status.textContent = `Parsing ${file.name} (${fileIdx + 1} of ${files.length})...`;
-				setUploadProgress(base + span * 0.75);
-				let parsed = await parse23Txt(text, file.name);
+				let parsed = SDK_SUPPORTED_VERSION_RE.test(file.name)
+					? await get23Txt(file)
+					: await parse23Txt(text, file.name);
 				if (!parsed || !parsed.dt) {
-					throw new Error("parse23Txt did not return expected parsed data structure.");
+					throw new Error("get23Txt did not return expected parsed data structure.");
 				}
 				parsed = {
 					cols: parsed.cols || [],
@@ -1985,7 +1947,6 @@ if (my23Btn && my23FileInput) {
 				};
 
 				// Cache parsed genome data using the same key pattern as calculatePrs.js
-				setUploadProgress(base + span * 0.9);
 				try {
 					await localforage.setItem(`Genome:23andMe-txt-${userId}`, parsed);
 					console.log(`Cached uploaded genome for ${userId} (${parsed.dt.length} variants)`);
@@ -2004,14 +1965,10 @@ if (my23Btn && my23FileInput) {
 			} catch (err) {
 				console.error("Error reading 23andMe file:", err);
 				messages.push(`✗ ${file.name}: ${err.message}`);
-			} finally {
-				setUploadProgress(base + span);
 			}
 		}
 
 		if (my23Status) my23Status.innerHTML = messages.join('<br>');
-		setUploadProgress(100);
-		setTimeout(() => setUploadProgress(null), 800);
 
 		// Show fetch button if any files were successfully loaded
 		const fetchBtn = document.getElementById('fetchUsersBtn');
@@ -2304,3 +2261,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	onParticipantsModeChange: window.onParticipantsModeChange,
 	onPgsSelectionChange: window.onPgsSelectionChange,
 });
+//# sourceMappingURL=displayUsers-ooMog3np.mjs.map

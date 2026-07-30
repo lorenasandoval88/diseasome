@@ -37,7 +37,7 @@ async function ensurePgsModuleLoaded() {
 
 async function ensureLocalDataModuleLoaded() {
     if (!localDataModuleLoaded) {
-        await import('./chunks/displayUsers-Cegqf2P2.mjs');
+        await import('./chunks/displayUsers-Bhu055mo.mjs');
         localDataModuleLoaded = true;
     }
 }
@@ -4279,7 +4279,10 @@ async function loadExampleUsers() {
 	setProgressBar("users", statusEl, 0);
 
 	// Preserve existing loaded users; only add example users not already loaded (by id).
-	const existing = Array.isArray(loadedUsers) ? loadedUsers.slice() : [];
+	// getPrsLoadedEntries() also folds in uploads (and other selections) that arrived
+	// pre-parsed from the Genomic Data tab but were never pushed into loadedUsers,
+	// so they are counted as "previously loaded" instead of being reported as 0.
+	const existing = getPrsLoadedEntries();
 	const existingIds = new Set(existing.map(entry => entry?.user?.id).filter(Boolean));
 	const toLoad = EXAMPLE_USERS.filter(u => !existingIds.has(u.id));
 

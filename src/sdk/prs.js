@@ -121,6 +121,9 @@ function MatchOptimized(mypgs, my23) {
 
   let data2 = {};
   let dtMatch = [];
+  // Parallel to dtMatch: 'allele' when the genotype carries the effect or other allele,
+  // 'position' when only chr:pos lined up. Position-only entries always score 0 alleles.
+  let matchType = [];
 
   // Build a lookup index once: key = "chr:pos" -> all genome rows at that locus.
   const genomeIndex = new Map();
@@ -128,6 +131,7 @@ function MatchOptimized(mypgs, my23) {
   for (const row of my23.dt) {
     const key = `${row[ind23Chr]}:${row[ind23Pos]}`;
     if (!genomeIndex.has(key)) {
+      //console.log(`Adding new key to genomeIndex: ${key}`);
       genomeIndex.set(key, []);
     }
     genomeIndex.get(key).push(row);
@@ -138,18 +142,25 @@ function MatchOptimized(mypgs, my23) {
   for (let i = 0; i < pgsRowCount; i++) {
     const r = mypgs.dt[i];
     const key = `${r[indChr]}:${r[indPos]}`;
+    console.log(`Processing PGS row ${i} at locus ${key}:`, r);
     const locusRows = genomeIndex.get(key) || [];
+    console.log("locusRows = genomeIndex.get(key) || [];",locusRows)
     if (locusRows.length === 0) continue;
 
     const regexPattern = new RegExp([r[indEffectAllele], r[indOtherAllele]].join('|'));
-    const dtMatch_i = locusRows.filter(myr => regexPattern.test(myr[ind23Genotype]));
-
-    if (dtMatch_i.length > 0) {
-      dtMatch.push(dtMatch_i.concat([r]));
-    }
+    const alleleRows = locusRows.filter(myr => regexPattern.test(myr[ind23Genotype]));
+    // Keep position-only matches as well: the locus was genotyped, but the call carries
+    // neither the effect nor the other allele (strand flip, no-call "--", indel, third
+    // allele). Dropping them hid genotyped loci that legitimately contribute 0 alleles.
+    const isAlleleMatch = alleleRows.length > 0;
+    dtMatch.push((isAlleleMatch ? alleleRows : locusRows).concat([r]));
+    matchType.push(isAlleleMatch ? 'allele' : 'position');
   }
 
   data2.pgsMatchMy23 = dtMatch;
+  data2.matchType = matchType;
+  data2.alleleMatchCount = matchType.filter(t => t === 'allele').length;
+  data2.positionOnlyCount = matchType.length - data2.alleleMatchCount;
 
   let calcRiskScore = [];
   let alleles = [];

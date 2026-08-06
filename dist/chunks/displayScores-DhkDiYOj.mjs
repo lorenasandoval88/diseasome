@@ -1,6 +1,8 @@
-import { fetchAllScores, fetchSomeScores, getScoresPerTrait, getScoresPerCategory, fetchTraits, getPgsTxt } from "../sdk/pgsSdk.js";
-import { get23Txt } from "../sdk/pgpSdk.js";
-import localforage from "localforage";
+import { fetchTraits, fetchAllScores, getScoresPerTrait, getScoresPerCategory, getPgsTxt, fetchSomeScores } from 'https://lorenasandoval88.github.io/pgs_catalog_sdk/dist/sdk.mjs';
+import { get23Txt } from 'https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs';
+import { l as localforage } from '../app.mjs';
+import 'https://lorenasandoval88.github.io/clustjs/dist/sdk.mjs';
+import 'https://esm.run/@mlc-ai/web-llm';
 
 // Persistent reference to the PGS selection status bar so it can be relocated
 // below the search box on every re-render (innerHTML resets would detach it).
@@ -248,9 +250,46 @@ function updateGlobalSelectionCount() {
 		prsScoresDiv.textContent = `${selectedPgsIds.size} model(s) selected: ${scoreList}`;
 	}
 
-	// Re-render the PRS tab's models table through its single render path, so the
-	// selection here is merged with models loaded there instead of replacing them.
-	window.renderPrsScoresTable?.();
+	const prsScoresAction = document.getElementById("prsScoresAction");
+	if (prsScoresAction && selectedPgsIds.size > 0) {
+		const selectedArr = Array.from(selectedScoresMap.values());
+		const rows = selectedArr.map((score, idx) => {
+			const id = escapeHtml(score?.id ?? "");
+			const name = escapeHtml(score?.name ?? "");
+			const trait = escapeHtml(score?.trait_reported ?? "");
+			const variants = escapeHtml(score?.variants_number ?? "");
+			const date = escapeHtml(score?.date_release ?? "");
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${trait}</td>
+					<td>${variants}</td>
+					<td>${date}</td>
+				</tr>`;
+		}).join("");
+		prsScoresAction.innerHTML = `
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskModelsJson && window.downloadRiskModelsJson()">⬇ Download Models (JSON)</button>
+				<button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="window.downloadRiskModelsCsv && window.downloadRiskModelsCsv()">⬇ Download Models (CSV)</button>
+			</div>
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>PGS ID</th>
+						<th>Name</th>
+						<th>Trait</th>
+						<th>Variants #</th>
+						<th>Date</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
 }
 
 /** Check if a score passes the current variant filter. */
@@ -410,10 +449,10 @@ function getSelectionScores() {
 /** Render the score table for the current category/trait/variant selection. */
 function renderPgsFromSelection() {
 	const scores = getSelectionScores();
-	const catLabel = selectedCategories.size
+	selectedCategories.size
 		? `${selectedCategories.size} categor${selectedCategories.size === 1 ? "y" : "ies"}`
 		: "All categories";
-	const traitLabel = selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
+	selectedTraits.size ? ` · ${selectedTraits.size} trait(s)` : "";
 	const title = `PGS Catalog Scoring Files - ${scores.length} of ${totalAvailableScores}`;
 	const key = sanitizeKey(`sel_${Array.from(selectedCategories).join("_")}_${Array.from(selectedTraits).join("_")}`) || "sel";
 	renderPgsTable(scores, "scoresDiv", title, key);
@@ -837,7 +876,7 @@ function renderScores(value, type = "Trait") {
 		: `${type}: ${value} (${scores.length} scoring files)`;
 
 	renderPgsTable(scores, "scoresDiv", title, key);
-	renderActiveFilterChips(value, type);
+	renderActiveFilterChips();
 }
 
 /**
@@ -946,54 +985,6 @@ window.onPgsTraitChange = function onPgsTraitChange(selectedTrait) {
 	const title = `${match.id} - ${match.name ?? match.trait_reported ?? "PGS"}`;
 	renderPgsTable([match], "scoresDiv", title, sanitizeKey(pgsId));
 };
-
-
-// --- Helpers for dropdown management ---
-
-/** Default onchange handler for trait selection. */
-function setDefaultTraitOnChange(select) {
-	select.onchange = (e) => {
-		try { window.onPgsTraitChange(e.target.value); } catch (err) { console.error('onPgsTraitChange error', err); }
-	};
-}
-
-/** Build options HTML from a Map of name → scores[]. */
-function buildOptionsHtml(map, keys, allLabel, filteredCount) {
-	const allOption = `<option value="${ALL_VALUE}"> ${filteredCount} scoring files for all ${map.size} ${allLabel}</option>`;
-	const itemOptions = keys
-		.map((key) => {
-			const filtered = (map.get(key) ?? []).filter(passesVariantFilter);
-			return `<option value="${escapeHtml(key)}">${escapeHtml(key)} (${filtered.length})</option>`;
-		})
-		.join("");
-	return allOption + itemOptions;
-}
-
-/** Populate dropdown with traits and wire default handler. */
-function populateTraitDropdown(select) {
-	select.innerHTML = buildOptionsHtml(traitScoresMap, traits, "traits", getFilteredTraitScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Trait");
-	setDefaultTraitOnChange(select);
-}
-
-/** Populate dropdown with categories and wire category handler. */
-function populateCategoryDropdown(select) {
-	select.innerHTML = buildOptionsHtml(categoryScoresMap, categories, "categories", getFilteredCategoryScores().length);
-	select.value = ALL_VALUE;
-	renderScores(ALL_VALUE, "Category");
-
-	select.onchange = (e) => {
-		const val = e.target.value;
-		if (!val) return;
-		if (val === ALL_VALUE) {
-			setDefaultTraitOnChange(select);
-			renderScores(ALL_VALUE, "Category");
-			return;
-		}
-		renderScores(val, "Category");
-	};
-}
 
 // --- Initialize category + trait filters ---
 
@@ -1147,15 +1138,8 @@ async function fetchScoresTxts() {
 		// returning an array each; flatten into a single list of parsed scores)
 		//console.log(`Fetching ${selectedIds.length} PGS files:`, selectedIds);
 		const pgsTxts = (await Promise.all(selectedIds.map(id => getPgsTxt(id)))).flat();
-
-		// Merge into anything already loaded (e.g. example models loaded in the PRS tab)
-		// instead of replacing it, so fetching here does not silently drop them and force
-		// calculatePRS to re-fetch.
-		const prevTxts = Array.isArray(window.loadedPgsTxts) ? window.loadedPgsTxts : [];
-		const fetchedIds = new Set(pgsTxts.map(p => p?.id ?? p?.meta?.pgs_id).filter(Boolean));
-		window.loadedPgsTxts = prevTxts
-			.filter(p => !fetchedIds.has(p?.id ?? p?.meta?.pgs_id))
-			.concat(pgsTxts);
+		
+		window.loadedPgsTxts = pgsTxts;
 		console.log(`\n=== Results saved to window.loadedPgsTxts ===`);
 
 
@@ -1500,13 +1484,48 @@ window.compareSnpOverlap = compareSnpOverlap;
  */
 function updatePrsScoresDisplay(pgsTxts, selectedScores) {
 	const prsScoresDiv = document.getElementById("prsScoresDiv");
-
+	const prsScoresAction = document.getElementById("prsScoresAction");
+	
 	if (prsScoresDiv) {
 		prsScoresDiv.textContent = `Loaded ${pgsTxts.length} scoring file(s) from the Select Risk Models tab.`;
 	}
-
-	// The table itself is owned by calculatePrs.js so fetched and example models merge.
-	window.renderPrsScoresTable?.();
+	
+	if (prsScoresAction && pgsTxts.length > 0) {
+		const rows = pgsTxts.map((pgs, idx) => {
+			const id = escapeHtml(pgs?.id ?? pgs?.meta?.pgs_id ?? "");
+			const variantCount = pgs?.dt?.length ?? 0;
+			const score = selectedScores?.find(s => s.id === pgs.id) ?? {};
+			const name = escapeHtml(score?.name ?? "");
+			const trait = escapeHtml(score?.trait_reported ?? "");
+			const date = escapeHtml(score?.date_release ?? "");
+			return `
+				<tr>
+					<td>${idx + 1}</td>
+					<td><input type="checkbox" class="form-check-input prs-select-cb" value="${id}" checked /></td>
+					<td>${id}</td>
+					<td>${name}</td>
+					<td>${trait}</td>
+					<td>${variantCount.toLocaleString()}</td>
+					<td>${date}</td>
+				</tr>`;
+		}).join("");
+		
+		prsScoresAction.innerHTML = `
+			<table class="table table-striped table-sm mt-3">
+				<thead class="table-dark">
+					<tr>
+						<th>#</th>
+						<th>Select</th>
+						<th>PGS ID</th>
+						<th>Name</th>
+						<th>Trait</th>
+						<th>Variants</th>
+						<th>Date</th>
+					</tr>
+				</thead>
+				<tbody>${rows}</tbody>
+			</table>`;
+	}
 }
 
 window.updatePrsScoresDisplay = updatePrsScoresDisplay;
@@ -1651,3 +1670,4 @@ window.sdk = Object.assign(window.sdk ?? {}, {
 	fetchScoresTxts,
 	updatePrsScoresDisplay,
 });
+//# sourceMappingURL=displayScores-DhkDiYOj.mjs.map

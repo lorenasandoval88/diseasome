@@ -30,7 +30,7 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-CkfsFEWc.mjs');
+        await import('./chunks/displayScores-2JhIUiMI.mjs');
         pgsModuleLoaded = true;
     }
 }
@@ -140,6 +140,9 @@ function MatchOptimized(mypgs, my23) {
 
   let data2 = {};
   let dtMatch = [];
+  // Parallel to dtMatch: 'allele' when the genotype carries the effect or other allele,
+  // 'position' when only chr:pos lined up. Position-only entries always score 0 alleles.
+  let matchType = [];
 
   // Build a lookup index once: key = "chr:pos" -> all genome rows at that locus.
   const genomeIndex = new Map();
@@ -147,6 +150,7 @@ function MatchOptimized(mypgs, my23) {
   for (const row of my23.dt) {
     const key = `${row[ind23Chr]}:${row[ind23Pos]}`;
     if (!genomeIndex.has(key)) {
+      //console.log(`Adding new key to genomeIndex: ${key}`);
       genomeIndex.set(key, []);
     }
     genomeIndex.get(key).push(row);
@@ -157,18 +161,25 @@ function MatchOptimized(mypgs, my23) {
   for (let i = 0; i < pgsRowCount; i++) {
     const r = mypgs.dt[i];
     const key = `${r[indChr]}:${r[indPos]}`;
+    console.log(`Processing PGS row ${i} at locus ${key}:`, r);
     const locusRows = genomeIndex.get(key) || [];
+    console.log("locusRows = genomeIndex.get(key) || [];",locusRows);
     if (locusRows.length === 0) continue;
 
     const regexPattern = new RegExp([r[indEffectAllele], r[indOtherAllele]].join('|'));
-    const dtMatch_i = locusRows.filter(myr => regexPattern.test(myr[ind23Genotype]));
-
-    if (dtMatch_i.length > 0) {
-      dtMatch.push(dtMatch_i.concat([r]));
-    }
+    const alleleRows = locusRows.filter(myr => regexPattern.test(myr[ind23Genotype]));
+    // Keep position-only matches as well: the locus was genotyped, but the call carries
+    // neither the effect nor the other allele (strand flip, no-call "--", indel, third
+    // allele). Dropping them hid genotyped loci that legitimately contribute 0 alleles.
+    const isAlleleMatch = alleleRows.length > 0;
+    dtMatch.push((isAlleleMatch ? alleleRows : locusRows).concat([r]));
+    matchType.push(isAlleleMatch ? 'allele' : 'position');
   }
 
   data2.pgsMatchMy23 = dtMatch;
+  data2.matchType = matchType;
+  data2.alleleMatchCount = matchType.filter(t => t === 'allele').length;
+  data2.positionOnlyCount = matchType.length - data2.alleleMatchCount;
 
   let calcRiskScore = [];
   let alleles = [];
@@ -3982,6 +3993,40 @@ function getPrsLoadedScores() {
 	return scores;
 }
 
+/*** Every risk model that belongs in the PRS scores table: the Select Risk Models tab
+ * selection merged with models loaded here (examples / fetched). Deduplicated by id so
+ * neither source can drop the other.
+ * @returns {Object[]} Score metadata objects
+ */
+function getPrsDisplayScores() {
+	const merged = [];
+	const seen = new Set();
+	const add = (score) => {
+		const id = score?.id;
+		if (!id || seen.has(id)) return;
+		seen.add(id);
+		merged.push(score);
+	};
+	(window.getSelectedScores?.() ?? []).forEach(add);
+	getPrsLoadedScores().forEach(add);
+	return merged;
+}
+
+/*** Single render path for #prsScoresAction. Called by the Select Risk Models tab whenever
+ * the selection changes, and by fetchScores / loadExampleScores, so selected models and
+ * example models always appear together instead of overwriting each other. */
+function renderPrsScoresTable() {
+	const container = document.getElementById("prsScoresAction");
+	if (!container) return;
+	const scores = getPrsDisplayScores();
+	if (scores.length === 0) {
+		container.innerHTML = "";
+		return;
+	}
+	container.innerHTML = renderScoresTable(scores, window.loadedPgsTxts ?? []);
+}
+window.renderPrsScoresTable = renderPrsScoresTable;
+
 /*** Single render path for #prsUsersAction. Called by the Genomic Data tab whenever the
  * selection changes, and by fetchUsers / loadExampleUsers, so uploads, PGP participants
  * and example users always appear together instead of overwriting each other. */
@@ -4101,9 +4146,7 @@ async function fetchScores() {
 		setProgressBar("scores", statusEl, 100);
 
 		// Render table
-		if (resultsDiv) {
-			resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
-		}
+		renderPrsScoresTable();
 
 		console.log("fetchScores() loadedScores:", loadedScores);
 
@@ -4118,8 +4161,6 @@ async function fetchScores() {
 	}
 }
 window.fetchScores = fetchScores;
-
-
 
 
 
@@ -4241,7 +4282,6 @@ if (fetchUsersBtn) {
 async function loadExampleScores() {
 	console.log("loadExampleScores() called");
 	const statusEl = document.getElementById("prsScoresDiv");
-	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 	const loadStartMs = performance.now();
 	setProgressBar("scores", statusEl, 0);
@@ -4267,7 +4307,11 @@ async function loadExampleScores() {
 	const toLoad = Array.from(candidateMap.values());
 
 	if (toLoad.length === 0) {
-		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded.`;
+		// Everything is already loaded, but the table may currently be showing only the
+		// Select Risk Models tab's selection, so re-render it before returning.
+		loadedScores = existing;
+		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded (${existing.length} risk model(s) total).`;
+		renderPrsScoresTable();
 		setProgressBar("scores", statusEl, 100);
 		return;
 	}
@@ -4301,9 +4345,7 @@ async function loadExampleScores() {
 	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} newly loaded in ${elapsedSec}s.`;
 	setProgressBar("scores", statusEl, 100);
 
-	if (resultsDiv) {
-		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
-	}
+	renderPrsScoresTable();
 
 	console.log("Loaded example scores with parsed data:", loadedScores);
 
@@ -4623,7 +4665,6 @@ async function calculatePRS() {
 				pgsTxts.push(...added.map(a => a.parsed));
 			}
 		}
-
 		console.log("PGS txts for calculation:", pgsTxts);
 
 		// Run PRS calculation for each user x score combination

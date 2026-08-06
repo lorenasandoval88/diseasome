@@ -891,6 +891,40 @@ function getPrsLoadedScores() {
 	return scores;
 }
 
+/*** Every risk model that belongs in the PRS scores table: the Select Risk Models tab
+ * selection merged with models loaded here (examples / fetched). Deduplicated by id so
+ * neither source can drop the other.
+ * @returns {Object[]} Score metadata objects
+ */
+function getPrsDisplayScores() {
+	const merged = [];
+	const seen = new Set();
+	const add = (score) => {
+		const id = score?.id;
+		if (!id || seen.has(id)) return;
+		seen.add(id);
+		merged.push(score);
+	};
+	(window.getSelectedScores?.() ?? []).forEach(add);
+	getPrsLoadedScores().forEach(add);
+	return merged;
+}
+
+/*** Single render path for #prsScoresAction. Called by the Select Risk Models tab whenever
+ * the selection changes, and by fetchScores / loadExampleScores, so selected models and
+ * example models always appear together instead of overwriting each other. */
+function renderPrsScoresTable() {
+	const container = document.getElementById("prsScoresAction");
+	if (!container) return;
+	const scores = getPrsDisplayScores();
+	if (scores.length === 0) {
+		container.innerHTML = "";
+		return;
+	}
+	container.innerHTML = renderScoresTable(scores, window.loadedPgsTxts ?? []);
+}
+window.renderPrsScoresTable = renderPrsScoresTable;
+
 /*** Single render path for #prsUsersAction. Called by the Genomic Data tab whenever the
  * selection changes, and by fetchUsers / loadExampleUsers, so uploads, PGP participants
  * and example users always appear together instead of overwriting each other. */
@@ -1010,9 +1044,7 @@ async function fetchScores() {
 		setProgressBar("scores", statusEl, 100);
 
 		// Render table
-		if (resultsDiv) {
-			resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
-		}
+		renderPrsScoresTable();
 
 		console.log("fetchScores() loadedScores:", loadedScores);
 
@@ -1027,8 +1059,6 @@ async function fetchScores() {
 	}
 }
 window.fetchScores = fetchScores;
-
-
 
 
 
@@ -1150,7 +1180,6 @@ if (fetchUsersBtn) {
 async function loadExampleScores() {
 	console.log("loadExampleScores() called");
 	const statusEl = document.getElementById("prsScoresDiv");
-	const resultsDiv = document.getElementById("prsScoresAction");
 	const prsStatus = document.getElementById("prsResultsStatus");
 	const loadStartMs = performance.now();
 	setProgressBar("scores", statusEl, 0);
@@ -1176,7 +1205,11 @@ async function loadExampleScores() {
 	const toLoad = Array.from(candidateMap.values());
 
 	if (toLoad.length === 0) {
-		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded.`;
+		// Everything is already loaded, but the table may currently be showing only the
+		// Select Risk Models tab's selection, so re-render it before returning.
+		loadedScores = existing;
+		if (statusEl) statusEl.textContent = `All ${EXAMPLE_SCORES.length} example risk model(s) are already loaded (${existing.length} risk model(s) total).`;
+		renderPrsScoresTable();
 		setProgressBar("scores", statusEl, 100);
 		return;
 	}
@@ -1210,9 +1243,7 @@ async function loadExampleScores() {
 	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} newly loaded in ${elapsedSec}s.`;
 	setProgressBar("scores", statusEl, 100);
 
-	if (resultsDiv) {
-		resultsDiv.innerHTML = renderScoresTable(loadedScores, window.loadedPgsTxts);
-	}
+	renderPrsScoresTable();
 
 	console.log("Loaded example scores with parsed data:", loadedScores);
 
@@ -1532,7 +1563,6 @@ async function calculatePRS() {
 				pgsTxts.push(...added.map(a => a.parsed));
 			}
 		}
-
 		console.log("PGS txts for calculation:", pgsTxts);
 
 		// Run PRS calculation for each user x score combination

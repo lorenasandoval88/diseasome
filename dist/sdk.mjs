@@ -3003,9 +3003,9 @@ function MatchOptimized(mypgs, my23) {
   for (let i = 0; i < pgsRowCount; i++) {
     const r = mypgs.dt[i];
     const key = `${r[indChr]}:${r[indPos]}`;
-    console.log(`Processing PGS row ${i} at locus ${key}:`, r);
+    // console.log(`Processing PGS row ${i} at locus ${key}:`, r);
     const locusRows = genomeIndex.get(key) || [];
-    console.log("locusRows = genomeIndex.get(key) || [];",locusRows);
+    // console.log("locusRows = genomeIndex.get(key) || [];",locusRows)
     if (locusRows.length === 0) continue;
 
     const regexPattern = new RegExp([r[indEffectAllele], r[indOtherAllele]].join('|'));

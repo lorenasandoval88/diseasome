@@ -30,7 +30,7 @@ let localDataModuleLoaded = false;
 // the tab functionality.
 async function ensurePgsModuleLoaded() {
     if (!pgsModuleLoaded) {
-        await import('./chunks/displayScores-BlYjdeZg.mjs');
+        await import('./chunks/displayScores-COPDMC6B.mjs');
         pgsModuleLoaded = true;
     }
 }
@@ -3101,7 +3101,7 @@ console.log("calculatePrs.js loaded");
 // Calculate PRS for a given PGS and 23andMe genome data.
 //
 // Workflow (driven by buttons in the PRS tab):
-//   1. LOAD SCORES — fetchScores() (selected in the Polygenic Scores tab) or
+//   1. LOAD SCORES — fetchScores() (selected in the Select Risk Models tab) or
 //      loadExampleScores() (selection + EXAMPLE_SCORES). Both call
 //      loadScoresFromList(), which loads each PGS id one at a time via getPgsTxt()
 //      (fetch + parse + cache). Results populate loadedScores + window.loadedPgsTxts.
@@ -3948,7 +3948,7 @@ function getPrsLoadedEntries() {
 }
 
 /*** Score metadata for every risk model whose scoring file is already parsed — either
- * loaded here, or fetched from the Polygenic Scores tab into window.loadedPgsTxts.
+ * loaded here, or fetched from the Select Risk Models tab into window.loadedPgsTxts.
  * Mirrors getPrsLoadedEntries() for users: without this, a model fetched in tab 2 is
  * absent from loadedScores and gets reported as "0 already loaded" then re-fetched.
  * @returns {Object[]} Array of score metadata objects
@@ -4057,7 +4057,7 @@ async function fetchScores() {
 
 
 	try {
-		// Get selected scores from the Polygenic Scores tab (if available), defined in displayScores.js
+		// Get selected scores from the Select Risk Models tab (if available), defined in displayScores.js
 		const selectedScores = window.getSelectedScores?.() ?? [];
 		console.log(`fetchScores(): Selected scores from window.getSelectedScores():`, selectedScores);
 
@@ -4233,12 +4233,12 @@ async function loadExampleScores() {
 	setProgressBar("scores", statusEl, 0);
 
 	// Preserve existing loaded scores; only add scores not already loaded (by id).
-	// getPrsLoadedScores() also folds in models fetched from the Polygenic Scores tab,
+	// getPrsLoadedScores() also folds in models fetched from the Select Risk Models tab,
 	// so they count as "previously loaded" instead of being reported as 0 and re-fetched.
 	const existing = getPrsLoadedScores();
 	const existingIds = new Set(existing.map(s => s?.id).filter(Boolean));
 
-	// Include any risk models the user selected in the Polygenic Scores tab (tab 2),
+	// Include any risk models the user selected in the Select Risk Models tab (tab 2),
 	// so a pending selection is loaded alongside the example set instead of being ignored.
 	const selectedScores = (window.getSelectedScores?.() ?? []).filter(s => s?.id);
 	const selectedIdSet = new Set(selectedScores.map(s => s.id));
@@ -4581,12 +4581,12 @@ async function calculatePRS() {
 			scoresAction.innerHTML = renderScoresTable(selectedScoresList, window.loadedPgsTxts ?? []);
 		}
 
-		// Load PGS txt files (use pre-loaded from Polygenic Scores tab, or fetch)
+		// Load PGS txt files (use pre-loaded from Select Risk Models tab, or fetch)
 		if (statusEl) statusEl.textContent = `Calculating PRS....`;
 
 		let pgsTxts = [];
 
-		// Check if PGS files were pre-loaded in the Polygenic Scores tab
+		// Check if PGS files were pre-loaded in the Select Risk Models tab
 		const preloadedTxts = window.loadedPgsTxts ?? [];
 		if (preloadedTxts.length > 0) {
 			// Filter to only selected IDs
@@ -4594,7 +4594,7 @@ async function calculatePRS() {
 				const pgsId = pgs?.id ?? pgs?.meta?.pgs_id;
 				return selectedIds.includes(pgsId);
 			});
-			console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Polygenic Scores tab`);
+			console.log(`Using ${pgsTxts.length} pre-loaded PGS files from Select Risk Models tab`);
 		}
 
 		// If not enough pre-loaded files, fetch missing ones

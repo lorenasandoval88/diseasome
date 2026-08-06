@@ -856,6 +856,27 @@ function getPrsLoadedEntries() {
 	return entries;
 }
 
+/*** Score metadata for every risk model whose scoring file is already parsed — either
+ * loaded here, or fetched from the Polygenic Scores tab into window.loadedPgsTxts.
+ * Mirrors getPrsLoadedEntries() for users: without this, a model fetched in tab 2 is
+ * absent from loadedScores and gets reported as "0 already loaded" then re-fetched.
+ * @returns {Object[]} Array of score metadata objects
+ */
+function getPrsLoadedScores() {
+	const scores = Array.isArray(loadedScores) ? loadedScores.slice() : [];
+	const seen = new Set(scores.map(s => s?.id).filter(Boolean));
+	const metaById = new Map(
+		(window.getSelectedScores?.() ?? []).filter(s => s?.id).map(s => [s.id, s])
+	);
+	for (const txt of Array.isArray(window.loadedPgsTxts) ? window.loadedPgsTxts : []) {
+		const id = txt?.id ?? txt?.meta?.pgs_id;
+		if (!id || seen.has(id) || !(txt?.dt?.length > 0)) continue;
+		scores.push(metaById.get(id) ?? { id });
+		seen.add(id);
+	}
+	return scores;
+}
+
 /*** Single render path for #prsUsersAction. Called by the Genomic Data tab whenever the
  * selection changes, and by fetchUsers / loadExampleUsers, so uploads, PGP participants
  * and example users always appear together instead of overwriting each other. */
@@ -1121,7 +1142,9 @@ async function loadExampleScores() {
 	setProgressBar("scores", statusEl, 0);
 
 	// Preserve existing loaded scores; only add scores not already loaded (by id).
-	const existing = Array.isArray(loadedScores) ? loadedScores.slice() : [];
+	// getPrsLoadedScores() also folds in models fetched from the Polygenic Scores tab,
+	// so they count as "previously loaded" instead of being reported as 0 and re-fetched.
+	const existing = getPrsLoadedScores();
 	const existingIds = new Set(existing.map(s => s?.id).filter(Boolean));
 
 	// Include any risk models the user selected in the Polygenic Scores tab (tab 2),
@@ -1144,7 +1167,14 @@ async function loadExampleScores() {
 		return;
 	}
 
-	if (statusEl) statusEl.textContent = `Adding ${toLoad.length} example risk model(s) to ${existing.length} already loaded...`;
+	// Report selected and example models separately — a pending tab 2 selection is not an
+	// "example", so lumping them together mislabels what is about to be added.
+	const selectedCount = toLoad.filter(s => selectedIdSet.has(s.id)).length;
+	const exampleCount = toLoad.length - selectedCount;
+	const addingLabel = selectedCount > 0
+		? `${exampleCount} example + ${selectedCount} selected risk model(s)`
+		: `${exampleCount} example risk model(s)`;
+	if (statusEl) statusEl.textContent = `Adding ${addingLabel} to ${existing.length} already loaded...`;
 	if (prsStatus) prsStatus.textContent = "";
 
 	// Fetch and parse each score (getPgsTxt handles fetch, parse, and caching)
@@ -1163,7 +1193,7 @@ async function loadExampleScores() {
 	window.loadedPgsTxts = existingTxts.concat(addedTxts);
 
 	const elapsedSec = ((performance.now() - loadStartMs) / 1000).toFixed(2);
-	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} example in ${elapsedSec}s.`;
+	if (statusEl) statusEl.textContent = `Loaded ${loadedScores.length} risk model(s) total: ${existing.length} previously + ${added.length} newly loaded in ${elapsedSec}s.`;
 	setProgressBar("scores", statusEl, 100);
 
 	if (resultsDiv) {

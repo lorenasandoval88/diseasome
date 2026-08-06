@@ -565,8 +565,8 @@
                                         style="width:0%; transition:width .2s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="10"></div>
                                 </div>
                             </div>
-                            <button id="fetchUsersBtn" class="btn btn-danger btn-sm" style="display:none;"
-                                onclick="this.classList.remove('btn-danger'); this.classList.add('btn-secondary'); document.getElementById('nextToModelsBtn').style.display='';">Load Uploaded & Selected Files</button>
+                            <button id="fetchUsersBtn" class="btn btn-success btn-sm" style="display:none;"
+                                onclick="document.getElementById('nextToModelsBtn').style.display='';">Load File(s)</button>
                             <button class="btn btn-outline-primary btn-sm" id="nextToModelsBtn" style="display:none;" onclick="document.querySelector('.tablinks[onclick*=PGSCatalog]').click(); return false;">Next: Select Disease / Trait Models →</button>
                             <div id="loadedFilesCount" class="small text-muted" style="display:none;">Loaded Data: 0 / 10</div>
                         </div>

@@ -4609,11 +4609,10 @@ async function calculatePRS() {
 		}
 		console.log("userDataForCalc:", userDataForCalc);
 
-		//// GET SCORES: prefer dynamically selected scores, else loadedScores
-		const dynamicScores = window.getSelectedScores?.() ?? [];
-		let selectedScoresList = dynamicScores.length > 0 ? dynamicScores : loadedScores;
-		const usingExample = dynamicScores.length === 0 && loadedScores.length > 0;
-		console.log("Selected scores for PRS calculation:", selectedScoresList, usingExample ? "(example)" : "(selected)");
+		//// GET SCORES: everything shown in the PRS models table (Select Risk Models tab
+		//  selection + models loaded here), filtered to the rows whose checkbox is still checked.
+		let selectedScoresList = getPrsDisplayScores();
+		console.log("Scores available for PRS calculation:", selectedScoresList);
 
 		// Filter by checkboxes in the PRS scores table (mirrors .prs-user-select-cb behavior for users)
 		const checkedScoreIds = getCheckedIds(".prs-select-cb");
@@ -4629,13 +4628,10 @@ async function calculatePRS() {
 			return;
 		}
 
-		// Update scores table display
+		// Status only — the models table is owned by renderPrsScoresTable() and is left as
+		// rendered, so re-rendering here does not drop rows or reset the checkboxes.
 		const scoresDiv = document.getElementById("prsScoresDiv");
-		const scoresAction = document.getElementById("prsScoresAction");
-		if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} ${usingExample ? "example" : "selected"} scoring file(s).`;
-		if (scoresAction) {
-			scoresAction.innerHTML = renderScoresTable(selectedScoresList, window.loadedPgsTxts ?? []);
-		}
+		if (scoresDiv) scoresDiv.textContent = `Using ${selectedScoresList.length} scoring file(s).`;
 
 		// Load PGS txt files (use pre-loaded from Select Risk Models tab, or fetch)
 		if (statusEl) statusEl.textContent = `Calculating PRS....`;

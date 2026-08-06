@@ -257,7 +257,7 @@ function downloadRiskScoresCsv() {
 	const results = Array.isArray(window.prsResults) ? window.prsResults : [];
 	if (!results.length) { alert("No PRS results yet. Click \"Calculate PRS\" first."); return; }
 	const headers = [
-		"User ID", "Name", "PGS ID", "PRS Score", "Matched Alleles",
+		"Participant ID", "Name", "PGS ID", "PRS Score", "Matched Alleles",
 		"Zero Allele Count", "One Allele Count", "Two Allele Count",
 		"Total Variants", "Match Rate", "QC", "Source",
 	];
@@ -679,6 +679,20 @@ function escapeHtml(str) {
 	return div.innerHTML;
 }
 
+/** Max characters rendered in a PRS table cell before truncation. */
+const MAX_CELL_CHARS = 30;
+
+/*** Escape a value for a table cell, truncating past MAX_CELL_CHARS with an ellipsis.
+ * The untruncated value is kept in a title attribute so it stays readable on hover.
+ * @param {any} value - Cell value
+ * @returns {string} Escaped (and possibly truncated) HTML
+ */
+function truncCell(value) {
+	const text = String(value ?? "");
+	if (text.length <= MAX_CELL_CHARS) return escapeHtml(text);
+	return `<span title="${escapeHtml(text)}">${escapeHtml(text.slice(0, MAX_CELL_CHARS))}…</span>`;
+}
+
 /** Collect the values of all checked checkboxes matching a selector into a Set. */
 function getCheckedIds(selector) {
 	return new Set(Array.from(document.querySelectorAll(selector + ":checked")).map(cb => cb.value));
@@ -706,8 +720,8 @@ function resolveUserFilePath(user) {
 function renderScoresTable(scores, txts = []) {
 	const rows = scores.map((score, idx) => {
 		const id = escapeHtml(score?.id ?? "");
-		const name = escapeHtml(score?.name ?? "");
-		const trait = escapeHtml(score?.trait_reported ?? "");
+		const name = truncCell(score?.name);
+		const trait = truncCell(score?.trait_reported);
 		const variants = escapeHtml(score?.variants_number ?? "");
 		const date = escapeHtml(score?.date_release ?? "");
 		const loadedTxt = txts.find(t => (t?.id ?? t?.meta?.pgs_id) === score.id);
@@ -755,14 +769,14 @@ function renderScoresTable(scores, txts = []) {
 function renderUsersTable(users, loaded) {
 	const rows = users.map((user, idx) => {
 		const id = escapeHtml(user?.id ?? user?.participant_id ?? "");
-		const displayId = escapeHtml(user?.participant_id ?? user?.id ?? "");
+		const displayId = truncCell(user?.participant_id ?? user?.id ?? "");
 		const fileTag = (user?.participant_id != null && user?.id !== user?.participant_id && user?._fileIndex != null)
 			? ` <span class="badge bg-secondary rounded-pill">file ${user._fileIndex + 1}</span>`
 			: "";
-		const name = escapeHtml(user?.name ?? "");
-		const ethnicity = escapeHtml(user?.ethnicity ?? "");
-		const race = escapeHtml(user?.race ?? "");
-		const gender = escapeHtml(user?.gender ?? "");
+		const name = truncCell(user?.name);
+		const ethnicity = truncCell(user?.ethnicity);
+		const race = truncCell(user?.race);
+		const gender = truncCell(user?.gender);
 		const published = escapeHtml(user?.publishedDate ?? user?.published_date ?? user?.date ?? "");
 		const genos = user?.genotypes ?? [];
 		const filename = user?.fileName ?? user?.filename ?? genos?.[0]?.filename ?? "";
@@ -1260,8 +1274,8 @@ async function loadExampleUsers() {
 	const prsResultsDiv = document.getElementById("prsResultsDiv");
 	if (prsResultsDiv && loadedUsers.length > 0) {
 		const userRows = loadedUsers.map((d, idx) => {
-			const id = escapeHtml(d.user?.id ?? "");
-			const name = escapeHtml(d.user?.name ?? "");
+			const id = truncCell(d.user?.id ?? "");
+			const name = truncCell(d.user?.name);
 			const variants = d.parsed?.dt?.length ?? 0;
 			return `<tr><td>${idx + 1}</td><td>${id}</td><td>${name}</td><td>${variants.toLocaleString()}</td><td><span class="text-muted">Ready</span></td></tr>`;
 		}).join("");
@@ -1272,7 +1286,7 @@ async function loadExampleUsers() {
 				<thead class="table-dark">
 					<tr>
 						<th>#</th>
-						<th>User ID</th>
+						<th>Participant ID</th>
 						<th>Name</th>
 						<th>Variants</th>
 						<th>Status</th>
@@ -1568,8 +1582,8 @@ async function calculatePRS() {
 					return `
 					<tr${r.fromCache ? ' class="table-secondary"' : ''}>
 						<td>${idx + 1}</td>
-						<td>${escapeHtml(r.userId)}</td>
-						<td>${escapeHtml(r.userName ?? "")}</td>
+						<td>${truncCell(r.userId)}</td>
+						<td>${truncCell(r.userName)}</td>
 						<td>${escapeHtml(r.pgsId)}</td>
 						<td>${typeof r.PRS === 'number' ? r.PRS.toFixed(6) : (r.PRS ?? "-")}</td>
 						<td>${r.alleles?.length ?? 0}</td>
@@ -1593,7 +1607,7 @@ async function calculatePRS() {
 						<thead class="table-dark">
 							<tr>
 								<th>#</th>
-								<th>User ID</th>
+								<th>Participant ID</th>
 								<th>Name</th>
 								<th>PGS ID</th>
 								<th>PRS Score</th>

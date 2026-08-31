@@ -26,8 +26,8 @@ Toolkit functionalities
 - PGS Catalog Tab: Browse polygenic score models by trait/category, inspect model metadata, and select scores to analyze.
 - PRS Tab: Run score matching between genotype inputs and selected PGS models, then review comparative PRS outputs.
 - Cluster Tab: Interactively visualize and group samples/scores to identify similarity patterns and trait-level structure.
-- AI Interpretation â€“ Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
-- AI Interpretation â€“ Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
+- AI Interpretation – Score Insight: Convert PRS outputs into plain-language summaries with context and interpretation caveats.
+- AI Interpretation – Research Assistant: Generate follow-up insights, comparison prompts, and research-oriented notes from selected results.
 ---
 
 ## Quick Start
@@ -54,34 +54,42 @@ const sdk = await import("https://lorenasandoval88.github.io/polygenic_risk_scor
 ## Architecture
 
 ```
-polygenic_risk_scores/
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ app/           # Browser app entry and UI wiring
-â”‚   â”œâ”€â”€ sdk/           # Reusable SDK modules (PGP, PGS, PRS)
-â”‚   â””â”€â”€ css/           # App styles
-â”œâ”€â”€ data/              # Local 23andMe-compatible genome files
-â”œâ”€â”€ dist/              # Rollup build outputs
-â”‚   â”œâ”€â”€ sdk.mjs        # Browser SDK
-â”‚   â””â”€â”€ cloud_sdk.mjs  # Node-safe SDK
-â”œâ”€â”€ sdk.js             # Public SDK entrypoint
-â”œâ”€â”€ index.html         # Web interface
-â”œâ”€â”€ rollup.config.js   # Build configuration
-â”œâ”€â”€ package.json       # Project dependencies and scripts
-â””â”€â”€ README.md          # Documentation
+diseasome/
+├── src/
+│   ├── app/           # Browser app entry and UI wiring (one module per tab)
+│   ├── sdk/           # Reusable SDK modules (PGP, PGS, PRS, clustering)
+│   ├── cloud/         # Cloud Run service (Dockerfile + Express entry)
+│   └── css/           # App styles
+├── data/              # Local 23andMe-compatible genome and PGS files
+├── colab_notebooks/   # Supporting analysis notebooks
+├── dist/              # Rollup build outputs
+│   ├── sdk.mjs        # Browser SDK
+│   ├── cloud_sdk.mjs  # Node-safe SDK
+│   ├── app.mjs        # Bundled web app
+│   └── chunks/        # Lazy-loaded app chunks
+├── sdk.js             # Public SDK entrypoint
+├── dependencies.js    # Shared third-party imports
+├── index.html         # Web interface
+├── rollup.config.js   # Build configuration
+├── package.json       # Project dependencies and scripts
+└── README.md          # Documentation
 ```
 
-| Directory/File       | Purpose                                                  |
-| -------------------- | -------------------------------------------------------- |
-| **src/app/**         | Browser app entry and UI logic                           |
-| **src/sdk/**         | SDK modules for PGP, PGS, PRS                            |
-| **src/css/**         | Stylesheets                                              |
-| **data/**            | Local genome files                                       |
-| **dist/**            | Compiled SDK outputs (browser & node)                    |
-| **sdk.js**           | Public API entry point                                   |
-| **index.html**       | Web interface                                            |
-| **rollup.config.js** | Bundler configuration                                    |
-| **package.json**     | Project dependencies and scripts                         |
-| **README.md**        | Documentation                                            |
+| Directory/File       | Purpose                                                   |
+| -------------------- | --------------------------------------------------------- |
+| **src/app/**         | Browser app entry and UI logic                            |
+| **src/sdk/**         | SDK modules for PGP, PGS, PRS                             |
+| **src/cloud/**       | Cloud Run service for the AI interpretation tab           |
+| **src/css/**         | Stylesheets                                               |
+| **data/**            | Local genome and scoring files                            |
+| **colab_notebooks/** | Supporting analysis notebooks                             |
+| **dist/**            | Compiled outputs (browser SDK, node SDK, app bundle)      |
+| **sdk.js**           | Public API entry point                                    |
+| **dependencies.js**  | Shared third-party imports                                |
+| **index.html**       | Web interface                                             |
+| **rollup.config.js** | Bundler configuration                                     |
+| **package.json**     | Project dependencies and scripts                          |
+| **README.md**        | Documentation                                             |
 
 ---
 
